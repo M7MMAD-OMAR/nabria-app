@@ -1,0 +1,19 @@
+[Unit]
+# Hyprland does not read XDG autostart, so a .desktop file in ~/.config/autostart
+# would never fire. This unit is the Hyprland-side replacement.
+Description=Local voice dictation
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/R/Projects/P/dictate-app/scripts/run-fedora.sh daemon
+# SIGTERM is handled inside the daemon, which stops the whisper server and
+# releases its VRAM before exiting.
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=3
+Slice=app-graphical.slice
+
+[Install]
+WantedBy=graphical-session.target
