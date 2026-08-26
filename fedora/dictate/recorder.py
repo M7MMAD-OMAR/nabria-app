@@ -66,7 +66,8 @@ class Recorder:
 
     @property
     def seconds(self) -> float:
-        return self.total_frames / RATE
+        with self.lock:
+            return self.total_frames / RATE
 
     @property
     def rms_dbfs(self) -> float:

@@ -62,6 +62,14 @@ Every transcript is appended to `~/.local/share/dictate/history.jsonl` *before*
 it is typed. If injection fails the text goes to the clipboard and a
 notification says so. `dictate last` prints the most recent one.
 
+If transcription itself fails, the recording is kept in
+`~/.local/share/dictate/failed/` rather than deleted -- the audio is the one
+thing that cannot be produced again.
+
+A take being transcribed never blocks a new one. Press the key again while the
+previous one is still working and recording starts immediately; finished takes
+go through a single worker, so they are typed in the order they were spoken.
+
 ## Layout
 
 ```
@@ -85,6 +93,18 @@ fedora/dictate/
   `~/.config/gtk-4.0/gtk.css`, which loads at `PRIORITY_USER`. The orb's CSS
   registers above that or the window paints an opaque rectangle.
 - `Gtk.Application.run([])` skips `activate` entirely. Pass `sys.argv[:1]`.
+
+## Verified
+
+Real speech, `microphone_000160.wav` from a MeetingLive session, on the RTX 4070:
+
+| | transcript |
+|---|---|
+| without `vocabulary` | يعني لكل الكروت بس بالنموذجين A و B ما بدي اعدل على الموقع الاساسي ابدا |
+| with `vocabulary` | البروتوتيب يعني لكل الكروت بس بالنموذجين A و B ما بدي أعدل على الموقع الأساسي أبدا |
+
+The initial prompt recovered a word the plain run dropped and did not leak into
+the output. Mixed Arabic/Latin comes through as spoken.
 
 ## Not done yet
 
