@@ -27,6 +27,10 @@ SILENT_DBFS = -120.0
 # transcription and cutting it would risk clipping the first syllable -- but
 # they are left out of the level statistics the gate reads. Measured at 0.4 s
 # on this laptop's internal mic; the margin covers a slower device.
+#
+# Exactly this many frames are skipped, trimmed inside the chunk that crosses
+# the boundary. Dropping whole chunks instead would round up to 0.768 s, which
+# also raised the "too short to measure" cutoff well past what it claimed.
 LEVEL_WARMUP_FRAMES = int(0.6 * RATE)
 
 
@@ -135,14 +139,27 @@ class Recorder:
                     if not data:
                         break
                     sink.writeframes(data)
+                    frames = len(data) // 2
+                    live, _, _ = _levels(data)
                     with self.lock:
-                        warm = self.total_frames >= LEVEL_WARMUP_FRAMES
-                        self.total_frames += len(data) // 2
-                    if not warm:
+                        start = self.total_frames
+                        self.total_frames += frames
+                        # The live meter is never gated on the warm-up. The orb
+                        # reads this, and holding it at SILENT_DBFS through the
+                        # opening of a take would draw a healthy microphone
+                        # exactly like a dead one for the first three quarters
+                        # of a second -- which is when the user is watching to
+                        # see whether it heard them.
+                        self.peak_dbfs = live
+                    if start + frames <= LEVEL_WARMUP_FRAMES:
                         continue
+                    if start < LEVEL_WARMUP_FRAMES:
+                        # Trim within the chunk rather than dropping it whole:
+                        # chunks are 0.256 s, so discarding at chunk
+                        # granularity threw away 0.768 s, not the 0.6 s meant.
+                        data = data[(LEVEL_WARMUP_FRAMES - start) * 2 :]
                     level, count, energy = _levels(data)
                     with self.lock:
-                        self.peak_dbfs = level
                         self.max_peak_dbfs = max(self.max_peak_dbfs, level)
                         self.energy += energy
                         self.samples += count

@@ -106,7 +106,14 @@ class SettingsWindow(Gtk.ApplicationWindow):
         vocabulary = Gtk.Entry()
         vocabulary.set_hexpand(True)
         vocabulary.set_text(str(self.settings.get("vocabulary", "")))
-        vocabulary.connect("changed", self._on_vocabulary_changed)
+        # Committed when the edit is finished, not on "changed": that fires per
+        # keystroke, so typing one term rewrote the config file and tore the
+        # loaded model down once per character, and persisted the prompt in
+        # half-typed states along the way.
+        vocabulary.connect("activate", self._on_vocabulary_changed)
+        focus = Gtk.EventControllerFocus()
+        focus.connect("leave", lambda _c, entry=vocabulary: self._on_vocabulary_changed(entry))
+        vocabulary.add_controller(focus)
         box.append(_row("Vocabulary", vocabulary))
         box.append(
             _hint(
@@ -203,12 +210,26 @@ class SettingsWindow(Gtk.ApplicationWindow):
         index = combo.get_active()
         if not (0 <= index < len(self.source_ids)):
             return
-        try:
-            audio.set_default(self.source_ids[index])
-        except audio.AudioError as exc:
-            self.level_label.set_text(f"Could not switch input: {exc}")
-            return
-        self.level_label.set_text("Input switched. Test it to see the level.")
+        node_id = self.source_ids[index]
+        self.level_label.set_text("Switching input…")
+
+        # Off the main thread: set_default shells out to wpctl with a five
+        # second timeout, and a wedged PipeWire is exactly the fault this
+        # window exists to diagnose. Blocking here would freeze the window and
+        # the daemon's main loop -- the orb with it.
+        def work() -> None:
+            try:
+                audio.set_default(node_id)
+                text = "Input switched. Test it to see the level."
+            except audio.AudioError as exc:
+                text = f"Could not switch input: {exc}"
+            GLib.idle_add(self._set_level_text, text)
+
+        threading.Thread(target=work, daemon=True, name="dictate-set-source").start()
+
+    def _set_level_text(self, text: str) -> bool:
+        self.level_label.set_text(text)
+        return GLib.SOURCE_REMOVE
 
     def _on_keep_toggled(self, button: Gtk.CheckButton) -> None:
         self.on_change("keep_audio", button.get_active())

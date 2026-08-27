@@ -65,6 +65,7 @@ window's model picker.
 | `language` | `ar` | `auto` re-detects per 30s window and turns room noise into confident English |
 | `vocabulary` | Levantine + Latin terms | initial prompt; see *Prompt* below |
 | `keep_audio` | `false` | keep every take's WAV, not just the failed ones |
+| `silent_notice_after` | `3` | consecutive silent takes before saying the mic is not being heard; `0` never |
 | `silence_threshold_dbfs` | `-42` | RMS below this = nothing was said |
 | `max_seconds` | `0` | no limit; long takes are not cut |
 | `idle_unload_seconds` | `900` | release the model's VRAM when unused |

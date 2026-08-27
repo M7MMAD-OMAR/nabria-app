@@ -37,6 +37,8 @@ from .recorder import Recorder
 LEVEL_POLL_MS = 50
 FAILED_DIR = config.DATA_DIR / "failed"
 TAKES_DIR = config.DATA_DIR / "takes"
+# How long an engine reload waits for in-flight takes before going ahead anyway.
+RELOAD_DRAIN_SECONDS = 30.0
 
 
 def _default_source_name() -> str:
@@ -216,10 +218,23 @@ class Daemon:
 
         Killing it mid-request would fail whatever is being transcribed right
         then -- and changing the model is exactly when someone is most likely
-        to have just spoken. Waiting for the queue to drain costs nothing: the
-        settings window is not blocked, and the next take reloads either way.
+        to have just spoken.
+
+        Bounded, because `pending.join()` also waits for takes queued *after*
+        the change: someone who switches model and keeps dictating would never
+        drain the queue, and the old model would go on serving every take with
+        nothing to say it had not switched. Past the deadline the reload wins
+        and at worst one take fails, which is recoverable -- silently ignoring
+        the setting is not.
         """
-        self.pending.join()
+        deadline = time.monotonic() + RELOAD_DRAIN_SECONDS
+        while time.monotonic() < deadline:
+            with self.jobs_lock:
+                if self.jobs == 0:
+                    break
+            time.sleep(0.1)
+        else:
+            self.log("engine reload no longer waiting for the queue")
         self.whisper.stop()
 
     def _quit(self) -> bool:
@@ -361,8 +376,15 @@ class Daemon:
             text = self.whisper.transcribe(wav_path)
             elapsed = time.monotonic() - started
             # The recording is filed before the transcript is, so a history
-            # entry never names a WAV that is not there yet.
-            audio = self._retain(wav_path) if self.settings.get("keep_audio") else ""
+            # entry never names a WAV that is not there yet -- but only when
+            # there will be a row to name it. history.append drops empty
+            # transcripts, and a retained take nothing references is a file
+            # that can never be reached and that nothing prunes.
+            audio = (
+                self._retain(wav_path)
+                if text and self.settings.get("keep_audio")
+                else ""
+            )
             # On disk before it is typed: from here on nothing downstream can
             # lose the words. `dictate last` reads them back.
             history.append(text, recorder.seconds, elapsed, audio)
@@ -412,7 +434,15 @@ class Daemon:
         takes separates the two without guessing at levels: any successful take
         clears the count.
         """
-        after = int(self.settings.get("silent_notice_after", 3) or 0)
+        # Guarded: this runs inside the take's try block, so a hand-edited
+        # config holding "three" would raise, file the take into failed/ and
+        # report a transcription failure -- turning a typo into what looks
+        # like a broken transcriber.
+        try:
+            after = int(self.settings.get("silent_notice_after", 3) or 0)
+        except (TypeError, ValueError):
+            self.log("silent_notice_after is not a number, using 3")
+            after = 3
         self.silent_run += 1
         if not after or self.silent_run != after:
             return
@@ -433,8 +463,16 @@ class Daemon:
         """
         try:
             TAKES_DIR.mkdir(parents=True, exist_ok=True)
+            # Second resolution alone collides: a short take is transcribed in
+            # a few tenths, so two queued back to back land on one name and
+            # shutil.move overwrites the first without a word -- leaving the
+            # earlier history row pointing at the later take's audio.
             stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             kept = TAKES_DIR / f"{stamp}.wav"
+            suffix = 2
+            while kept.exists():
+                kept = TAKES_DIR / f"{stamp}-{suffix}.wav"
+                suffix += 1
             shutil.move(str(wav_path), kept)
             return str(kept)
         except OSError as exc:
