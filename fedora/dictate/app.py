@@ -208,8 +208,19 @@ class Daemon:
         # path the idle unload already uses.
         if key in {"model", "language", "vocabulary"}:
             threading.Thread(
-                target=self.whisper.stop, daemon=True, name="dictate-reload"
+                target=self._reload_engine, daemon=True, name="dictate-reload"
             ).start()
+
+    def _reload_engine(self) -> None:
+        """Drop the loaded server, but not out from under a take in flight.
+
+        Killing it mid-request would fail whatever is being transcribed right
+        then -- and changing the model is exactly when someone is most likely
+        to have just spoken. Waiting for the queue to drain costs nothing: the
+        settings window is not blocked, and the next take reloads either way.
+        """
+        self.pending.join()
+        self.whisper.stop()
 
     def _quit(self) -> bool:
         self.whisper.stop()
@@ -328,6 +339,15 @@ class Daemon:
                 raise RuntimeError(recorder.error)
             if recorder.total_frames == 0:
                 raise RuntimeError(f"no audio captured. {recorder.recent_stderr()}")
+
+            if not recorder.measured:
+                # Shorter than the level warm-up, so no level was ever taken.
+                # It is not silence and it is not evidence about the input --
+                # counting it as either would let a few stray double-presses
+                # accuse a perfectly healthy microphone.
+                self.log(f"take too short to measure ({recorder.seconds:.1f}s), skipped")
+                GLib.idle_add(self._done, "")
+                return
 
             threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
             if recorder.rms_dbfs <= threshold:

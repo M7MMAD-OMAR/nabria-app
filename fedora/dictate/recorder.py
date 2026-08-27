@@ -78,6 +78,18 @@ class Recorder:
             return self.total_frames / RATE
 
     @property
+    def measured(self) -> bool:
+        """Whether any audio outlived the warm-up and reached the statistics.
+
+        False means the take ended inside the device-open transient, so
+        `rms_dbfs` is the SILENT_DBFS placeholder rather than a measurement.
+        A caller that treats that as evidence about the microphone is reading
+        a number nobody took.
+        """
+        with self.lock:
+            return self.samples > 0
+
+    @property
     def rms_dbfs(self) -> float:
         """Average level over the whole take.
 
