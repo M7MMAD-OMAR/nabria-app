@@ -18,6 +18,7 @@ import queue
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -35,6 +36,24 @@ from .recorder import Recorder
 
 LEVEL_POLL_MS = 50
 FAILED_DIR = config.DATA_DIR / "failed"
+
+
+def _default_source_name() -> str:
+    """Description of the source pw-record captures from, for error messages."""
+    if not shutil.which("wpctl"):
+        return "the default input"
+    try:
+        result = subprocess.run(
+            ["wpctl", "inspect", "@DEFAULT_AUDIO_SOURCE@"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "the default input"
+    for line in result.stdout.splitlines():
+        key, _, value = line.strip().lstrip("* ").partition(" = ")
+        if key == "node.description":
+            return value.strip('"') or "the default input"
+    return "the default input"
 
 
 class Daemon:
@@ -266,6 +285,17 @@ class Daemon:
             threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
             if recorder.rms_dbfs <= threshold:
                 self.log(f"silent take ({recorder.rms_dbfs:.1f} dBFS RMS), skipped")
+                # Silence is indistinguishable from a dead microphone, and
+                # skipping without a word makes the whole tool look broken --
+                # the input source can be muted, pinned to a card profile with
+                # nothing wired to it, or belong to a transmitter that is off.
+                # Say which source was heard and how loud, so the next move is
+                # obvious.
+                notify.send(
+                    "Dictation heard nothing",
+                    f"{recorder.rms_dbfs:.0f} dBFS from {_default_source_name()} "
+                    f"(needs above {threshold:.0f}). Check the input device.",
+                )
                 GLib.idle_add(self._done, "")
                 return
 

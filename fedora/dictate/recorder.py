@@ -20,6 +20,14 @@ RATE = 16_000  # whisper resamples anything else, so feed it its native rate
 CHANNELS = 1
 CHUNK_BYTES = 8 * 1024
 SILENT_DBFS = -120.0
+# Opening the ALSA capture device pops: the first fraction of a second comes
+# back tens of dB above the room, loud enough on its own to carry a take of
+# pure silence past the RMS gate and hand whisper noise to hallucinate over.
+# Those frames are still written to the WAV -- the pop is harmless to
+# transcription and cutting it would risk clipping the first syllable -- but
+# they are left out of the level statistics the gate reads. Measured at 0.4 s
+# on this laptop's internal mic; the margin covers a slower device.
+LEVEL_WARMUP_FRAMES = int(0.6 * RATE)
 
 
 def _levels(data: bytes) -> tuple[float, int, float]:
@@ -115,13 +123,17 @@ class Recorder:
                     if not data:
                         break
                     sink.writeframes(data)
+                    with self.lock:
+                        warm = self.total_frames >= LEVEL_WARMUP_FRAMES
+                        self.total_frames += len(data) // 2
+                    if not warm:
+                        continue
                     level, count, energy = _levels(data)
                     with self.lock:
                         self.peak_dbfs = level
                         self.max_peak_dbfs = max(self.max_peak_dbfs, level)
                         self.energy += energy
                         self.samples += count
-                        self.total_frames += len(data) // 2
         except Exception as exc:  # noqa: BLE001 - surfaced in the orb, never raised into GTK
             with self.lock:
                 self.error = str(exc)
