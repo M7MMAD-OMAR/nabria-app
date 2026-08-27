@@ -40,10 +40,21 @@ scripts/install.sh
 systemctl --user enable --now dictate
 ```
 
-`install.sh` hard-links the whisper server and the model out of OpenWhispr's
-directories into `~/.local/libexec/dictate` and `~/.local/share/dictate/models`.
-Hard links, so the 1.6 GB is not duplicated and removing OpenWhispr cannot break
-dictation. Override the sources with `SERVER_SOURCE=` / `MODEL_SOURCE=`.
+`install.sh` hard-links a whisper.cpp server binary and a ggml model into
+`~/.local/libexec/dictate` and `~/.local/share/dictate/models`. It originally
+took them from an OpenWhispr install; that is gone now, so on a fresh machine
+point it at your own copies:
+
+```sh
+SERVER_SOURCE=/path/to/whisper-server \
+MODEL_SOURCE=/path/to/ggml-large-v3-turbo.bin \
+scripts/install.sh
+```
+
+Hard links, so a shared 1.6 GB model is not duplicated and removing whatever it
+came from cannot break dictation -- the file survives as long as this link does.
+Any `.bin` dropped into the model directory afterwards shows up in the settings
+window's model picker.
 
 ## Configuration
 

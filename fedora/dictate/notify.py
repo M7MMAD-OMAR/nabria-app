@@ -21,6 +21,11 @@ def send(summary: str, body: str = "", urgency: str = "normal") -> None:
         "--app-name", APP_NAME,
         "--urgency", urgency,
         "--icon", "audio-input-microphone",
+        # Everything after `--` is a positional argument. Without it notify-send
+        # reads any text starting with a dash as an option and silently drops
+        # the whole notification -- which is exactly what happened to the one
+        # that reports a level, because a level reads "-66 dBFS".
+        "--",
         summary,
     ]
     if body:
