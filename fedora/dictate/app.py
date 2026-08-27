@@ -68,6 +68,7 @@ class Daemon:
         self.application.connect("activate", self._on_activate)
         self.started = False
         self.orb: Orb | None = None
+        self.settings_window = None
 
         from .whisper import WhisperServer
 
@@ -159,10 +160,54 @@ class Daemon:
         if command in {"toggle", "start", "stop", "cancel"}:
             GLib.idle_add(self._handle, command)
             return "ok"
+        if command == "settings":
+            GLib.idle_add(self._show_settings)
+            return "ok"
         if command == "quit":
             GLib.idle_add(self._quit)
             return "ok"
         return f"unknown command: {command}"
+
+    # -- settings window ---------------------------------------------------
+
+    def _show_settings(self) -> bool:
+        window = getattr(self, "settings_window", None)
+        if window is not None and window.get_visible():
+            window.present()
+            return GLib.SOURCE_REMOVE
+        # Rebuilt each time rather than kept around: the model list, the input
+        # devices and the history are all read at construction, and every one
+        # of them can change while the window is closed.
+        from .settings_window import SettingsWindow
+
+        window = SettingsWindow(self.application, self.settings, self._apply_setting)
+        window.connect("close-request", self._on_settings_closed)
+        self.settings_window = window
+        window.present()
+        return GLib.SOURCE_REMOVE
+
+    def _on_settings_closed(self, _window) -> bool:
+        self.settings_window = None
+        return False  # let the window close
+
+    def _apply_setting(self, key: str, value: object) -> None:
+        """Live-edit one setting: memory first, disk second, server last."""
+        if self.settings.get(key) == value:
+            return
+        self.settings[key] = value
+        try:
+            config.save(self.settings)
+        except OSError as exc:
+            self.log(f"could not save config: {exc}")
+        self.log(f"setting {key} = {value!r}")
+        # model, language and vocabulary are all baked into the whisper server
+        # command line at startup, so the loaded server is now stale. Stopping
+        # it is enough -- the next take starts a fresh one, which is the same
+        # path the idle unload already uses.
+        if key in {"model", "language", "vocabulary"}:
+            threading.Thread(
+                target=self.whisper.stop, daemon=True, name="dictate-reload"
+            ).start()
 
     def _quit(self) -> bool:
         self.whisper.stop()

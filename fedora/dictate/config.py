@@ -88,6 +88,33 @@ def load() -> dict[str, Any]:
     return settings
 
 
+def save(settings: dict[str, Any]) -> None:
+    """Persist the whole settings dict, Arabic kept readable rather than escaped."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(
+        json.dumps(settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def models() -> list[Path]:
+    """Every model sitting in the model directory, largest last.
+
+    Scanned rather than hardcoded: dropping a `.bin` in there is how a new
+    model is offered, and a half-finished download leaves an `.aria2` or
+    `.part` beside it, which is what keeps it out of the list.
+    """
+    try:
+        found = sorted(MODEL_DIR.glob("*.bin"))
+    except OSError:
+        return []
+    return [
+        path
+        for path in found
+        if not path.with_suffix(path.suffix + ".aria2").exists()
+        and not path.with_suffix(path.suffix + ".part").exists()
+    ]
+
+
 def write_default_config() -> Path:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     if not CONFIG_PATH.exists():

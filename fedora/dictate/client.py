@@ -12,7 +12,7 @@ import sys
 
 from .config import SOCKET_PATH
 
-COMMANDS = ("toggle", "start", "stop", "cancel", "status", "last", "quit")
+COMMANDS = ("toggle", "start", "stop", "cancel", "status", "last", "settings", "quit")
 
 
 def send(command: str, timeout: float = 5.0) -> str:

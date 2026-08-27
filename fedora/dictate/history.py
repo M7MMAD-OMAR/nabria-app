@@ -41,6 +41,23 @@ def _trim() -> None:
     HISTORY_PATH.write_text("\n".join(lines[-KEEP_LINES:]) + "\n", encoding="utf-8")
 
 
+def recent(limit: int = 100) -> list[dict]:
+    """Newest first, malformed lines skipped rather than raised."""
+    try:
+        lines = HISTORY_PATH.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    records = []
+    for line in reversed(lines):
+        if len(records) >= limit:
+            break
+        try:
+            records.append(json.loads(line))
+        except ValueError:
+            continue
+    return records
+
+
 def last() -> str:
     try:
         lines = HISTORY_PATH.read_text(encoding="utf-8").splitlines()
