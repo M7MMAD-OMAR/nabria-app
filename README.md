@@ -13,13 +13,19 @@ dictate last        the last transcript, even if typing it failed
 
 ## The indicator
 
-A thin line under the centre of the screen. Recording draws a waveform scrolling
-right to left, built from the levels actually measured off the microphone -- so
-a dead input reads as a flat line instead of an indicator that looks the same
-either way. Transcribing sweeps a bright segment along a static line: different
-motion, not just a different colour. Done is a whole line, failed is a line
-broken in the middle -- shape, because a Material You palette can hand you an
-error colour and a primary colour that are the same salmon.
+A 76x30 pill under the centre of the screen holding five marks. Five marks
+carry every state, so it reads as one object changing rather than a series of
+different pictures.
+
+Recording rises and falls with the live level, tallest in the middle, eased at
+frame rate between the 50 ms samples so it tracks the voice instead of stepping.
+A dead input therefore sits as a flat row of dots rather than animating
+regardless -- the difference between an indicator and a decoration.
+Transcribing lifts each mark in turn: movement, not brightness, because at this
+size a brightness cycle read as the resting dots. Done and failed are still and
+differ by shape -- a whole line against one broken in the middle -- since a
+Material You palette can hand you an error and a primary that are the same
+salmon.
 
 ## Why not OpenWhispr
 
