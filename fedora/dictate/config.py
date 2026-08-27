@@ -78,7 +78,11 @@ DEFAULTS: dict[str, Any] = {
     # type. Costs you the clipboard on every dictation; buys you a paste when
     # the text lands in the wrong window.
     "always_copy": False,
-    # auto | wtype | ydotool | clipboard
+    # auto | paste | wtype | ydotool | clipboard
+    # auto tries paste first: wtype and ydotool type character by character, so
+    # a minute of speech crawls onto the screen one keystroke at a time, while
+    # a paste is one event whatever the length. The clipboard is borrowed for
+    # it and handed back a moment later.
     "inject": "auto",
     # bottom-right | bottom-left | top-right | top-left | bottom-center
     "orb_position": "bottom-right",

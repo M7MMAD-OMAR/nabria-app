@@ -78,7 +78,7 @@ window's model picker.
 | `prewarm` | `false` | load the model at login instead of on first use |
 | `always_copy` | `false` | clipboard on every take, not just failures |
 | `orb_position` | `bottom-center` | `orb_margin` sets the gap |
-| `inject` | `auto` | `wtype`, then `ydotool`, then clipboard |
+| `inject` | `auto` | `paste`, then `wtype`, then `ydotool`, then clipboard |
 
 `gpu_select` is applied to the whisper subprocess only. Vulkan takes physical
 device 0, which here is the Intel iGPU -- 2.5x slower than realtime on
@@ -144,6 +144,26 @@ into the transcript.
 
 Mixed Arabic/Latin comes through as spoken; that is what the Latin half of the
 prompt is for.
+
+## Delivery
+
+`wtype` and `ydotool` type the transcript one keystroke at a time. Measured on
+585 characters of mixed Arabic and English:
+
+| backend | |
+|---|---|
+| `wtype` | 2.59s |
+| `paste` | 0.02s |
+
+So `auto` pastes first: the text goes on the clipboard and one keystroke sends
+it, in constant time whatever the length. Ctrl+V, or Ctrl+Shift+V when the
+focused window's class is a terminal.
+
+The clipboard is borrowed, not taken. Its previous contents are captured *with
+their MIME type* and put back 1.5s later -- typed, because reading a copied
+image back as text and writing that back would replace it with mojibake. The
+restore stands down if anything was copied in the meantime, so a newer copy is
+never destroyed to return an older one.
 
 ## Judging a transcript
 
