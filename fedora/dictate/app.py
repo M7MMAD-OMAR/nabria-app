@@ -79,6 +79,7 @@ class Daemon:
         self.jobs = 0
         self.jobs_lock = threading.Lock()
         self.takes = 0
+        self.silent_run = 0
         self.level_source = 0
         self.deadline_source = 0
 
@@ -331,20 +332,12 @@ class Daemon:
             threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
             if recorder.rms_dbfs <= threshold:
                 self.log(f"silent take ({recorder.rms_dbfs:.1f} dBFS RMS), skipped")
-                # Silence is indistinguishable from a dead microphone, and
-                # skipping without a word makes the whole tool look broken --
-                # the input source can be muted, pinned to a card profile with
-                # nothing wired to it, or belong to a transmitter that is off.
-                # Say which source was heard and how loud, so the next move is
-                # obvious.
-                notify.send(
-                    "Dictation heard nothing",
-                    f"{recorder.rms_dbfs:.0f} dBFS from {_default_source_name()} "
-                    f"(needs above {threshold:.0f}). Check the input device.",
-                )
+                self._note_silent_take(recorder.rms_dbfs, threshold)
                 GLib.idle_add(self._done, "")
                 return
 
+            # Audio came through, so whatever the input is, it is working.
+            self.silent_run = 0
             text = self.whisper.transcribe(wav_path)
             elapsed = time.monotonic() - started
             # The recording is filed before the transcript is, so a history
@@ -385,6 +378,31 @@ class Daemon:
                 self.log(f"kept failed take at {kept}")
             else:
                 wav_path.unlink(missing_ok=True)
+
+    def _note_silent_take(self, level: float, threshold: float) -> None:
+        """Speak up about silence only once it stops looking like a choice.
+
+        One silent take is the ordinary case: the key gets pressed and then the
+        thought does not arrive. The indicator's flat line already says nothing
+        was heard, and a notification on top of that is noise the user cannot
+        turn off by behaving differently.
+
+        A microphone that is muted, unplugged, or pinned to an input with
+        nothing wired to it is silent *every* time. Counting consecutive silent
+        takes separates the two without guessing at levels: any successful take
+        clears the count.
+        """
+        after = int(self.settings.get("silent_notice_after", 3) or 0)
+        self.silent_run += 1
+        if not after or self.silent_run != after:
+            return
+        self.log(f"{self.silent_run} silent takes in a row, notifying")
+        notify.send(
+            "Dictation is not hearing the microphone",
+            f"{self.silent_run} takes in a row with nothing above "
+            f"{threshold:.0f} dBFS — the last was {level:.0f} dBFS from "
+            f"{_default_source_name()}. Check the input device.",
+        )
 
     def _retain(self, wav_path) -> str:
         """Move a transcribed take into takes/ and return its path.

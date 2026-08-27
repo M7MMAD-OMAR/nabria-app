@@ -58,6 +58,13 @@ DEFAULTS: dict[str, Any] = {
     # document. Raise it if silence still gets through, lower it if quiet
     # speech is being dropped.
     "silence_threshold_dbfs": -42.0,
+    # How many silent takes in a row before saying so out loud. Pressing the
+    # key and then deciding not to speak is ordinary and must stay quiet -- the
+    # indicator's own flat line already reports it, and a notification for that
+    # is pure noise. A microphone that is muted, unplugged or pinned to a dead
+    # input produces silence *every* time, which is what this actually catches.
+    # 0 disables the notification entirely.
+    "silent_notice_after": 3,
     # Keep every take's WAV instead of deleting it once transcribed. Off by
     # default because a day of dictation is a lot of audio, but it is the only
     # way to judge a transcript: without the recording there is nothing to
