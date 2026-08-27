@@ -15,7 +15,11 @@ and what was actually transcribed.
 
 from __future__ import annotations
 
+import contextlib
+import shutil
+import subprocess
 import threading
+from pathlib import Path
 from typing import Callable
 
 import gi
@@ -147,6 +151,19 @@ class SettingsWindow(Gtk.ApplicationWindow):
         button.set_halign(Gtk.Align.START)
         button.connect("clicked", self._on_test_clicked)
         box.append(button)
+        keep = Gtk.CheckButton(label="Keep the recording of every dictation")
+        keep.set_active(bool(self.settings.get("keep_audio")))
+        keep.connect("toggled", self._on_keep_toggled)
+        box.append(keep)
+        box.append(
+            _hint(
+                "Kept takes appear with a play button in History, which is the "
+                "only way to tell a misheard word from a badly spoken one. They "
+                "are never deleted automatically — a day of dictation is a lot "
+                "of audio."
+            )
+        )
+
         threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
         box.append(
             _hint(
@@ -192,6 +209,9 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self.level_label.set_text(f"Could not switch input: {exc}")
             return
         self.level_label.set_text("Input switched. Test it to see the level.")
+
+    def _on_keep_toggled(self, button: Gtk.CheckButton) -> None:
+        self.on_change("keep_audio", button.get_active())
 
     def _on_test_clicked(self, button: Gtk.Button) -> None:
         button.set_sensitive(False)
@@ -247,13 +267,26 @@ def _history_row(record: dict) -> Gtk.Widget:
     row.set_margin_start(6)
     row.set_margin_end(6)
 
+    header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     meta = Gtk.Label(xalign=0.0)
     meta.set_markup(
         f"<small>{GLib.markup_escape_text(str(record.get('at', '')))}"
         f"  ·  {record.get('seconds', 0)}s</small>"
     )
     meta.add_css_class("dim-label")
-    row.append(meta)
+    header.append(meta)
+
+    # Only offered when the file is still there: audio is kept per-setting and
+    # never cleaned up automatically, so old entries and deleted files are both
+    # normal and neither should produce a button that does nothing.
+    audio = str(record.get("audio", ""))
+    if audio and Path(audio).exists():
+        play = Gtk.Button(label="▶")
+        play.add_css_class("flat")
+        play.set_tooltip_text(audio)
+        play.connect("clicked", lambda _b, path=audio: _play(path))
+        header.append(play)
+    row.append(header)
 
     # No explicit direction: Pango resolves it from the text itself, which is
     # what makes an Arabic transcript read right-to-left and a Latin one
@@ -264,6 +297,20 @@ def _history_row(record: dict) -> Gtk.Widget:
     text.set_selectable(True)
     row.append(text)
     return row
+
+
+def _play(path: str) -> None:
+    """Play a kept take. Detached, so a slow player cannot stall the UI."""
+    player = shutil.which("pw-play") or shutil.which("paplay")
+    if not player:
+        return
+    with contextlib.suppress(OSError):
+        subprocess.Popen(
+            [player, path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
 
 
 # -- small builders --------------------------------------------------------

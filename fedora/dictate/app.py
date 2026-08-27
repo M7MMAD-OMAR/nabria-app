@@ -36,6 +36,7 @@ from .recorder import Recorder
 
 LEVEL_POLL_MS = 50
 FAILED_DIR = config.DATA_DIR / "failed"
+TAKES_DIR = config.DATA_DIR / "takes"
 
 
 def _default_source_name() -> str:
@@ -346,9 +347,12 @@ class Daemon:
 
             text = self.whisper.transcribe(wav_path)
             elapsed = time.monotonic() - started
+            # The recording is filed before the transcript is, so a history
+            # entry never names a WAV that is not there yet.
+            audio = self._retain(wav_path) if self.settings.get("keep_audio") else ""
             # On disk before it is typed: from here on nothing downstream can
             # lose the words. `dictate last` reads them back.
-            history.append(text, recorder.seconds, elapsed)
+            history.append(text, recorder.seconds, elapsed, audio)
             if text and self.settings.get("always_copy"):
                 inject.to_clipboard(text)
 
@@ -381,6 +385,24 @@ class Daemon:
                 self.log(f"kept failed take at {kept}")
             else:
                 wav_path.unlink(missing_ok=True)
+
+    def _retain(self, wav_path) -> str:
+        """Move a transcribed take into takes/ and return its path.
+
+        Copying rather than moving would leave the original to be deleted in
+        `finally` and double the write; moving it means the later unlink simply
+        finds nothing, which it already tolerates.
+        """
+        try:
+            TAKES_DIR.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            kept = TAKES_DIR / f"{stamp}.wav"
+            shutil.move(str(wav_path), kept)
+            return str(kept)
+        except OSError as exc:
+            # Losing the audio must never cost the transcript.
+            self.log(f"could not keep audio: {exc}")
+            return ""
 
     # -- orb state ---------------------------------------------------------
 

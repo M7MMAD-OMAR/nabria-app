@@ -16,7 +16,7 @@ HISTORY_PATH = DATA_DIR / "history.jsonl"
 KEEP_LINES = 2000
 
 
-def append(text: str, seconds: float, elapsed: float) -> None:
+def append(text: str, seconds: float, elapsed: float, audio: str = "") -> None:
     if not text:
         return
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -26,6 +26,8 @@ def append(text: str, seconds: float, elapsed: float) -> None:
         "elapsed": round(elapsed, 1),
         "text": text,
     }
+    if audio:
+        record["audio"] = audio
     with HISTORY_PATH.open("a", encoding="utf-8") as sink:
         sink.write(json.dumps(record, ensure_ascii=False) + "\n")
     _trim()

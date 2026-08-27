@@ -58,6 +58,12 @@ DEFAULTS: dict[str, Any] = {
     # document. Raise it if silence still gets through, lower it if quiet
     # speech is being dropped.
     "silence_threshold_dbfs": -42.0,
+    # Keep every take's WAV instead of deleting it once transcribed. Off by
+    # default because a day of dictation is a lot of audio, but it is the only
+    # way to judge a transcript: without the recording there is nothing to
+    # compare the words against, and nothing to feed a second model to decide
+    # whether a mistake belongs to the engine or to the microphone.
+    "keep_audio": False,
     # 0 means no limit. Whisper windows long audio internally, so a long
     # dictation is transcribed whole rather than cut off at a time limit.
     "max_seconds": 0,
