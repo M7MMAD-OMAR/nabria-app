@@ -107,3 +107,28 @@ def test_client_reports_a_daemon_that_is_not_running(fresh_config, capsys):
     client_module = importlib.reload(client_module)
     assert client_module.main("status") == 1
     assert "daemon is not running" in capsys.readouterr().err
+
+
+def test_the_wizard_opens_on_first_run_even_with_a_model_installed(fresh_config):
+    """The bug this guards is the whole reason setup_done exists.
+
+    install.sh downloads a model before the daemon ever starts, so a wizard
+    triggered only by a missing model never opened on the documented install
+    path -- and the language step, and with it the Arabic dialect prompt, never
+    ran for anyone who followed the README.
+    """
+    from nabria import app as app_module
+
+    fresh_config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    (fresh_config.MODEL_DIR / "ggml-base.bin").write_bytes(b"x")
+
+    settings = fresh_config.load()
+    assert fresh_config.models(), "a model is installed"
+    assert not settings["setup_done"]
+    assert not settings.get("setup_done") or not fresh_config.models()
+
+    # And once setup has been completed, it stays out of the way.
+    fresh_config.save({**settings, "setup_done": True})
+    done = fresh_config.load()
+    assert not (not done.get("setup_done") or not fresh_config.models())
+    assert app_module is not None

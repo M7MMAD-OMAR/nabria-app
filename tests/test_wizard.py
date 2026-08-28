@@ -130,3 +130,25 @@ def test_the_locale_preselects_arabic(application, fresh_config, monkeypatch):
 def test_every_preset_is_offered(application, fresh_config):
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     assert {code for code, _ in setup.languages} == set(fresh_config.LANGUAGE_PRESETS)
+
+
+def test_setup_is_marked_done_only_when_the_wizard_finishes(application, fresh_config):
+    settings = fresh_config.load()
+    assert settings["setup_done"] is False
+    setup = wizard.Wizard(application, settings, lambda: None)
+    setup._finish()
+    assert fresh_config.load()["setup_done"] is True
+
+
+def test_an_already_downloaded_model_skips_the_download_page(application, fresh_config):
+    # install.sh fetches the model before the daemon first starts, so this is
+    # the ordinary path rather than an edge case.
+    model = models.CATALOG["base"]
+    fresh_config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    (fresh_config.MODEL_DIR / model.filename).write_bytes(b"\0" * model.size)
+
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    for choice in setup.choices:
+        choice.radio.set_active(choice.model.key == "base")
+    setup._begin_download()
+    assert setup.stack.get_visible_child_name() == "microphone"

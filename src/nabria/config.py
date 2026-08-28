@@ -74,6 +74,13 @@ DEFAULTS: dict[str, Any] = {
     # actually say. Keep it short -- a long prompt starts leaking into the
     # transcript.
     "vocabulary": "",
+    # Set by the setup wizard when it finishes. The wizard used to open only
+    # when no model was installed, which meant it never opened at all on the
+    # documented path: install.sh downloads a model *before* the daemon first
+    # starts, so there was always one there. The language step never ran, and
+    # nobody choosing Arabic ever received the dialect prompt that is the whole
+    # reason Arabic works well here.
+    "setup_done": False,
     "threads": 8,
     # Which device the engine computes on.
     #   auto  a discrete GPU if there is one, otherwise the CPU

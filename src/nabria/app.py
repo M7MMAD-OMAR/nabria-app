@@ -130,12 +130,17 @@ class Daemon:
         if self.settings.get("prewarm"):
             threading.Thread(target=self._prewarm, daemon=True).start()
         self.log("daemon ready")
-        if not config.models():
-            # No model means nothing can be transcribed, so there is no sense
-            # in waiting for a keypress to say so. Keyed off what is on disk
-            # rather than a "first run" flag, which would leave the wizard
-            # marked done while the app stayed unusable -- and this way it is
-            # also the repair path when a model is deleted.
+        if not self.settings.get("setup_done") or not config.models():
+            # Two triggers, and both are needed.
+            #
+            # `setup_done` is the first-run one. Keying only off the model --
+            # as this did -- meant the wizard never ran on the documented path
+            # at all, because install.sh downloads a model before the daemon
+            # ever starts. The language step went with it.
+            #
+            # The missing-model trigger stays as the repair path: it cannot get
+            # stuck marked done while the app is unusable, which is exactly
+            # what a first-run flag on its own would do.
             GLib.idle_add(self._show_wizard)
 
     def _bind_portal_shortcuts(self) -> None:

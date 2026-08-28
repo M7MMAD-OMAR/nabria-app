@@ -81,9 +81,9 @@ So the wizard picks by hardware, not by taste: `large-v3-turbo` only where
 there is a discrete GPU, `base` otherwise. Turbo on a CPU is half realtime,
 which is not a slower experience but an unusable one.
 
-`config.DEFAULTS["model"]` still names turbo, which is the wrong default on
-most machines for anyone who skips the wizard. Resolve it at load time from
-what is actually in `MODEL_DIR`.
+`config.load()` falls back to the largest model actually present when the
+configured one is missing, so skipping the wizard cannot leave a machine
+pointed at a model it does not have.
 
 ## Phase 1b — packaging: **Flatpak is out**
 
@@ -106,9 +106,14 @@ implements it will behave the same way.
 Nabria is therefore a **host application**. Revised packaging, in priority
 order:
 
-1. **AppImage** — one file, download and run, *unsandboxed*, so the protocols
-   above are all available. This is the answer for a non-technical user.
-2. **Install script** (`curl … | sh`) — for people who use a terminal.
+1. **`scripts/install.sh`** — what actually ships today, and the only path
+   that has been tested. Verified in clean Fedora, Debian trixie and Ubuntu
+   24.04 containers. It needs `git`, `cmake` and a compiler, which is its
+   limitation.
+2. **AppImage** — *unproven*. Attractive because it is one unsandboxed file,
+   but bundling GTK4, PyGObject and the layer-shell typelib is a build-container
+   job that has not been attempted. Do not describe it as the plan until
+   something has actually been built.
 3. **Native packages** — COPR, AUR, `.deb`. Community can own these later.
 
 Do not spend time on a Flatpak. Say why in the README so nobody files it as an

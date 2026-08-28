@@ -400,6 +400,13 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _begin_download(self) -> None:
         model = self._selected_model()
+        if models.installed(config.MODEL_DIR, model):
+            # Already fetched, almost always by install.sh. Showing a download
+            # page that completes instantly reads as a glitch.
+            self.settings["model"] = str(config.MODEL_DIR / model.filename)
+            config.save(self.settings)
+            self.stack.set_visible_child_name("microphone")
+            return
         self.stack.set_visible_child_name("download")
         self.download_next.set_sensitive(False)
         self.download_retry.set_visible(False)
@@ -474,5 +481,7 @@ class Wizard(Gtk.ApplicationWindow):
         return GLib.SOURCE_REMOVE
 
     def _finish(self) -> None:
+        self.settings["setup_done"] = True
+        config.save(self.settings)
         self.close()
         self.on_finished()
