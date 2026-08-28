@@ -65,7 +65,14 @@ ok "layout is what bootstrap.sh expects"
 # five-minute source compile with "download failed" as the whole explanation.
 # shellcheck source=../engine/VERSION disable=SC1091
 source "$work/verify/engine/VERSION"
-if [ "$dry_run" = yes ] || gh release view "$ENGINE_RELEASE" >/dev/null 2>&1; then
+if ! command -v gh >/dev/null 2>&1; then
+  # Asked before the check that uses it, and reported as itself. A missing gh
+  # makes `gh release view` fail exactly like an unpublished engine does, and
+  # the message for that sends you to a script which would also fail on gh --
+  # for a release that is in fact published.
+  [ "$dry_run" = yes ] || { bad "gh is required to publish"; exit 1; }
+  warn "gh is not installed, so whether $ENGINE_RELEASE is published is unknown"
+elif gh release view "$ENGINE_RELEASE" >/dev/null 2>&1; then
   ok "engine $ENGINE_RELEASE is published"
 else
   bad "engine $ENGINE_RELEASE is not published — run scripts/release-engine.sh first"
@@ -79,7 +86,6 @@ if [ "$dry_run" = yes ]; then
 fi
 
 say "Publishing"
-command -v gh >/dev/null 2>&1 || { bad "gh is required to publish"; exit 1; }
 if gh release view "$tag" >/dev/null 2>&1; then
   ok "release $tag exists"
 else
