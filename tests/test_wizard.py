@@ -122,19 +122,14 @@ def test_the_locale_preselects_arabic(application, fresh_config, monkeypatch):
     `ui_language` is honoured here too, which the locale alone could not do.
     """
     monkeypatch.setenv("LANG", "ar_JO.UTF-8")
-    monkeypatch.delenv("LC_ALL", raising=False)
-    monkeypatch.delenv("LC_MESSAGES", raising=False)
-    try:
-        i18n.use("auto")
-        assert _preselected(application, fresh_config.load()) == ["ar"]
+    i18n.use("auto")
+    assert _preselected(application, fresh_config.load()) == ["ar"]
 
-        # An interface deliberately set to English preselects English, on the
-        # same Arabic desktop. Someone who asked for an English app is more
-        # likely to be dictating English than the locale is to be right.
-        i18n.use("en")
-        assert _preselected(application, fresh_config.load()) == ["en"]
-    finally:
-        i18n.use("en")
+    # An interface deliberately set to English preselects English, on the same
+    # Arabic desktop. Someone who asked for an English app is more likely to be
+    # dictating English than the locale is to be right.
+    i18n.use("en")
+    assert _preselected(application, fresh_config.load()) == ["en"]
 
 
 def test_every_preset_is_offered(application, fresh_config):

@@ -88,9 +88,9 @@ def test_ltr_isolates_both_ends():
 
 
 def test_resolve_reads_the_locale_only_when_asked(monkeypatch):
+    # The autouse `ui_language` fixture has already cleared LC_ALL and
+    # LC_MESSAGES, so setting LANG here is the whole of the environment.
     monkeypatch.setenv("LANG", "ar_SY.UTF-8")
-    monkeypatch.delenv("LC_ALL", raising=False)
-    monkeypatch.delenv("LC_MESSAGES", raising=False)
     assert i18n.resolve("auto") == "ar"
     # An explicit choice is not second-guessed by the locale.
     assert i18n.resolve("en") == "en"
@@ -99,20 +99,18 @@ def test_resolve_reads_the_locale_only_when_asked(monkeypatch):
 
 
 def test_selecting_a_language_changes_what_is_rendered():
-    try:
-        i18n.use("en")
-        assert i18n.t("wizard.done") == "Done"
-        assert not i18n.is_rtl()
-        assert i18n.start_align() == 0.0
+    # No try/finally: the autouse `ui_language` fixture puts the module global
+    # back, which is the whole reason it exists.
+    assert i18n.t("wizard.done") == "Done"
+    assert not i18n.is_rtl()
+    assert i18n.start_align() == 0.0
 
-        i18n.use("ar")
-        assert i18n.t("wizard.done") == "تم"
-        assert i18n.is_rtl()
-        # 1.0, not 0.0: GTK's xalign is absolute, so the left edge stays the
-        # left edge and Arabic pinned to it hugs the wrong side of its window.
-        assert i18n.start_align() == 1.0
-    finally:
-        i18n.use("en")
+    i18n.use("ar")
+    assert i18n.t("wizard.done") == "تم"
+    assert i18n.is_rtl()
+    # 1.0, not 0.0: GTK's xalign is absolute, so the left edge stays the left
+    # edge and Arabic pinned to it hugs the wrong side of its window.
+    assert i18n.start_align() == 1.0
 
 
 def test_the_dictation_prompt_is_not_translated():
@@ -126,3 +124,21 @@ def test_the_dictation_prompt_is_not_translated():
     assert config.LEVANTINE_PROMPT not in {
         text for entry in i18n.STRINGS.values() for text in entry.values()
     }
+
+
+def test_every_string_renders_in_both_languages():
+    """Catches a stray brace, which `t()` would otherwise raise on at the one
+    call site that uses that string -- often an error message nobody reaches
+    on purpose.
+
+    Each string is rendered with no fields at all, because `t()` fills a
+    missing one with its own placeholder rather than raising. What is under
+    test is the *format string*, not the call site.
+    """
+    for key, entry in i18n.STRINGS.items():
+        for language in entry:
+            i18n.use(language)
+            rendered = i18n.t(key)
+            assert "{{" not in rendered and "}}" not in rendered, (
+                f"{key} in {language} rendered its escaped braces literally"
+            )

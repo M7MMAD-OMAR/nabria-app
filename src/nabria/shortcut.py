@@ -51,20 +51,20 @@ def instructions() -> list[str]:
     where = detect()
     if where == "hyprland":
         return [
-            i18n.t("shortcut.hyprland"),
+            i18n.t("shortcut.hyprland", path=i18n.ltr("~/.config/hypr/hyprland.conf")),
             f"bind = CTRL ALT, Q, exec, {command(TOGGLE)}",
             f"bind = CTRL ALT SHIFT, Q, exec, {command(CANCEL)}",
             f"bind = CTRL ALT, W, exec, {command(SETTINGS)}",
         ]
     if where == "sway":
         return [
-            i18n.t("shortcut.sway"),
+            i18n.t("shortcut.sway", path=i18n.ltr("~/.config/sway/config")),
             f"bindsym Ctrl+Alt+q exec {command(TOGGLE)}",
             f"bindsym Ctrl+Alt+Shift+q exec {command(CANCEL)}",
         ]
     if where == "niri":
         return [
-            i18n.t("shortcut.niri"),
+            i18n.t("shortcut.niri", path=i18n.ltr("~/.config/niri/config.kdl")),
             f'Ctrl+Alt+Q {{ spawn "nabria" "{TOGGLE}"; }}',
             f'Ctrl+Alt+Shift+Q {{ spawn "nabria" "{CANCEL}"; }}',
         ]

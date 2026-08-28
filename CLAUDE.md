@@ -281,28 +281,27 @@ with `i18n.t(key)` as the widget is built. Nothing else holds text: the model
 catalogue and the language presets store *keys*, so a summary is written once
 per language rather than once per catalogue.
 
-Three rules that are invisible until Arabic is selected:
+Three rules that are invisible until Arabic is selected. **The reasoning is in
+`i18n.py`'s module docstring** — it is not repeated here, so that there is one
+copy to keep true:
 
-- **Isolate embedded Latin** — `i18n.ltr()` around anything from outside the
-  string table: paths, device names, engine errors, key names, and any number
-  carrying a sign or a unit. Without it the bidirectional algorithm reorders it
-  against the Arabic around it and "-42" renders as "42-". Setting the
-  paragraph direction does not fix this.
-- **Do not isolate bare digits.** They take their direction from the text
-  around them already; an isolate makes the number a neutral object and moves
-  it to the far side of its unit.
-- **`xalign=i18n.start_align()`, never `xalign=0`.** GTK's `xalign` is
-  absolute, so a hardcoded 0 pins Arabic to the left of its own window.
+- **`i18n.ltr()` around anything from outside the string table** — paths,
+  device names, engine errors, key names, and any number carrying a sign or a
+  unit. But **not bare digits**, which is the counter-intuitive half.
+- **`i18n.label()`, not `Gtk.Label`**, for anything with a start edge. It
+  defaults `xalign` correctly; a hardcoded `xalign=0` pins Arabic to the left
+  of its own window.
+- **Never isolate text a user will copy.** The isolate characters travel into
+  the clipboard, where they are invisible in an editor and fatal to whatever
+  parses the file they land in. Set the *widget's* direction instead —
+  `wizard._key_line` is the worked example.
 
-`Gtk.Widget.set_default_direction` is set once, in `Daemon.__init__`, before
-any window exists — and again in `_apply_setting` when the setting changes, so
-the next window opens in the new language.
+`i18n.apply()` selects the language and sets GTK's default direction together;
+nothing should do one without the other.
 
-`scripts/screenshots.py` captures the README's pictures in both languages from
-a profile created seconds earlier. Run it rather than staging shots by hand: a
-screenshot of the running daemon would put the author's microphone names,
-transcripts and vocabulary prompt in a public repository, and `git archive`
-would carry them into every release tarball.
+`scripts/screenshots.py` (and `scripts/capture.py`, the per-language half)
+regenerates the README's pictures. Run it rather than staging shots by hand —
+its docstring says why.
 
 ## Style
 

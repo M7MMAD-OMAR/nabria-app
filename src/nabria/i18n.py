@@ -70,6 +70,31 @@ def use(setting: str) -> str:
     return _current
 
 
+def apply(setting: str) -> str:
+    """`use()`, and set GTK's default text direction to match it.
+
+    The two always go together -- an Arabic interface laid out left to right is
+    a half-translated one -- and they were written out separately at each of
+    the three places that select a language, one of which set RTL and never
+    set it back.
+
+    GTK is imported here rather than at the top of the module because
+    `shortcut.py` imports this one, and `__main__.py` dispatches every control
+    command without ever importing GTK. That is what makes `nabria toggle`
+    cost a socket write instead of a toolkit.
+    """
+    import gi
+
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gtk
+
+    code = use(setting)
+    Gtk.Widget.set_default_direction(
+        Gtk.TextDirection.RTL if is_rtl() else Gtk.TextDirection.LTR
+    )
+    return code
+
+
 def current() -> str:
     return _current
 
@@ -90,6 +115,26 @@ def start_align() -> float:
     return 1.0 if is_rtl() else 0.0
 
 
+def label(text: str = "", **properties: object):
+    """A `Gtk.Label` that starts on the side the reader starts from.
+
+    The rule this exists for -- never `xalign=0` -- was enforced by memory
+    across fourteen call sites, and its failure mode is a *new* label written
+    the obvious way, which looks correct until Arabic is selected and then pins
+    a sentence to the wrong edge of its own window. A default is checkable; a
+    convention in a document is not.
+
+    GTK is imported inside, for the reason given on `apply()`.
+    """
+    import gi
+
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gtk
+
+    properties.setdefault("xalign", start_align())
+    return Gtk.Label(label=text, **properties)
+
+
 def t(key: str, **fields: object) -> str:
     """Look up a string and fill in its fields.
 
@@ -102,8 +147,20 @@ def t(key: str, **fields: object) -> str:
     entry = STRINGS.get(key)
     if entry is None:
         return key
-    text = entry.get(_current) or entry["en"]
-    return text.format(**fields) if fields else text
+    # `format_map`, always, and never a "no fields so skip it" branch. That
+    # branch is why `shortcut.niri` rendered its escaped `{{}}` literally: a
+    # string written for one path was taken down the other. `_Placeholders`
+    # makes a forgotten field render as `{path}` rather than raise inside the
+    # widget builder that was constructing a window.
+    #
+    # Both languages are guaranteed present by test_i18n, so this indexes
+    # rather than falling back.
+    return entry[_current].format_map(_Placeholders(fields))
+
+
+class _Placeholders(dict):
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
 
 
 # --------------------------------------------------------------------------
@@ -290,17 +347,23 @@ STRINGS: dict[str, dict[str, str]] = {
     # Only the sentence is translated. The lines under it are configuration
     # to be pasted verbatim, and translating a config key would be a bug that
     # looks like a translation.
+    # The path is a field rather than part of the sentence so that it can be
+    # isolated. Written into the Arabic directly it came out as
+    # ":config/hypr/hyprland.conf./~ أضف إلى" -- the slashes, the dot and the
+    # colon are all direction-neutral, so the bidirectional algorithm laid
+    # them out against the Arabic and produced a path that is wrong to read
+    # and wrong to type.
     "shortcut.hyprland": {
-        "en": "Add to ~/.config/hypr/hyprland.conf:",
-        "ar": "أضِف إلى ~/.config/hypr/hyprland.conf:",
+        "en": "Add to {path}:",
+        "ar": "أضِف إلى {path}:",
     },
     "shortcut.sway": {
-        "en": "Add to ~/.config/sway/config:",
-        "ar": "أضِف إلى ~/.config/sway/config:",
+        "en": "Add to {path}:",
+        "ar": "أضِف إلى {path}:",
     },
     "shortcut.niri": {
-        "en": "Add to ~/.config/niri/config.kdl, inside binds {{}}:",
-        "ar": "أضِف إلى ~/.config/niri/config.kdl، داخل binds {{}}:",
+        "en": "Add to {path}, inside binds {{}}:",
+        "ar": "أضِف إلى {path}، داخل binds {{}}:",
     },
     "shortcut.kde": {
         "en": "System Settings → Keyboard → Shortcuts → Add → Command",

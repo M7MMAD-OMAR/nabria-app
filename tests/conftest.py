@@ -9,6 +9,7 @@ user never executes.
 from __future__ import annotations
 
 import math
+import os
 import struct
 import sys
 import wave
@@ -18,6 +19,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+
+from nabria import i18n  # noqa: E402  -- after the path insert above
 
 
 def display_available() -> bool:
@@ -126,3 +129,30 @@ def models_dir(tmp_path):
     directory = tmp_path / "models"
     directory.mkdir()
     return directory
+
+
+@pytest.fixture(autouse=True)
+def ui_language():
+    """English, and no locale in the environment, for every test.
+
+    `i18n` keeps the selected language in a module global, the way GTK keeps
+    its default text direction -- so anything that calls `i18n.use()` leaks
+    into every test that runs after it. `Daemon()` calls it during
+    construction, resolving `auto` against whatever `LANG` the developer
+    happens to have, which made results depend on the machine and on test
+    order. `test_shortcut.py` passed only because the Arabic sentence also
+    ends with a colon.
+
+    Autouse, and the same argument as `fresh_config`: a leaked module global
+    means later tests quietly stop testing what they claim to, while the suite
+    stays green.
+    """
+    saved = {name: os.environ.get(name) for name in ("LC_ALL", "LC_MESSAGES", "LANG")}
+    for name in saved:
+        os.environ.pop(name, None)
+    i18n.use("en")
+    yield
+    for name, value in saved.items():
+        if value is not None:
+            os.environ[name] = value
+    i18n.use("en")

@@ -48,7 +48,7 @@ Worth recording, because it is the reverse of what people assume:
 | | |
 |---|---|
 | **GTK 4** | it runs on macOS through the Quartz backend, and it looks like a GTK application on a Mac, which is to say wrong. The wizard is the first thing a user sees. This is the same delivery problem as Windows plus an aesthetic one that Windows does not have |
-| **the container story** | none, exactly as on Windows. `check.sh --distros` has no macOS equivalent, and `macos-latest` on GitHub Actions has no audio input device and no interactive session |
+| **the container story** | none — the same gap as Windows, and stated once, in [WINDOWS.md](WINDOWS.md#the-risk-that-is-being-accepted). It will stop being true for both platforms at the same time or for neither |
 | **the clipboard borrow** | `inject.py` captures the previous clipboard contents with their MIME type and restores them 1.5 s later. `NSPasteboard` can do it, but its change-counter semantics are not the same as the "stand down if anything was copied meanwhile" rule the Linux side implements, and that rule exists so a newer copy is never destroyed |
 
 ## One command, and updates

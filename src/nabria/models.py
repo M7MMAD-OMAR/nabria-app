@@ -28,9 +28,8 @@ class Model(NamedTuple):
     size: int
     sha256: str
     # An i18n key, not a sentence -- render it with `i18n.t(model.summary)`.
-    # The catalogue is imported by the installer's checks and by the packaging
-    # tests, neither of which has a language selected, so holding the words
-    # here would mean choosing one before anyone had.
+    # An English sentence here was a user-interface decision sitting in a data
+    # catalogue without being labelled as one; this at least says so.
     summary: str
     needs_gpu: bool
 

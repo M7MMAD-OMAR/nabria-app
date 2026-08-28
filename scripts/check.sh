@@ -52,7 +52,11 @@ if [ "$want_tests" = yes ]; then
   fi
 
   step "Python"
-  if python3 -m compileall -q src tests > /dev/null; then
+  # scripts/ too, not just the application. The screenshot capture used to be
+  # 175 lines held in a string constant inside another script, which no checker
+  # could reach at all -- it is a real file now, and this is what makes that
+  # worth something.
+  if python3 -m compileall -q src tests scripts > /dev/null; then
     pass "everything parses"
   else
     fail "syntax"

@@ -40,10 +40,11 @@ LANGUAGES = [(code, preset["label"]) for code, preset in config.LANGUAGE_PRESETS
 # What the app itself is written in, which is not what you dictate in. `auto`
 # first, because following the desktop is the right answer for most people and
 # the only one that stays right when they change their desktop's language.
-UI_LANGUAGES = [
-    ("auto", "settings.ui_language.auto"),
-    ("en", "language.en.label"),
-    ("ar", "language.ar.label"),
+# Derived, not restated -- same rule as LANGUAGES above, and for the same
+# reason: a third language added to i18n and forgotten here would render
+# everywhere and be impossible to choose.
+UI_LANGUAGES = [("auto", "settings.ui_language.auto")] + [
+    (code, f"language.{code}.label") for code in i18n.LANGUAGES
 ]
 
 _BY_FILENAME = {model.filename: model for model in models.CATALOG.values()}
@@ -103,31 +104,15 @@ class SettingsWindow(Gtk.ApplicationWindow):
         box.append(_row(i18n.t("settings.model"), self.model_combo))
         box.append(_hint(i18n.t("settings.model.hint")))
 
-        self.language_combo = Gtk.ComboBoxText()
-        for _, label in LANGUAGES:
-            self.language_combo.append_text(i18n.t(label))
-        codes = [code for code, _ in LANGUAGES]
-        current_language = str(self.settings.get("language", "ar"))
-        self.language_combo.set_active(
-            codes.index(current_language) if current_language in codes else 0
-        )
-        self.language_combo.connect("changed", self._on_language_changed)
-        box.append(_row(i18n.t("settings.language"), self.language_combo))
+        box.append(_row(i18n.t("settings.language"),
+                        self._picker("language", LANGUAGES)))
 
-        # The interface's own language. It sits next to the dictation language
-        # on purpose -- the two are next to each other in the config file and
-        # in everyone's head, and the only way to show they are different
-        # settings is to show them together and label them apart.
-        self.ui_language_combo = Gtk.ComboBoxText()
-        for _, label in UI_LANGUAGES:
-            self.ui_language_combo.append_text(i18n.t(label))
-        ui_codes = [code for code, _ in UI_LANGUAGES]
-        current_ui = str(self.settings.get("ui_language", "auto"))
-        self.ui_language_combo.set_active(
-            ui_codes.index(current_ui) if current_ui in ui_codes else 0
-        )
-        self.ui_language_combo.connect("changed", self._on_ui_language_changed)
-        box.append(_row(i18n.t("settings.ui_language"), self.ui_language_combo))
+        # The interface's own language, next to the dictation language on
+        # purpose -- the two sit next to each other in the config file and in
+        # everyone's head, and the only way to show they are different settings
+        # is to show them together and label them apart.
+        box.append(_row(i18n.t("settings.ui_language"),
+                        self._picker("ui_language", UI_LANGUAGES)))
         box.append(_hint(i18n.t("settings.ui_language.hint")))
 
         vocabulary = Gtk.Entry()
@@ -145,20 +130,32 @@ class SettingsWindow(Gtk.ApplicationWindow):
         box.append(_hint(i18n.t("settings.vocabulary.hint")))
         return box
 
+    def _picker(self, setting: str, choices: list[tuple[str, str]]) -> Gtk.Widget:
+        """A combo box over `[(code, label_key)]` that writes `setting`.
+
+        Both language pickers were the same fourteen lines with two names
+        changed, down to the `index(current) if current in codes else 0`. The
+        next setting shaped like this would have been a third copy.
+        """
+        combo = Gtk.ComboBoxText()
+        codes = [code for code, _ in choices]
+        for _, label in choices:
+            combo.append_text(i18n.t(label))
+        current = str(self.settings.get(setting, ""))
+        combo.set_active(codes.index(current) if current in codes else 0)
+
+        def changed(widget: Gtk.ComboBoxText) -> None:
+            index = widget.get_active()
+            if 0 <= index < len(codes):
+                self.on_change(setting, codes[index])
+
+        combo.connect("changed", changed)
+        return combo
+
     def _on_model_changed(self, combo: Gtk.ComboBoxText) -> None:
         index = combo.get_active()
         if 0 <= index < len(self.model_paths):
             self.on_change("model", self.model_paths[index])
-
-    def _on_language_changed(self, combo: Gtk.ComboBoxText) -> None:
-        index = combo.get_active()
-        if 0 <= index < len(LANGUAGES):
-            self.on_change("language", LANGUAGES[index][0])
-
-    def _on_ui_language_changed(self, combo: Gtk.ComboBoxText) -> None:
-        index = combo.get_active()
-        if 0 <= index < len(UI_LANGUAGES):
-            self.on_change("ui_language", UI_LANGUAGES[index][0])
 
     def _on_vocabulary_changed(self, entry: Gtk.Entry) -> None:
         self.on_change("vocabulary", entry.get_text())
@@ -174,7 +171,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.source_combo.connect("changed", self._on_source_changed)
         box.append(_row(i18n.t("settings.input"), self.source_combo))
 
-        self.level_label = Gtk.Label(xalign=i18n.start_align())
+        self.level_label = i18n.label()
         self.level_label.set_wrap(True)
         self.level_label.set_text(i18n.t("settings.not_measured"))
         box.append(self.level_label)
@@ -310,7 +307,7 @@ def _history_row(record: dict) -> Gtk.Widget:
     row.set_margin_end(6)
 
     header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    meta = Gtk.Label(xalign=i18n.start_align())
+    meta = i18n.label()
     # The timestamp is isolated: it is a run of digits and punctuation, which
     # the bidirectional algorithm is free to rearrange against Arabic around
     # it, and a date that reads back wrong is worse than no date.
@@ -335,7 +332,7 @@ def _history_row(record: dict) -> Gtk.Widget:
     # No explicit direction: Pango resolves it from the text itself, which is
     # what makes an Arabic transcript read right-to-left and a Latin one
     # left-to-right in the same list without either being forced.
-    text = Gtk.Label(xalign=i18n.start_align(), label=str(record.get("text", "")))
+    text = i18n.label(str(record.get("text", "")))
     text.set_wrap(True)
     text.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
     text.set_selectable(True)
@@ -369,7 +366,7 @@ def _page() -> Gtk.Box:
 
 def _row(label: str, widget: Gtk.Widget) -> Gtk.Widget:
     box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-    caption = Gtk.Label(label=label, xalign=i18n.start_align())
+    caption = i18n.label(label)
     caption.set_size_request(90, -1)
     box.append(caption)
     widget.set_hexpand(True)
@@ -378,7 +375,7 @@ def _row(label: str, widget: Gtk.Widget) -> Gtk.Widget:
 
 
 def _hint(text: str) -> Gtk.Widget:
-    label = Gtk.Label(label=text, xalign=i18n.start_align())
+    label = i18n.label(text)
     label.set_wrap(True)
     label.add_css_class("dim-label")
     return label

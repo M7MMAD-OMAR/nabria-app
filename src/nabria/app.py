@@ -64,11 +64,8 @@ class Daemon:
         self.settings = config.load()
         # Before any window exists: every string in the wizard, the settings
         # window and the notifications is looked up at the moment the widget is
-        # built, so the language has to be chosen first. GTK's default
-        # direction is set with it -- an Arabic interface laid out
-        # left-to-right is a half-translated one.
-        if i18n.use(str(self.settings.get("ui_language", "auto"))) in i18n.RTL:
-            Gtk.Widget.set_default_direction(Gtk.TextDirection.RTL)
+        # built, so the language has to be chosen first.
+        i18n.apply(str(self.settings.get("ui_language", "auto")))
         config.STATE_DIR.mkdir(parents=True, exist_ok=True)
         self.log_file = config.LOG_PATH.open("a", encoding="utf-8", buffering=1)
 
@@ -278,10 +275,7 @@ class Daemon:
         # underneath the combo box that is still handling its own signal is a
         # crash waiting to happen, and the hint next to the picker says so.
         if key == "ui_language":
-            if i18n.use(str(value)) in i18n.RTL:
-                Gtk.Widget.set_default_direction(Gtk.TextDirection.RTL)
-            else:
-                Gtk.Widget.set_default_direction(Gtk.TextDirection.LTR)
+            i18n.apply(str(value))
         # model, language and vocabulary are all baked into the whisper server
         # command line at startup, so the loaded server is now stale. Stopping
         # it is enough -- the next take starts a fresh one, which is the same

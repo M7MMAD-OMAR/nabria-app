@@ -121,26 +121,26 @@ class Choice(Gtk.Box):
         column.set_hexpand(True)
 
         heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        title = Gtk.Label(label=name, xalign=i18n.start_align())
+        title = i18n.label(name)
         title.add_css_class("nabria-choice-name")
         heading.append(title)
         for text, style in ((trailing, "nabria-hint"), (badge, "nabria-good")):
             if not text:
                 continue
-            label = Gtk.Label(label=text, xalign=i18n.start_align())
+            label = i18n.label(text)
             label.add_css_class(style)
             label.add_css_class("nabria-hint")
             heading.append(label)
         column.append(heading)
 
         if summary:
-            body = Gtk.Label(label=summary, xalign=i18n.start_align(), wrap=True)
+            body = i18n.label(summary, wrap=True)
             body.add_css_class("nabria-lede")
             column.append(body)
 
         # Reserved for the thing that turns a preference into a mistake.
         if note:
-            warning = Gtk.Label(label=note, xalign=i18n.start_align(), wrap=True)
+            warning = i18n.label(note, wrap=True)
             warning.add_css_class("nabria-bad")
             warning.add_css_class("nabria-hint")
             column.append(warning)
@@ -152,6 +152,32 @@ class Choice(Gtk.Box):
             self.add_css_class("selected")
         else:
             self.remove_css_class("selected")
+
+
+def _key_line(text: str, *, pasteable: bool = False) -> Gtk.Widget:
+    """One boxed line on the shortcut page.
+
+    `pasteable` marks the configuration to be copied, and carries the two
+    things that make copying work:
+
+    The line is laid out left-to-right at the *widget*, not by wrapping the
+    text in isolate characters. Both fix the ordering an Arabic page would
+    otherwise impose on `bind = CTRL ALT, Q`; only this one keeps U+2068 out of
+    the clipboard, where it is invisible in the editor and fatal to the parser
+    reading the file it lands in.
+
+    And nothing here is focusable. A selectable label joins the focus chain, so
+    the page opened with whichever line came first already highlighted, as
+    though it had been chosen. Out of the chain, drag-to-select still works and
+    the highlight is gone.
+    """
+    label = i18n.label(text, wrap=True, selectable=pasteable)
+    label.set_can_focus(False)
+    if pasteable:
+        label.set_direction(Gtk.TextDirection.LTR)
+        label.set_xalign(0.0)
+    label.add_css_class("nabria-key")
+    return label
 
 
 def group(cards: list[Choice]) -> None:
@@ -190,11 +216,11 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _page(self, title: str, lede: str) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
-        heading = Gtk.Label(label=title, xalign=i18n.start_align())
+        heading = i18n.label(title)
         heading.add_css_class("nabria-title")
         page.append(heading)
         if lede:
-            subtitle = Gtk.Label(label=lede, xalign=i18n.start_align(), wrap=True)
+            subtitle = i18n.label(lede, wrap=True)
             subtitle.add_css_class("nabria-lede")
             page.append(subtitle)
         return page
@@ -224,10 +250,9 @@ class Wizard(Gtk.ApplicationWindow):
             i18n.t("wizard.language.title"), i18n.t("wizard.language.lede")
         )
 
-        # Preselect the language the interface itself came up in. That was
-        # resolved from the desktop's locale, so this is the same guess the
-        # locale used to be parsed for here -- and someone whose system is
-        # already in Arabic should not have to say so twice.
+        # Preselect the language the interface came up in: it was resolved
+        # from the desktop's locale, and someone whose system is already in
+        # Arabic should not have to say so twice.
         preferred = i18n.current()
 
         cards = []
@@ -298,7 +323,7 @@ class Wizard(Gtk.ApplicationWindow):
         page = self._page(i18n.t("wizard.downloading"), "")
         self.progress = Gtk.ProgressBar(show_text=True)
         page.append(self.progress)
-        self.download_note = Gtk.Label(label="", xalign=i18n.start_align(), wrap=True)
+        self.download_note = i18n.label("", wrap=True)
         self.download_note.add_css_class("nabria-hint")
         page.append(self.download_note)
 
@@ -316,7 +341,7 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _microphone_page(self) -> Gtk.Box:
         page = self._page(i18n.t("wizard.mic.title"), i18n.t("wizard.mic.lede"))
-        self.mic_result = Gtk.Label(label="", xalign=i18n.start_align(), wrap=True)
+        self.mic_result = i18n.label("", wrap=True)
         page.append(self.mic_result)
 
         test = Gtk.Button(label=i18n.t("wizard.mic.test"))
@@ -332,18 +357,12 @@ class Wizard(Gtk.ApplicationWindow):
         page = self._page(
             i18n.t("wizard.shortcut.title"), i18n.t("wizard.shortcut.lede")
         )
-        # Every line but the first is configuration to paste. Isolated, or an
-        # Arabic page reorders "bind = CTRL ALT, Q" into something that looks
-        # right and does not work when copied.
-        for index, line in enumerate(shortcut.instructions()):
-            # Only the lines to be copied are selectable. Making the sentence
-            # selectable too meant keyboard focus landed on it, so the page
-            # opened with its first line highlighted as if it had been chosen.
-            label = Gtk.Label(label=line if index == 0 else i18n.ltr(line),
-                              xalign=i18n.start_align(), wrap=True,
-                              selectable=index > 0)
-            label.add_css_class("nabria-key")
-            page.append(label)
+        # A sentence, then the lines to paste -- the shape `instructions()`
+        # documents, unpacked rather than rediscovered with index arithmetic.
+        sentence, *commands = shortcut.instructions()
+        page.append(_key_line(sentence))
+        for command in commands:
+            page.append(_key_line(command, pasteable=True))
 
         done = Gtk.Button(label=i18n.t("wizard.done"))
         done.add_css_class("suggested-action")

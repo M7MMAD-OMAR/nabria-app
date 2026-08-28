@@ -152,21 +152,37 @@ that cannot work.
 `.nojekyll` is not optional: Pages runs Jekyll on a branch source by default,
 which would try to render `docs/DESIGN.md` and `docs/SITE.md` as pages.
 
-## Open questions
+## Settled
 
-1. **A font, or the system stack?** The Arabic section is type-as-illustration
-   and the system stack renders it differently on every machine. One
-   self-hosted variable font, subset, is maybe 20 KB. Leaning yes, for that one
-   section.
-2. **An Arabic version of the page?** The product is Arabic-first and the page
-   has almost no words, so `/ar` with `dir="rtl"` is nearly free. Leaning yes.
-3. **A recording of it working?** The most convincing thing possible, and the
-   only thing on this page that would not be drawn. A silent, short screen
-   capture. Against the brief as written — ask before adding.
-4. **Motion.** Does anything animate besides the hero? Respect
-   `prefers-reduced-motion` either way.
+Three of the four open questions answered themselves once the application
+became bilingual and grew screenshots. Recorded here rather than asked again.
+
+1. **A self-hosted font, for the Arabic section.** One variable build, subset,
+   about 20 KB. The system stack renders that section differently on every
+   machine, and the section is type-as-illustration — the type *is* the
+   picture, so leaving it to the visitor's font list is leaving the
+   illustration to chance.
+2. **Yes to `/ar`.** The application is now written in Arabic and English
+   throughout; a page that is only in English would be describing a product it
+   is not itself an example of. `dir="rtl"` and the same drawn components —
+   the page has almost no words, which is exactly what makes the second
+   language nearly free.
+3. **Screenshots, not a screen recording.** The all-drawn brief and real
+   pictures of the application are in tension, and this resolves toward the
+   pictures: `docs/screenshots/` now holds six per language, generated from a
+   clean profile. So the page is drawn *around* real screenshots rather than
+   drawn instead of them. That is a change to the brief and is written down as
+   one. A recording stays out — it is the one thing that could not be checked
+   into the repository and re-generated.
+
+**Still open: motion.** Does anything animate besides the hero? The default,
+unless there is a reason otherwise, is to reuse the indicator's own five-mark
+envelope — the same shape the application draws — and to honour
+`prefers-reduced-motion`. Low stakes; ship it and react.
 
 ## Not on the page
 
-Named applications, of any kind. Model names and version numbers. Anything the
-repository cannot prove. A newsletter, a star count, a testimonial, a roadmap.
+Named applications, of any kind — this is a standing rule for everything
+outward-facing, not a preference for this page. Model names and version
+numbers. Anything the repository cannot prove. A newsletter, a star count, a
+testimonial, a roadmap.
