@@ -177,6 +177,18 @@ fi
 
 python3 -c 'from nabria import config; print("  config:", config.write_default_config())'
 
+# A desktop entry, so Nabria appears in application menus and so compositors
+# can tie its window to a name and an icon. Without one it is a command that
+# exists only if you already know it exists.
+applications_dir=$HOME/.local/share/applications
+mkdir -p "$applications_dir"
+sed "s#^Exec=nabria#Exec=$bin_dir/nabria#" \
+  "$project_dir/share/com.sbarah.Nabria.desktop" \
+  > "$applications_dir/com.sbarah.Nabria.desktop"
+command -v update-desktop-database >/dev/null 2>&1 &&
+  update-desktop-database "$applications_dir" 2>/dev/null || true
+ok "desktop entry installed"
+
 # -------------------------------------------------------------------- shortcut
 
 say "One thing left: the shortcut"

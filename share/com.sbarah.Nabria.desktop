@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Nabria
+GenericName=Voice dictation
+Comment=Press a key, speak, and the words appear where you were typing
+# Opens the settings window rather than starting a take. Launching a recording
+# from a menu makes no sense -- by the time the pointer has arrived the thought
+# has gone -- and this is also the only way in for anyone who has not yet bound
+# a key.
+Exec=nabria settings
+Icon=com.sbarah.Nabria
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=dictation;speech;voice;transcribe;whisper;إملاء;صوت;
+# Matches the Wayland app id the daemon registers, so compositors associate the
+# window with this entry -- and so the shortcuts portal can identify us.
+StartupWMClass=com.sbarah.Nabria
+SingleMainWindow=true
