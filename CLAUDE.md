@@ -20,7 +20,9 @@ scripts/check.sh                        # THE check: lint, tests, every distro
 scripts/check.sh --quick                # lint and tests only, seconds
 scripts/install.sh                      # deps, engine, model, unit, desktop entry
 scripts/bootstrap.sh                    # what `curl … | sh` runs: fetch a release, install it
-scripts/release.sh v0.2.1               # publish the app: tarball + installer
+scripts/package.sh                      # build nabria.rpm and nabria.deb in containers
+scripts/check.sh --packages             # install those packages in clean Fedora/Debian/Ubuntu
+scripts/release.sh v0.3.0               # publish: tarball, installer, rpm, deb
 scripts/release-engine.sh               # build the published engine (local, not CI)
 systemctl --user enable --now nabria    # autostart (Hyprland ignores XDG autostart)
 systemctl --user restart nabria         # REQUIRED after any config.json edit
@@ -204,6 +206,30 @@ required" under `nabria-control-probe.scope`.
 
 So **renaming the unit file breaks portal shortcuts**, quietly -- the daemon
 starts normally and the key simply never fires.
+
+### Distribution packages
+
+`packaging/layout.sh` is the **only** place the installed layout is written
+down; the spec's `%install`, the deb staging and the PKGBUILD's `package()` all
+call `stage_nabria`. Two formats that disagree about where a file goes is a bug
+found by one user on one distribution.
+
+`run.sh` serves both layouts — a checkout (`<project>/src`) and a package
+(`/usr/lib/nabria`) — and picks by looking for `src/nabria` next to itself.
+There is deliberately no second launcher for packages, because the `LD_PRELOAD`
+in it is the only thing between a working indicator and a silently degraded
+one, and a separate packaged launcher is exactly where it would get left out.
+
+**`gtk4-layer-shell` is a soft dependency in every format** — `Recommends`,
+`Recommends`, `optdepends`. Ubuntu 24.04 does not package it at all, so a hard
+dependency makes the `.deb` uninstallable there rather than degraded.
+`tests/test_packaging.py` asserts this for all three, since it is a one-word
+edit away and the consequence is invisible until an Ubuntu user tries.
+
+The engine is bundled (hence `x86_64`, not `noarch`) and verified against
+`engine/CHECKSUMS` before it goes in. The model is not, and stays a first-run
+download. `docs/PACKAGING.md` has the rest, including why there is no apt
+repository and no AppImage.
 
 ### Flatpak is impossible
 

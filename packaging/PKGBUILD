@@ -1,0 +1,44 @@
+# Maintainer: Nabria <noreply@github.com>
+#
+# For the AUR. Both sources are release assets, so this builds nothing and
+# needs no compiler -- the engine arrives already built; see
+# scripts/release-engine.sh.
+#
+# pkgver is checked against src/nabria/__init__.py by tests/test_packaging.py.
+
+pkgname=nabria
+pkgver=0.3.0
+pkgrel=1
+_engine=engine-v1.9.3-1
+pkgdesc="Local voice dictation for Wayland — press a key, speak, the words are typed"
+arch=('x86_64')
+url="https://github.com/M7MMAD-OMAR/nabria-app"
+license=('MIT')
+
+# pipewire-audio, not pipewire: pw-record lives in the former on Arch, and
+# depending on the wrong one gives an install that cannot record at all.
+# vulkan-icd-loader because the bundled engine links the loader even when it
+# ends up running on the CPU.
+depends=('python' 'python-gobject' 'python-cairo' 'gtk4'
+         'pipewire-audio' 'wl-clipboard' 'wtype' 'vulkan-icd-loader')
+
+# An optional dependency, not a hard one. Without it the indicator falls back
+# to an ordinary window that a fullscreen application can cover: worse, but
+# working, and not worth refusing to install over.
+optdepends=('gtk4-layer-shell: lets the indicator float above other windows')
+
+source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/nabria.tar.gz"
+        "whisper-server-$pkgver::$url/releases/download/$_engine/whisper-server-linux-x86_64")
+sha256sums=('dd5fd90ae0ea366b2f26e208b43262eaeaef45f20d4c18dda3f4c297c94eb308'
+            '81efb4c11e53f0225d8988e881f7563c86cef2fb4ed9f51e980b9a2dae66b927')
+
+package() {
+  cd "$srcdir/nabria"
+  # The same layout every other package format uses, so an Arch install and a
+  # Fedora install cannot end up different in a way only one user ever sees.
+  # shellcheck source=layout.sh disable=SC1091
+  . packaging/layout.sh
+  stage_nabria "$pkgdir" . "$srcdir/whisper-server-$pkgver"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

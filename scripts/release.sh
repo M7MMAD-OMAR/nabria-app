@@ -1,8 +1,8 @@
 #!/bin/bash
 # Publishes an application release: the source tarball and the one-line installer.
 #
-#   scripts/release.sh v0.2.0            build and publish
-#   scripts/release.sh v0.2.0 --dry-run  build only, and say what would happen
+#   scripts/release.sh v0.3.0            build and publish
+#   scripts/release.sh v0.3.0 --dry-run  build only, and say what would happen
 #
 # Separate from release-engine.sh, which publishes the compiled whisper.cpp
 # binary. That one happens when engine/VERSION changes, which is rarely; this
@@ -79,9 +79,19 @@ else
   exit 1
 fi
 
+# The packages are built by scripts/package.sh, deliberately as a separate step:
+# it runs two containers and takes minutes, and a release should not silently
+# rebuild them. But publishing without them would leave the README's dnf and
+# apt lines pointing at assets that are not there.
+for package in nabria.rpm nabria.deb; do
+  [ -f "$project_dir/dist/$package" ] ||
+    { bad "dist/$package is missing — run scripts/package.sh first"; exit 1; }
+done
+ok "packages present"
+
 if [ "$dry_run" = yes ]; then
   say "Dry run"
-  echo "  would publish $tag with nabria.tar.gz and install-nabria.sh"
+  echo "  would publish $tag with the tarball, the installer, nabria.rpm and nabria.deb"
   exit 0
 fi
 
@@ -97,8 +107,31 @@ fi
 # same line covers both branches: releases/latest/download/... is the URL in
 # the install command, and GitHub decides "latest" by publish date otherwise.
 gh release edit "$tag" --latest >/dev/null
-gh release upload "$tag" "$tarball" "$installer" --clobber
+gh release upload "$tag" "$tarball" "$installer" "$project_dir"/dist/nabria.rpm \
+  "$project_dir"/dist/nabria.deb --clobber
 ok "assets uploaded"
 
+# The AUR PKGBUILD names the checksum of the tarball it downloads, which cannot
+# be known until that tarball is published -- so its sums are always one release
+# behind until this runs. Rewritten here rather than left to be remembered,
+# because the failure is a `yay -S nabria` that aborts on a hash mismatch and
+# nothing on this side that ever says so.
+tarball_sum=$(sha256sum "$tarball" | cut -d\  -f1)
+engine_sum=$(awk 'NR==1 {print $1}' "$project_dir/engine/CHECKSUMS")
+printf "sha256sums=('%s'\n            '%s')\n" "$tarball_sum" "$engine_sum" > "$work/sums"
+python3 - "$project_dir/packaging/PKGBUILD" "$work/sums" <<'PY'
+import re, sys
+path, sums = sys.argv[1], sys.argv[2]
+text = open(path, encoding="utf-8").read()
+replaced = re.sub(r"sha256sums=\([^)]*\)\n", open(sums, encoding="utf-8").read(), text)
+open(path, "w", encoding="utf-8").write(replaced)
+PY
+if git diff --quiet -- "$project_dir/packaging/PKGBUILD"; then
+  ok "PKGBUILD checksums already correct"
+else
+  warn "PKGBUILD checksums updated for $tag — commit packaging/PKGBUILD"
+fi
+
 echo
+echo "  sudo dnf install https://github.com/$NABRIA_REPO/releases/latest/download/nabria.rpm"
 echo "  curl -fsSL https://github.com/$NABRIA_REPO/releases/latest/download/install-nabria.sh | sh"

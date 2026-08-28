@@ -20,6 +20,10 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 DATA_DIR = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "nabria"
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "nabria"
 LIBEXEC_DIR = Path.home() / ".local/libexec/nabria"
+# Where a distribution package puts the engine. Searched only after the user's
+# own copy, so anyone who dropped a newer build into ~/.local keeps it instead
+# of being quietly reverted by a package upgrade.
+SYSTEM_LIBEXEC_DIR = Path("/usr/libexec/nabria")
 MODEL_DIR = DATA_DIR / "models"
 LOG_PATH = STATE_DIR / "nabria.log"
 
@@ -158,6 +162,16 @@ def load() -> dict[str, Any]:
         pass
     for key in ("server_binary", "model"):
         settings[key] = str(Path(settings[key]).expanduser())
+
+    # The two install paths put the engine in different places -- ~/.local for
+    # the script, /usr for a package -- and the config records whichever was
+    # there when it was written. Someone who installed the package after having
+    # used the installer would otherwise be left pointing at a path that no
+    # longer exists, with "the engine did not start" as the only symptom.
+    if not Path(settings["server_binary"]).exists():
+        packaged = SYSTEM_LIBEXEC_DIR / "whisper-server"
+        if packaged.exists():
+            settings["server_binary"] = str(packaged)
 
     # The default names large-v3-turbo, which is the right model only where
     # there is a discrete GPU -- on a CPU it runs at half realtime. Rather than

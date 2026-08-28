@@ -14,23 +14,57 @@ other 90-odd languages Whisper knows work too.
 
 ## Install
 
-Linux, Wayland.
+Linux, Wayland. Take whichever line matches your system — each of them installs
+the same thing, including the transcription engine.
+
+**Fedora, and anything using `dnf`**
+
+```sh
+sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm
+```
+
+**Debian, Ubuntu, and anything using `apt`**
+
+```sh
+wget https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.deb && sudo apt install ./nabria.deb
+```
+
+**Arch** — [`nabria`](https://aur.archlinux.org/packages/nabria) in the AUR:
+
+```sh
+yay -S nabria
+```
+
+**Anything else**
 
 ```sh
 curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh
+```
+
+Then, whichever you used:
+
+```sh
 systemctl --user enable --now nabria
 ```
 
-If you would rather read it first — and you should, for anything that arrives
-down a pipe — it is [`scripts/bootstrap.sh`](scripts/bootstrap.sh): it fetches
-the release tarball, unpacks it to `~/.local/share/nabria/app`, and runs the
-installer from there. The same thing by hand:
+The first launch downloads the transcription model — a few hundred megabytes,
+chosen to suit your hardware. That is the only download left after installing;
+the engine itself is in the package.
+
+The packages are the better path if one exists for your system, because updates
+then arrive the way every other update on your machine does — through `dnf
+upgrade`, `apt upgrade`, or whatever your desktop already uses to tell you
+there is something new. Nothing in Nabria phones home to check.
+
+The `curl` line is [`scripts/bootstrap.sh`](scripts/bootstrap.sh), and you
+should read anything that arrives down a pipe before running it: it fetches the
+release tarball, unpacks it to `~/.local/share/nabria/app`, and runs the
+installer from there. Re-run it to update. The same thing by hand:
 
 ```sh
 git clone https://github.com/M7MMAD-OMAR/nabria-app.git
 cd nabria-app
 scripts/install.sh
-systemctl --user enable --now nabria
 ```
 
 The installer tells you what is missing in your own distribution's package

@@ -11,7 +11,12 @@
 # hard requirement: a Vulkan-enabled binary falls back to the CPU by itself
 # where no driver exists, so one artifact serves every machine.
 #
-#   scripts/build-engine.sh [--output PATH] [--no-vulkan] [--keep-source]
+# --portable links the GCC runtimes in as well, so the binary also runs on
+# machines with an older libstdc++ than the one that built it. That needs a
+# static libstdc++ installed, which an ordinary machine does not have, so it is
+# only for the published artifact -- see scripts/release-engine.sh.
+#
+#   scripts/build-engine.sh [--output PATH] [--no-vulkan] [--keep-source] [--portable]
 set -euo pipefail
 
 project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -21,6 +26,7 @@ source "$project_dir/engine/VERSION"
 output=$HOME/.local/libexec/nabria/whisper-server
 want_vulkan=yes
 keep_source=no
+want_portable=no
 source_dir=${NABRIA_BUILD_DIR:-${TMPDIR:-/tmp}/nabria-engine-build}
 
 while [ $# -gt 0 ]; do
@@ -28,7 +34,8 @@ while [ $# -gt 0 ]; do
     --output) output=$2; shift 2 ;;
     --no-vulkan) want_vulkan=no; shift ;;
     --keep-source) keep_source=yes; shift ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    --portable) want_portable=yes; shift ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -67,12 +74,22 @@ rm -rf "$source_dir"
 git clone --depth 1 --branch "$WHISPER_CPP_VERSION" \
   https://github.com/ggml-org/whisper.cpp.git "$source_dir" 2>&1 | tail -1
 
-# OpenMP off and the GCC runtimes linked in, so the result needs nothing but
-# libc and -- when Vulkan is compiled in -- the Vulkan loader. A binary that
-# fails to *load* is worse than a slow one: measured on a minimal Debian 12 it
-# would not start at all, because libgomp.so.1 is part of the compiler runtime
-# and is simply not installed on a machine that has never built anything.
-# ggml has its own threadpool; OpenMP is a convenience, not a requirement.
+# OpenMP off, so the result does not need libgomp.so.1 -- which is part of the
+# compiler runtime and simply absent on a machine that has never built
+# anything. Measured on a minimal Debian 12, a binary linking it would not
+# start at all, and a binary that fails to *load* is worse than a slow one.
+# ggml has its own threadpool; OpenMP is a convenience, not a requirement, and
+# CPU inference measured faster without it.
+#
+# The static GCC runtimes are a different matter and are opt-in. They exist so
+# the *published* binary runs on machines older than the one that built it, and
+# they need libstdc++-static / libstdc++-*-dev, which is not installed on an
+# ordinary developer machine -- so requiring them unconditionally broke the
+# build-from-source fallback for everyone whose architecture has no prebuilt.
+# That is precisely the person who has no other option.
+linker_flags=""
+[ "$want_portable" = yes ] && linker_flags="-static-libgcc -static-libstdc++"
+
 cmake -S "$source_dir" -B "$source_dir/build" \
   -DCMAKE_BUILD_TYPE=Release \
   -DWHISPER_BUILD_SERVER=ON \
@@ -81,7 +98,7 @@ cmake -S "$source_dir" -B "$source_dir/build" \
   -DBUILD_SHARED_LIBS=OFF \
   -DGGML_NATIVE=OFF \
   -DGGML_OPENMP=OFF \
-  -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
+  -DCMAKE_EXE_LINKER_FLAGS="$linker_flags" \
   -DGGML_VULKAN="$vulkan_flag" \
   > "$source_dir/configure.log" 2>&1 || {
     echo "cmake configure failed:" >&2; tail -20 "$source_dir/configure.log" >&2; exit 1;

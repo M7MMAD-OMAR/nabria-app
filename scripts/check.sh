@@ -17,14 +17,15 @@ cd "$project_dir" || exit 1
 # shellcheck source=common.sh disable=SC1091
 . "$project_dir/scripts/common.sh"
 
-want_distros=yes want_tests=yes want_engine=no
+want_distros=yes want_tests=yes want_engine=no want_packages=no
 case ${1:-} in
-  --quick)   want_distros=no ;;
-  --distros) want_tests=no ;;
-  --engine)  want_distros=no want_tests=no want_engine=yes ;;
-  --all)     want_engine=yes ;;
-  "")        ;;
-  *) echo "usage: $0 [--quick|--distros|--engine|--all]" >&2; exit 2 ;;
+  --quick)    want_distros=no ;;
+  --distros)  want_tests=no ;;
+  --engine)   want_distros=no want_tests=no want_engine=yes ;;
+  --packages) want_distros=no want_tests=no want_packages=yes ;;
+  --all)      want_engine=yes want_packages=yes ;;
+  "")         ;;
+  *) echo "usage: $0 [--quick|--distros|--packages|--engine|--all]" >&2; exit 2 ;;
 esac
 
 failures=0
@@ -69,7 +70,12 @@ fi
 if [ "$want_engine" = yes ]; then
   step "Engine build and a real transcription"
   out=$(mktemp -d)/whisper-server
-  if ./scripts/build-engine.sh --output "$out" > /dev/null 2>&1; then
+  log=$(mktemp)
+  # Kept and printed on failure. Discarding it turned "cmake could not find a
+  # static libstdc++" into a bare red tick, and the whole point of building
+  # here rather than trusting the published binary is to see why it broke.
+  if ./scripts/build-engine.sh --output "$out" >"$log" 2>&1; then
+    rm -f "$log"
     pass "built"
     if PYTHONPATH=src python3 - "$out" <<'PY'
 import pathlib, struct, sys, wave
@@ -88,6 +94,8 @@ server.transcribe(wav); server.stop()
 PY
     then pass "the built engine transcribes"; else fail "the built engine did not answer"; fi
   else
+    sed 's/^/    /' "$log"
+    rm -f "$log"
     fail "engine build"
   fi
 fi
@@ -160,6 +168,65 @@ if [ "$want_distros" = yes ]; then
         # The whole log, not a tail: this is the only place a packaging bug
         # shows itself, and truncating the one output that matters is how a
         # failure becomes a mystery.
+        sed 's/^/    /' "$log"
+        fail "$image"
+      fi
+      rm -f "$log"
+    done
+  fi
+fi
+
+# ------------------------------------------------------------------ packages
+
+# The .rpm and .deb, installed by the distribution's own package manager on a
+# machine that has never seen this project. That is the only way to find out
+# whether the Requires: and Depends: lines name packages that exist -- the same
+# reason the matrix above exists, applied to the dependency lists rather than to
+# the installer's hints.
+#
+# Ubuntu is in here on purpose alongside Debian: it does not package
+# gtk4-layer-shell at all, so it is the machine that proves the dependency is a
+# Recommends. As a Depends the package would be uninstallable there, and the
+# only place that shows is an apt run.
+PACKAGE_TESTS=(
+  "fedora:44|*.rpm|dnf install -y -q"
+  "debian:trixie|*.deb|apt-get update -qq && apt-get install -y -qq"
+  "ubuntu:24.04|*.deb|apt-get update -qq && apt-get install -y -qq"
+)
+
+if [ "$want_packages" = yes ]; then
+  runner=$(container_runner) || runner=""
+  package_dir=$project_dir/dist
+  if [ -z "$runner" ]; then
+    step "Packages"; echo "  (neither podman nor docker, skipped)"
+  elif ! compgen -G "$package_dir/*.rpm" >/dev/null || ! compgen -G "$package_dir/*.deb" >/dev/null; then
+    step "Packages"; fail "nothing in dist/ — run scripts/package.sh first"
+  else
+    for entry in "${PACKAGE_TESTS[@]}"; do
+      image=${entry%%|*}; rest=${entry#*|}
+      glob=${rest%%|*}; installer=${rest#*|}
+      step "Package on $image"
+      log=$(mktemp)
+      if $runner run --rm -v "$package_dir":/pkg:ro,z "docker.io/library/$image" \
+           bash -c "set -e
+             $installer /pkg/$glob
+             # The unit name is what xdg-desktop-portal derives the app id
+             # from, so a package that installs it under any other name gives
+             # a daemon that runs and shortcuts that never fire.
+             test -f /usr/lib/systemd/user/app-com.sbarah.Nabria.service
+             test -L /usr/lib/systemd/user/nabria.service
+             test -f /usr/share/applications/com.sbarah.Nabria.desktop
+             # The launcher has to find the code without PYTHONPATH being set
+             # for it -- the packaged layout is not the checkout layout, and
+             # this is the line that proves run.sh got that right.
+             /usr/bin/nabria --nonsense 2>&1 | grep -q 'usage: python3 -m nabria'
+             # And the bundled engine has to start, which is a question about
+             # this distribution's libraries, not about the build.
+             /usr/libexec/nabria/whisper-server --help >/dev/null
+           " >"$log" 2>&1
+      then
+        pass "$image installed and runs"
+      else
         sed 's/^/    /' "$log"
         fail "$image"
       fi

@@ -108,15 +108,22 @@ implements it will behave the same way.
 Nabria is therefore a **host application**. Revised packaging, in priority
 order:
 
-1. **`scripts/install.sh`** — what actually ships today, and the only path
-   that has been tested. Verified in clean Fedora, Debian trixie and Ubuntu
-   24.04 containers, automatically, by `scripts/check.sh --distros`. It fetches
-   a prebuilt engine, so a compiler is a fallback rather than a requirement.
-2. **AppImage** — *unproven*. Attractive because it is one unsandboxed file,
-   but bundling GTK4, PyGObject and the layer-shell typelib is a build-container
-   job that has not been attempted. Do not describe it as the plan until
-   something has actually been built.
-3. **Native packages** — COPR, AUR, `.deb`. Community can own these later.
+1. **Native packages** — `.rpm`, `.deb`, AUR. Built by `scripts/package.sh` in
+   a container of the distribution each targets, and installed by
+   `scripts/check.sh --packages` in clean Fedora, Debian and Ubuntu. This is
+   the path that matters, because it is the only one where **updates and
+   update notifications are free**: `dnf` and `apt` already check, and the
+   desktop already tells the user. See `docs/PACKAGING.md`.
+2. **`scripts/install.sh`**, reached by `curl … | sh` — for everything with no
+   package. Verified in the same three containers by `--distros`.
+3. **Copr** for Fedora and possibly OBS for Debian — the hosted repositories
+   that turn (1) from a downloaded file into a subscription. Copr needs a
+   Fedora account; steps are written down in `docs/PACKAGING.md`.
+4. **AppImage** — *decided against*, not merely unproven. Bundling
+   `gtk4-layer-shell` means controlling library load order inside the bundle,
+   and the reason `run.sh` exists at all is that Python cannot control link
+   order. An AppImage that silently loses the layer shell is one whose
+   indicator can be covered by a fullscreen window.
 
 Do not spend time on a Flatpak. Say why in the README so nobody files it as an
 oversight.
@@ -174,6 +181,28 @@ way to bind a global hotkey on Wayland.
       portal shortcuts, the `pycairo` bug still in it — so it was left as the
       historical marker it is and `v0.2.x` published instead.
 - [ ] `CONTRIBUTING.md`, issue templates.
+
+## Phase 4b — one command, and updates
+
+- [x] **`.rpm`, `.deb` and an AUR `PKGBUILD`**, all from one layout definition
+      (`packaging/layout.sh`), all bundling the engine so nothing is left to
+      compile or fetch but the model. Installed by the distribution's own
+      package manager in clean containers by `scripts/check.sh --packages` —
+      Ubuntu 24.04 among them, because it is the machine that proves
+      `gtk4-layer-shell` has to be a recommendation rather than a dependency.
+- [x] **Stable download names.** `releases/latest/download/nabria.rpm` and
+      `.deb`, so the install lines in the README never need editing.
+- [ ] **Copr**, which is what turns the `.rpm` into automatic updates. Needs a
+      Fedora account; the spec is already suitable and the steps are in
+      `docs/PACKAGING.md`.
+- [ ] **AUR submission** — likewise a person with an account, not a script.
+- [ ] An apt repository. Deliberately last: it needs a GPG signing key
+      wherever it is built, and putting one in CI is the dependency this
+      project is without. OBS is the candidate.
+
+No self-update code, and none wanted. A packaged install is updated by the
+same machinery that updates everything else on the machine, and that is a
+smaller and better answer than anything in-app.
 
 ## Phase 5 — the landing page
 

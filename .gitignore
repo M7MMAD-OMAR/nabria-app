@@ -4,3 +4,4 @@ __pycache__/
 # Built by scripts/release-engine.sh and uploaded to a release; the checksum
 # in engine/CHECKSUMS is what belongs in git, not 57 MB of binary.
 whisper-server-linux-*
+dist/

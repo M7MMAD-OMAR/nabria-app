@@ -62,7 +62,7 @@ $runner run --rm -v "$project_dir":/src:ro,z -v "$work":/out:z \
     cmake --install /tmp/vulkan-headers/build >/dev/null
     echo "vulkan headers: $(grep -m1 VK_HEADER_VERSION /usr/local/include/vulkan/vulkan_core.h)"
     cp -r /src /app
-    /app/scripts/build-engine.sh --output /out/whisper-server >/dev/null
+    /app/scripts/build-engine.sh --portable --output /out/whisper-server >/dev/null
     # Recorded in the log so a "will not start" report can be answered without
     # guessing what it was built against.
     echo "glibc required: $(objdump -T /out/whisper-server \
