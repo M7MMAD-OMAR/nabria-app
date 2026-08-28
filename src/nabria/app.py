@@ -32,7 +32,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from . import config, history, inject, notify
 from .orb import Orb
-from .recorder import Recorder
+from .recorder import MissingRecorder, Recorder
 
 LEVEL_POLL_MS = 50
 FAILED_DIR = config.DATA_DIR / "failed"
@@ -262,6 +262,11 @@ class Daemon:
                 # A take in flight never blocks a new one, so toggle only ever
                 # asks one question: am I recording right now?
                 self._stop() if self.recording else self._start()
+        except MissingRecorder as exc:
+            # Not a bug and not recoverable by retrying: the machine has no
+            # PipeWire. Say what to install instead of filing a stack trace.
+            self.log(str(exc))
+            self._fail("لا يمكن التسجيل", str(exc))
         except Exception:  # noqa: BLE001 - never let a bad take kill the daemon
             self.log(traceback.format_exc())
             self._fail("خطأ في الإملاء", str(config.LOG_PATH))

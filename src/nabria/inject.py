@@ -21,6 +21,7 @@ simply lost.
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import threading
@@ -98,18 +99,66 @@ def _clipboard_snapshot() -> tuple[str, bytes] | None:
     return None if data is None else (types[0], data)
 
 
-def _focused_class() -> str:
-    if not shutil.which("hyprctl"):
-        return ""
-    try:
-        result = subprocess.run(
-            ["hyprctl", "activewindow", "-j"], capture_output=True, text=True, timeout=5
-        )
-        import json
+def _ask_hyprland() -> str:
+    result = subprocess.run(
+        ["hyprctl", "activewindow", "-j"], capture_output=True, text=True, timeout=5
+    )
+    return str(json.loads(result.stdout).get("class", ""))
 
-        return str(json.loads(result.stdout).get("class", ""))
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return ""
+
+def _ask_sway() -> str:
+    result = subprocess.run(
+        ["swaymsg", "-t", "get_tree"], capture_output=True, text=True, timeout=5
+    )
+
+    def focused(node: dict) -> dict | None:
+        if node.get("focused"):
+            return node
+        for child in node.get("nodes", []) + node.get("floating_nodes", []):
+            found = focused(child)
+            if found:
+                return found
+        return None
+
+    window = focused(json.loads(result.stdout)) or {}
+    # app_id on Wayland, window_properties.class for XWayland clients.
+    return str(window.get("app_id") or window.get("window_properties", {}).get("class", ""))
+
+
+def _ask_niri() -> str:
+    result = subprocess.run(
+        ["niri", "msg", "--json", "focused-window"],
+        capture_output=True, text=True, timeout=5,
+    )
+    return str(json.loads(result.stdout).get("app_id", ""))
+
+
+# Asking "what has focus" has no cross-desktop answer, so each compositor is
+# asked in its own language and the list simply ends where knowledge does.
+FOCUS_PROBES = (
+    ("hyprctl", _ask_hyprland),
+    ("swaymsg", _ask_sway),
+    ("niri", _ask_niri),
+)
+
+
+def _focused_class() -> str:
+    """The focused window's class, or "" where nothing can say.
+
+    "" is a real answer, not a failure: it means Ctrl+V, which is right
+    everywhere except a terminal. Guessing Ctrl+Shift+V instead would be wrong
+    far more often.
+    """
+    for command, probe in FOCUS_PROBES:
+        if not shutil.which(command):
+            continue
+        try:
+            found = probe()
+        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+            continue
+        if found:
+            return found
+    return ""
 
 
 def _send_paste_key() -> None:

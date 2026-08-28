@@ -9,6 +9,7 @@ samples as they arrive, not after the take is finished.
 from __future__ import annotations
 
 import math
+import shutil
 import subprocess
 import threading
 import wave
@@ -32,6 +33,10 @@ SILENT_DBFS = -120.0
 # the boundary. Dropping whole chunks instead would round up to 0.768 s, which
 # also raised the "too short to measure" cutoff well past what it claimed.
 LEVEL_WARMUP_FRAMES = int(0.6 * RATE)
+
+
+class MissingRecorder(RuntimeError):
+    """PipeWire is not installed, which is not a bug to be traced back."""
 
 
 def _levels(data: bytes) -> tuple[float, int, float]:
@@ -108,6 +113,16 @@ class Recorder:
             return dbfs(math.sqrt(self.energy / self.samples) / 32768.0)
 
     def start(self) -> None:
+        # Checked by name rather than left to Popen, whose FileNotFoundError
+        # arrives as a traceback in the log and a generic failure on screen.
+        # A machine without PipeWire cannot record at all, and saying so is
+        # worth more than any amount of stack.
+        if not shutil.which("pw-record"):
+            raise MissingRecorder(
+                "pw-record was not found. Nabria records through PipeWire; "
+                "install pipewire-utils (Fedora), pipewire-bin (Debian) "
+                "or pipewire (Arch)."
+            )
         self.destination.parent.mkdir(parents=True, exist_ok=True)
         command = [
             "pw-record",
