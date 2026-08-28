@@ -225,7 +225,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
                 text = f"Could not switch input: {exc}"
             GLib.idle_add(self._set_level_text, text)
 
-        threading.Thread(target=work, daemon=True, name="dictate-set-source").start()
+        threading.Thread(target=work, daemon=True, name="nabria-set-source").start()
 
     def _set_level_text(self, text: str) -> bool:
         self.level_label.set_text(text)
@@ -254,7 +254,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
                 text = f"Test failed: {exc}"
             GLib.idle_add(self._test_done, button, text)
 
-        threading.Thread(target=work, daemon=True, name="dictate-mic-test").start()
+        threading.Thread(target=work, daemon=True, name="nabria-mic-test").start()
 
     def _test_done(self, button: Gtk.Button, text: str) -> bool:
         self.level_label.set_text(text)

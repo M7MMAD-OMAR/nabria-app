@@ -115,7 +115,7 @@ class Daemon:
         self.orb.hide()
         self._serve()
         threading.Thread(
-            target=self._worker, daemon=True, name="dictate-transcribe"
+            target=self._worker, daemon=True, name="nabria-transcribe"
         ).start()
         if self.settings.get("prewarm"):
             threading.Thread(target=self._prewarm, daemon=True).start()
@@ -154,7 +154,7 @@ class Daemon:
                     command = connection.recv(64).decode("utf-8", "replace").strip()
                     connection.sendall(self.dispatch(command).encode("utf-8"))
 
-        threading.Thread(target=accept_loop, daemon=True, name="dictate-control").start()
+        threading.Thread(target=accept_loop, daemon=True, name="nabria-control").start()
 
     def dispatch(self, command: str) -> str:
         if command == "status":
@@ -210,7 +210,7 @@ class Daemon:
         # path the idle unload already uses.
         if key in {"model", "language", "vocabulary"}:
             threading.Thread(
-                target=self._reload_engine, daemon=True, name="dictate-reload"
+                target=self._reload_engine, daemon=True, name="nabria-reload"
             ).start()
 
     def _reload_engine(self) -> None:
@@ -386,7 +386,7 @@ class Daemon:
                 else ""
             )
             # On disk before it is typed: from here on nothing downstream can
-            # lose the words. `dictate last` reads them back.
+            # lose the words. `nabria last` reads them back.
             history.append(text, recorder.seconds, elapsed, audio)
             if text and self.settings.get("always_copy"):
                 inject.to_clipboard(text)

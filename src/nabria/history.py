@@ -2,7 +2,7 @@
 
 The point is that a dictation can never be lost: if injection fails, if the
 wrong window had focus, if the text was typed into something that discarded
-it, the words are still on disk and still recoverable with `dictate last`.
+it, the words are still on disk and still recoverable with `nabria last`.
 """
 
 from __future__ import annotations

@@ -37,10 +37,10 @@ def main(command: str) -> int:
         return 0
     except (FileNotFoundError, ConnectionRefusedError):
         print(
-            "dictate: daemon is not running (systemctl --user start dictate)",
+            "nabria: daemon is not running (systemctl --user start nabria)",
             file=sys.stderr,
         )
         return 1
     except OSError as exc:
-        print(f"dictate: {exc}", file=sys.stderr)
+        print(f"nabria: {exc}", file=sys.stderr)
         return 1

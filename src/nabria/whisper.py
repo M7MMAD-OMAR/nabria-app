@@ -174,7 +174,7 @@ class WhisperServer:
                     self._stop_locked()
                     return
 
-        self._reaper = threading.Thread(target=watch, daemon=True, name="dictate-reaper")
+        self._reaper = threading.Thread(target=watch, daemon=True, name="nabria-reaper")
         self._reaper.start()
 
     def stop(self) -> None:

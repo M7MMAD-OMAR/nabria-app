@@ -1,4 +1,4 @@
-"""Entry point. `python3 -m dictate daemon` runs the service; anything else is
+"""Entry point. `python3 -m nabria daemon` runs the service; anything else is
 a control command, dispatched without ever importing GTK."""
 
 from __future__ import annotations
@@ -7,7 +7,7 @@ import sys
 
 from .client import COMMANDS
 
-USAGE = f"usage: python3 -m dictate [daemon|{'|'.join(COMMANDS)}]"
+USAGE = f"usage: python3 -m nabria [daemon|{'|'.join(COMMANDS)}]"
 
 
 def main() -> int:

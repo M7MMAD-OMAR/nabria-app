@@ -1,9 +1,9 @@
 """Paths and the one JSON config file.
 
-Everything the daemon needs is resolved here so that no other module has to
-know where OpenWhispr happened to leave a binary. The install script copies
-(or hard-links) the whisper server and the model into this tool's own
-directories precisely so that removing OpenWhispr cannot break dictation.
+Every path the daemon needs is resolved here, so no other module has to know
+where the engine or the model live. The install script puts both under this
+app's own directories rather than sharing another program's, which is what
+keeps uninstalling anything else from breaking dictation.
 """
 
 from __future__ import annotations
@@ -13,20 +13,20 @@ import os
 from pathlib import Path
 from typing import Any
 
-APP_ID = "dev.sbarah.Dictate"
+APP_ID = "com.sbarah.Nabria"
 
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "dictate"
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "nabria"
 CONFIG_PATH = CONFIG_DIR / "config.json"
-DATA_DIR = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "dictate"
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "dictate"
-LIBEXEC_DIR = Path.home() / ".local/libexec/dictate"
+DATA_DIR = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "nabria"
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "nabria"
+LIBEXEC_DIR = Path.home() / ".local/libexec/nabria"
 MODEL_DIR = DATA_DIR / "models"
-LOG_PATH = STATE_DIR / "dictate.log"
+LOG_PATH = STATE_DIR / "nabria.log"
 
 # The control socket lives in the runtime dir so it dies with the login session
 # and a stale file can never make the toggle command hang.
 RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
-SOCKET_PATH = RUNTIME_DIR / "dictate.sock"
+SOCKET_PATH = RUNTIME_DIR / "nabria.sock"
 
 DEFAULTS: dict[str, Any] = {
     # Transcription engine. Both are filled in by scripts/install.sh.
@@ -93,7 +93,7 @@ DEFAULTS: dict[str, Any] = {
     "orb_margin": 28,
     # Take colours from a desktop-generated Material You palette when one
     # exists. Off by default: the app ships its own dark theme and should look
-    # the same everywhere. ~/.config/dictate/palette.json overrides either way.
+    # the same everywhere. ~/.config/nabria/palette.json overrides either way.
     "follow_desktop_palette": False,
 }
 

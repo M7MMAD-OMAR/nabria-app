@@ -2,7 +2,7 @@
 set -eu
 
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-export PYTHONPATH="$project_dir/fedora${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$project_dir/src${PYTHONPATH:+:$PYTHONPATH}"
 
 # gtk4-layer-shell has to be loaded before libwayland-client or its Wayland
 # protocol hooks never install, and the orb silently becomes an ordinary
@@ -19,4 +19,4 @@ if [ "${1:-}" = "daemon" ]; then
   done
 fi
 
-exec python3 -m dictate "$@"
+exec python3 -m nabria "$@"

@@ -120,10 +120,10 @@ class Recorder:
         self.process = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        self.reader = threading.Thread(target=self._read, daemon=True, name="dictate-capture")
+        self.reader = threading.Thread(target=self._read, daemon=True, name="nabria-capture")
         self.reader.start()
         self.stderr_reader = threading.Thread(
-            target=self._drain_stderr, daemon=True, name="dictate-capture-stderr"
+            target=self._drain_stderr, daemon=True, name="nabria-capture-stderr"
         )
         self.stderr_reader.start()
 

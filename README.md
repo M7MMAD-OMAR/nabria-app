@@ -1,6 +1,8 @@
-# dictate
+# Nabria
 
-Local voice dictation for Hyprland. Press the key, speak, press it again, the
+*نَبْرة — the tone of a voice.*
+
+Local voice dictation for Linux. Press the key, speak, press it again, the
 text is typed into whatever window has focus. Nothing leaves the machine.
 
 ```
@@ -47,7 +49,7 @@ systemctl --user enable --now dictate
 ```
 
 `install.sh` hard-links a whisper.cpp server binary and a ggml model into
-`~/.local/libexec/dictate` and `~/.local/share/dictate/models`. It originally
+`~/.local/libexec/nabria` and `~/.local/share/nabria/models`. It originally
 took them from an OpenWhispr install; that is gone now, so on a fresh machine
 point it at your own copies:
 
@@ -64,7 +66,7 @@ window's model picker.
 
 ## Configuration
 
-`~/.config/dictate/config.json`. The knobs that matter:
+`~/.config/nabria/config.json`. The knobs that matter:
 
 | key | default | |
 |---|---|---|
@@ -88,12 +90,12 @@ discrete card too, so it is passed to that one subprocess.
 
 ## Nothing is lost
 
-Every transcript is appended to `~/.local/share/dictate/history.jsonl` *before*
+Every transcript is appended to `~/.local/share/nabria/history.jsonl` *before*
 it is typed. If injection fails the text goes to the clipboard and a
 notification says so. `dictate last` prints the most recent one.
 
 If transcription itself fails, the recording is kept in
-`~/.local/share/dictate/failed/` rather than deleted -- the audio is the one
+`~/.local/share/nabria/failed/` rather than deleted -- the audio is the one
 thing that cannot be produced again.
 
 A take being transcribed never blocks a new one. Press the key again while the
@@ -103,7 +105,7 @@ go through a single worker, so they are typed in the order they were spoken.
 ## Layout
 
 ```
-fedora/dictate/
+fedora/nabria/
   app.py       daemon: control socket, state machine, GTK main loop
   orb.py       the layer-shell indicator
   settings_window.py  model / microphone / history, inside the daemon
@@ -119,7 +121,7 @@ fedora/dictate/
 ## Gotchas
 
 - `gtk4-layer-shell` must load before `libwayland-client`. Python cannot control
-  link order, so `run-fedora.sh` sets `LD_PRELOAD` for the daemon. Without it
+  link order, so `run.sh` sets `LD_PRELOAD` for the daemon. Without it
   the orb silently becomes an ordinary window.
 - The GTK theme writes `window { background: @window_bg_color; }` into
   `~/.config/gtk-4.0/gtk.css`, which loads at `PRIORITY_USER`. The orb's CSS
@@ -168,7 +170,7 @@ never destroyed to return an older one.
 ## Judging a transcript
 
 You cannot, without the audio. `keep_audio` files every take under
-`~/.local/share/dictate/takes/` and puts a play button on its history row, which
+`~/.local/share/nabria/takes/` and puts a play button on its history row, which
 is the only way to tell a misheard word from a badly spoken one -- and the only
 way to run two models over the *same* utterance. Nothing prunes that directory.
 

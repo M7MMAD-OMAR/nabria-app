@@ -110,7 +110,7 @@ def measure(seconds: float = 4.0) -> float:
     open transient along with the room would read tens of dB high and call a
     dead microphone healthy.
     """
-    with tempfile.TemporaryDirectory(prefix="dictate-mic-") as directory:
+    with tempfile.TemporaryDirectory(prefix="nabria-mic-") as directory:
         path = Path(directory) / "test.wav"
         command = [
             "pw-record",

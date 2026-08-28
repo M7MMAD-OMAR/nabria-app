@@ -13,8 +13,8 @@ project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 SERVER_SOURCE=${SERVER_SOURCE:-$HOME/.config/open-whispr/bin/whisper-server-linux-x64-vulkan}
 MODEL_SOURCE=${MODEL_SOURCE:-$HOME/.cache/openwhispr/whisper-models/ggml-large-v3-turbo.bin}
 
-libexec_dir=$HOME/.local/libexec/dictate
-model_dir=$HOME/.local/share/dictate/models
+libexec_dir=$HOME/.local/libexec/nabria
+model_dir=$HOME/.local/share/nabria/models
 bin_dir=$HOME/.local/bin
 unit_dir=$HOME/.config/systemd/user
 
@@ -43,25 +43,25 @@ install_engine "$SERVER_SOURCE" "$libexec_dir/whisper-server" "whisper-server" S
 chmod +x "$libexec_dir/whisper-server"
 install_engine "$MODEL_SOURCE" "$model_dir/$(basename "$MODEL_SOURCE")" "model" MODEL_SOURCE
 
-cat > "$bin_dir/dictate" <<LAUNCHER
+cat > "$bin_dir/nabria" <<LAUNCHER
 #!/bin/sh
-exec '$project_dir'/scripts/run-fedora.sh "\$@"
+exec '$project_dir'/scripts/run.sh "\$@"
 LAUNCHER
-chmod +x "$bin_dir/dictate"
+chmod +x "$bin_dir/nabria"
 
-ln -sf "$bin_dir/dictate" "$bin_dir/dictate-toggle"
+ln -sf "$bin_dir/nabria" "$bin_dir/nabria-toggle"
 
-sed "s#%h#$HOME#g" "$project_dir/systemd/dictate.service" > "$unit_dir/dictate.service"
+sed "s#%h#$HOME#g" "$project_dir/systemd/nabria.service" > "$unit_dir/nabria.service"
 systemctl --user daemon-reload
 
-PROJECT_FEDORA="$project_dir/fedora" python3 - <<'PY'
+PROJECT_FEDORA="$project_dir/src" python3 - <<'PY'
 import sys
 sys.path.insert(0, __import__("os").environ["PROJECT_FEDORA"])
-from dictate import config
+from nabria import config
 print("config:", config.write_default_config())
 PY
 
 echo
 echo "installed. next:"
-echo "  systemctl --user enable --now dictate"
-echo "  dictate status"
+echo "  systemctl --user enable --now nabria"
+echo "  nabria status"

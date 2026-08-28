@@ -38,11 +38,11 @@ it is not.
 
 | | what | where |
 |---|---|---|
-| [ ] | **Author email is in every commit** — `m7mmad.omar0@gmail.com`. Public git history is permanently archived and scraped. Decide: rewrite history to the GitHub noreply address, or squash to a fresh initial commit, or accept it. | `git log --format='%ae'` |
-| [ ] | `هرميز` (a private project name) is in the default `vocabulary`, along with a personal tool list | `fedora/dictate/config.py:41` |
-| [ ] | `gpu_select` defaults to `10de:2860` — the PCI id of *this* RTX 4070. Meaningless or harmful anywhere else | `fedora/dictate/config.py:48` |
-| [ ] | `APP_ID = "dev.sbarah.Dictate"` — personal handle, and it is the Wayland app id users will see | `fedora/dictate/config.py:16` |
-| [ ] | Theme palette path is hardcoded to one desktop config (illogical-impulse / quickshell) | `fedora/dictate/theme.py:14` |
+| [x] | ~~Author email in every commit~~ — accepted, staying public. **Author email is in every commit** — `m7mmad.omar0@gmail.com`. Public git history is permanently archived and scraped. Decide: rewrite history to the GitHub noreply address, or squash to a fresh initial commit, or accept it. | `git log --format='%ae'` |
+| [x] | ~~`هرميز` (a private project name) is in the default `vocabulary`, along with a personal tool list | `fedora/nabria/config.py:41` |
+| [x] | ~~`gpu_select` defaults to `10de:2860` — the PCI id of *this* RTX 4070. Meaningless or harmful anywhere else | `fedora/nabria/config.py:48` |
+| [x] | ~~`APP_ID`~~ — now `com.sbarah.Nabria`. `APP_ID` — personal handle, and it is the Wayland app id users will see | `fedora/nabria/config.py:16` |
+| [x] | ~~Theme palette path hardcoded~~ — ships its own; opt-in override. Theme palette path is hardcoded to one desktop config (illogical-impulse / quickshell) | `fedora/nabria/theme.py:14` |
 | [ ] | README is written as "why not OpenWhispr" and quotes this machine's hardware | `README.md` |
 | [ ] | Commit bodies say "this laptop", "the user", name specific hardware. Harmless but reads as a personal journal | `git log` |
 | [ ] | Pick a licence. whisper.cpp is MIT, Whisper models are MIT — MIT or Apache-2.0 keeps it all compatible | `LICENSE` |

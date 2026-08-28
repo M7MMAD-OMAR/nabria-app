@@ -10,7 +10,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 
-APP_NAME = "dictate"
+APP_NAME = "nabria"
 
 
 def send(summary: str, body: str = "", urgency: str = "normal") -> None:

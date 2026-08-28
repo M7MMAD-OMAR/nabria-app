@@ -7,7 +7,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/R/Projects/P/dictate-app/scripts/run-fedora.sh daemon
+ExecStart=%h/R/Projects/P/nabria-app/scripts/run.sh daemon
 # SIGTERM is handled inside the daemon, which stops the whisper server and
 # releases its VRAM before exiting.
 KillSignal=SIGTERM

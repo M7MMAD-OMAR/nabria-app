@@ -28,7 +28,7 @@ than as a series of different pictures:
                   are the same salmon.
 
 gtk4-layer-shell must be loaded before libwayland-client. Python cannot control
-link order, so scripts/run-fedora.sh sets LD_PRELOAD; without it
+link order, so scripts/run.sh sets LD_PRELOAD; without it
 Gtk4LayerShell.is_supported() returns False and the window silently degrades
 into an ordinary toplevel.
 """
@@ -77,7 +77,7 @@ SWEEP_LIFT = 5.0
 # window through background-image as well, which draws straight over a
 # transparent colour and leaves an opaque rectangle around the orb.
 STYLE = """
-window.dictate {
+window.nabria {
   background-color: transparent;
   background-image: none;
   box-shadow: none;
@@ -117,7 +117,7 @@ class Orb:
         self._hide_source = 0
 
         self.window = Gtk.ApplicationWindow(application=application)
-        self.window.add_css_class("dictate")
+        self.window.add_css_class("nabria")
         self.window.set_default_size(WINDOW_W, WINDOW_H)
 
         provider = Gtk.CssProvider()
@@ -147,7 +147,7 @@ class Orb:
     def _init_layer_shell(self) -> None:
         window = self.window
         LayerShell.init_for_window(window)
-        LayerShell.set_namespace(window, "dictate")
+        LayerShell.set_namespace(window, "nabria")
         LayerShell.set_layer(window, LayerShell.Layer.OVERLAY)
         # NONE means the compositor never routes keyboard input here, so the
         # window being dictated into keeps focus the whole time.
