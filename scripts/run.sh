@@ -15,8 +15,7 @@ if [ -d "$prefix/src/nabria" ]; then
   code=$prefix/src
   helpers=$prefix/scripts/common.sh
 else
-  # Installed: $prefix is /usr, and both the code and common.sh live under
-  # /usr/lib/nabria. The helper is packaged rather than inlined so
+  # The helper is packaged beside the code rather than inlined here, so
   # layer_shell_library still has exactly one definition -- it was written out
   # three times once before, and the three had already disagreed.
   code=$prefix/lib/nabria
@@ -29,7 +28,11 @@ export PYTHONPATH="$code${PYTHONPATH:+:$PYTHONPATH}"
 # toplevel -- the exact failure this tool was written to avoid. Python has no
 # say over link order, so the daemon is preloaded here. Control commands never
 # touch GTK, so they skip it and stay fast.
-if [ "${1:-}" = "daemon" ] && [ -r "$helpers" ]; then
+# No `[ -r "$helpers" ]` guard: a missing common.sh must be a hard failure
+# under set -eu, not a quiet skip. Skipping it would start the daemon with no
+# LD_PRELOAD, which is the silently-degraded indicator this whole arrangement
+# exists to prevent -- the same failure, reintroduced as a fallback.
+if [ "${1:-}" = "daemon" ]; then
   # shellcheck source=common.sh disable=SC1091
   . "$helpers"
   layer_shell=$(layer_shell_library) || layer_shell=""

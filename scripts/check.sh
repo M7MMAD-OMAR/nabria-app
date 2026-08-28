@@ -9,7 +9,9 @@
 #   scripts/check.sh              lint + tests + every distribution
 #   scripts/check.sh --quick      lint + tests only (a few seconds)
 #   scripts/check.sh --distros    the distribution matrix only
+#   scripts/check.sh --packages   install the built .rpm and .deb in containers
 #   scripts/check.sh --engine     build the engine and transcribe for real
+#   scripts/check.sh --all        every one of the above
 set -uo pipefail
 
 project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -29,6 +31,9 @@ case ${1:-} in
 esac
 
 failures=0
+# Looked up once: both the distribution matrix and the package matrix need it,
+# and two copies is two places to change when a third runtime appears.
+runner=$(container_runner) || runner=""
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 pass() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$*"; failures=$((failures + 1)); }
@@ -114,7 +119,6 @@ DISTROS=(
 )
 
 if [ "$want_distros" = yes ]; then
-  runner=$(container_runner) || runner=""
   if [ -z "$runner" ]; then
     step "Distributions"
     echo "  (neither podman nor docker, skipped)"
@@ -188,34 +192,46 @@ fi
 # gtk4-layer-shell at all, so it is the machine that proves the dependency is a
 # Recommends. As a Depends the package would be uninstallable there, and the
 # only place that shows is an apt run.
+# Same two-field shape as DISTROS: the image, and the command that installs on
+# it. Which package each takes is part of that command rather than a third
+# field, because the pairing is fixed -- an rpm never goes near apt.
 PACKAGE_TESTS=(
-  "fedora:44|*.rpm|dnf install -y -q"
-  "debian:trixie|*.deb|apt-get update -qq && apt-get install -y -qq"
-  "ubuntu:24.04|*.deb|apt-get update -qq && apt-get install -y -qq"
+  "fedora:44|dnf install -y -q /pkg/nabria.rpm"
+  "debian:trixie|apt-get update -qq && apt-get install -y -qq /pkg/nabria.deb"
+  "ubuntu:24.04|apt-get update -qq && apt-get install -y -qq /pkg/nabria.deb"
 )
 
 if [ "$want_packages" = yes ]; then
-  runner=$(container_runner) || runner=""
   package_dir=$project_dir/dist
+  # The names come from the file that decides them, so a renamed unit fails
+  # this test instead of passing it against a stale literal.
+  # shellcheck source=../packaging/layout.sh disable=SC1091
+  . "$project_dir/packaging/layout.sh"
   if [ -z "$runner" ]; then
     step "Packages"; echo "  (neither podman nor docker, skipped)"
-  elif ! compgen -G "$package_dir/*.rpm" >/dev/null || ! compgen -G "$package_dir/*.deb" >/dev/null; then
-    step "Packages"; fail "nothing in dist/ — run scripts/package.sh first"
+  elif [ ! -f "$package_dir/nabria.rpm" ] || [ ! -f "$package_dir/nabria.deb" ]; then
+    # Skipped, not failed. `check.sh --all` on a machine that has not just run
+    # package.sh is the normal case, and a red tick for it would train people
+    # to ignore the colour.
+    step "Packages"; echo "  (nothing in dist/ — run scripts/package.sh first, skipped)"
   else
     for entry in "${PACKAGE_TESTS[@]}"; do
-      image=${entry%%|*}; rest=${entry#*|}
-      glob=${rest%%|*}; installer=${rest#*|}
+      image=${entry%%|*}; installer=${entry#*|}
       step "Package on $image"
       log=$(mktemp)
       if $runner run --rm -v "$package_dir":/pkg:ro,z "docker.io/library/$image" \
            bash -c "set -e
-             $installer /pkg/$glob
+             $installer
              # The unit name is what xdg-desktop-portal derives the app id
              # from, so a package that installs it under any other name gives
              # a daemon that runs and shortcuts that never fire.
-             test -f /usr/lib/systemd/user/app-com.sbarah.Nabria.service
+             test -f /usr/lib/systemd/user/$UNIT_NAME
              test -L /usr/lib/systemd/user/nabria.service
-             test -f /usr/share/applications/com.sbarah.Nabria.desktop
+             test -f /usr/share/applications/$APP_ID.desktop
+             # run.sh sources this for layer_shell_library. Without it the
+             # daemon does not start at all, by design -- so a package that
+             # forgot to ship it is a package that cannot run.
+             test -f /usr/lib/nabria/common.sh
              # The launcher has to find the code without PYTHONPATH being set
              # for it -- the packaged layout is not the checkout layout, and
              # this is the line that proves run.sh got that right.

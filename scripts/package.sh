@@ -31,8 +31,11 @@ case ${1:-} in
 esac
 
 runner=$(container_runner) || { bad "neither podman nor docker"; exit 1; }
-version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/nabria/__init__.py)
-[ -n "$version" ] || { bad "no __version__ in src/nabria/__init__.py"; exit 1; }
+# From HEAD, because HEAD is what release_tarball archives below. Reading the
+# working tree instead gave a .deb whose control Version came from one tree
+# and whose payload came from another, with nothing failing.
+version=$(git show HEAD:src/nabria/__init__.py | sed -n 's/^__version__ = "\(.*\)"/\1/p')
+[ -n "$version" ] || { bad "no __version__ in src/nabria/__init__.py at HEAD"; exit 1; }
 
 # Named without the version, so the install lines in the README can point at
 # releases/latest/download/nabria.rpm and never need editing again. The version
@@ -44,22 +47,22 @@ rm -rf "$dist"; mkdir -p "$dist"
 
 say "Engine"
 engine=$dist/whisper-server
-artifact=$(awk 'NR==1 {print $2}' engine/CHECKSUMS)
-expected=$(awk 'NR==1 {print $1}' engine/CHECKSUMS)
+read -r expected artifact < engine/CHECKSUMS
 if [ -x "$project_dir/$artifact" ] &&
    [ "$(sha256sum "$project_dir/$artifact" | cut -d\  -f1)" = "$expected" ]; then
   cp "$project_dir/$artifact" "$engine"
   ok "using the local build"
 else
-  curl -fsSL --retry 2 -o "$engine" \
+  curl -fsSL --retry 2 -o "$engine.part" \
     "https://github.com/$NABRIA_REPO/releases/download/$ENGINE_RELEASE/$artifact"
+  mv "$engine.part" "$engine"
   ok "fetched $ENGINE_RELEASE"
 fi
 # Verified against the checksum committed here, exactly as install.sh does.
 # Shipping an unverified binary inside a package is worse than shipping none:
 # a package is the one artifact a user has no reason to check themselves.
 [ "$(sha256sum "$engine" | cut -d\  -f1)" = "$expected" ] ||
-  { bad "engine checksum mismatch — refusing to package it"; exit 1; }
+  { rm -f "$engine"; bad "engine checksum mismatch — refusing to package it"; exit 1; }
 chmod 755 "$engine"
 ok "checksum verified"
 

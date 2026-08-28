@@ -30,7 +30,7 @@ cd "$project_dir" || exit 1
 source engine/VERSION
 
 BUILDER_IMAGE=docker.io/library/debian:bookworm
-ARTIFACT=whisper-server-linux-x86_64
+ARTIFACT=$ENGINE_ARTIFACT
 publish=no
 [ "${1:-}" = "--publish" ] && publish=yes
 

@@ -19,6 +19,7 @@ needs explaining does not go in. See `PLAN.md`.
 scripts/check.sh                        # THE check: lint, tests, every distro
 scripts/check.sh --quick                # lint and tests only, seconds
 scripts/install.sh                      # deps, engine, model, unit, desktop entry
+scripts/install.sh --uninstall          # remove it; config, models and history stay
 scripts/bootstrap.sh                    # what `curl … | sh` runs: fetch a release, install it
 scripts/package.sh                      # build nabria.rpm and nabria.deb in containers
 scripts/check.sh --packages             # install those packages in clean Fedora/Debian/Ubuntu
@@ -225,6 +226,11 @@ one, and a separate packaged launcher is exactly where it would get left out.
 dependency makes the `.deb` uninstallable there rather than degraded.
 `tests/test_packaging.py` asserts this for all three, since it is a one-word
 edit away and the consequence is invisible until an Ubuntu user tries.
+
+**A user install shadows a packaged one completely** — launcher, unit and
+desktop entry all resolve to `~/.local` first — so the two must not coexist.
+`install.sh` says so when it finds a package, and `--uninstall` removes the
+user half.
 
 The engine is bundled (hence `x86_64`, not `noarch`) and verified against
 `engine/CHECKSUMS` before it goes in. The model is not, and stays a first-run

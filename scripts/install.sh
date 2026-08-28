@@ -5,6 +5,7 @@
 # the repair path when one piece is missing.
 #
 #   scripts/install.sh [--model KEY] [--no-model] [--no-engine] [--no-service]
+#   scripts/install.sh --uninstall    remove it, keeping config, models, history
 set -euo pipefail
 
 project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -20,6 +21,7 @@ model_key=""
 do_model=yes
 do_engine=yes
 do_service=yes
+do_uninstall=no
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -27,12 +29,59 @@ while [ $# -gt 0 ]; do
     --no-model) do_model=no; shift ;;
     --no-engine) do_engine=no; shift ;;
     --no-service) do_service=no; shift ;;
-    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    --uninstall) do_uninstall=yes; shift ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
 # say/ok/warn/bad come from common.sh, shared with release.sh.
+
+# ------------------------------------------------------------------- uninstall
+
+if [ "$do_uninstall" = yes ]; then
+  say "Removing the user install"
+  if [ "$(systemctl --user is-active app-com.sbarah.Nabria.service 2>/dev/null)" = active ]; then
+    systemctl --user disable --now app-com.sbarah.Nabria.service >/dev/null 2>&1 || true
+    ok "daemon stopped"
+  fi
+  for path in \
+    "$bin_dir/nabria" \
+    "$unit_dir/app-com.sbarah.Nabria.service" \
+    "$unit_dir/nabria.service" \
+    "$HOME/.local/share/applications/com.sbarah.Nabria.desktop" \
+    "$libexec_dir"
+  do
+    if [ -e "$path" ] || [ -L "$path" ]; then
+      rm -rf "$path"
+      ok "removed $path"
+    fi
+  done
+  systemctl --user daemon-reload 2>/dev/null || true
+  # Config, models and transcripts are deliberately left. Removing an install
+  # is not the same as asking to lose a 1.6 GB model and every transcript ever
+  # taken, and there is no way to get either of them back.
+  say "Left alone"
+  echo "  $HOME/.config/nabria      settings"
+  echo "  $HOME/.local/share/nabria models and transcripts"
+  echo "  $HOME/.local/state/nabria the log"
+  echo
+  echo "  Delete those by hand if you want them gone."
+  exit 0
+fi
+
+# A user install shadows a packaged one at every single point -- the launcher on
+# PATH, the unit in ~/.config/systemd/user, the desktop entry in
+# ~/.local/share/applications -- so `dnf install nabria` on a machine that ran
+# this script does nothing observable and says nothing about why. Warned here
+# because this script is the one that creates the shadowing half.
+if [ -f /usr/lib/systemd/user/app-com.sbarah.Nabria.service ]; then
+  say "There is already a packaged Nabria on this machine"
+  warn "installing here will shadow it — this copy wins on PATH and in systemd"
+  echo "      Either stop here and keep the package, or remove the nabria"
+  echo "      package first. To undo a user install:  install.sh --uninstall"
+  echo
+fi
 
 # Package names differ per distro and guessing wrong sends people down a
 # dead end, so the hint is chosen from what is actually installed here.

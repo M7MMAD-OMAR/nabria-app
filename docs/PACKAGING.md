@@ -11,6 +11,14 @@ How Nabria reaches a machine, and why in that order.
 | AUR | `yay -S nabria` | with every other AUR package |
 | `curl … \| sh` | anything else | by re-running the same line |
 
+**Do not run two of them on the same machine.** A user install shadows a
+packaged one at every point — the launcher on `PATH`, the unit in
+`~/.config/systemd/user`, the desktop entry in `~/.local/share/applications` —
+so `dnf install nabria` after `install.sh` does nothing observable. `install.sh`
+warns when it finds a packaged copy, and `scripts/install.sh --uninstall`
+removes the user half (keeping config, models and transcripts, which are not
+this script's to delete).
+
 All four install the same layout and the same bundled engine. `packaging/layout.sh`
 is the only place that layout is written down, so an rpm and a deb cannot end
 up different in a way only one person ever sees.
@@ -123,7 +131,9 @@ packaging/PKGBUILD        pkgver
 the git tag               v<version>      checked by scripts/release.sh
 ```
 
-`scripts/release.sh` rewrites the PKGBUILD's `sha256sums` after uploading,
-because they are the checksums of the tarball it has just published and cannot
-be known before. Commit that change; otherwise `yay -S nabria` aborts on a hash
-mismatch with nothing on this side saying why.
+`scripts/release.sh` rewrites the PKGBUILD's `sha256sums` after uploading and
+commits them. They are the checksums of a tarball that contains the PKGBUILD,
+so the two can never be self-consistent and the sums always lag one release —
+it commits rather than warns because at that point the release is already
+public, and forgetting means `yay -S nabria` aborts on a hash mismatch with
+nothing on this side ever saying why. Push it with the tag.

@@ -116,20 +116,22 @@ ok "assets uploaded"
 # behind until this runs. Rewritten here rather than left to be remembered,
 # because the failure is a `yay -S nabria` that aborts on a hash mismatch and
 # nothing on this side that ever says so.
+# The PKGBUILD names the checksum of the tarball it downloads, and that tarball
+# contains the PKGBUILD -- so the two can never be self-consistent and the sums
+# are always one release behind. Rewritten *and committed* here rather than
+# left to a warning: the release is already public at this point, and the
+# failure of forgetting is a `yay -S nabria` that aborts on a hash mismatch
+# with nothing on this side ever saying so.
 tarball_sum=$(sha256sum "$tarball" | cut -d\  -f1)
 engine_sum=$(awk 'NR==1 {print $1}' "$project_dir/engine/CHECKSUMS")
-printf "sha256sums=('%s'\n            '%s')\n" "$tarball_sum" "$engine_sum" > "$work/sums"
-python3 - "$project_dir/packaging/PKGBUILD" "$work/sums" <<'PY'
-import re, sys
-path, sums = sys.argv[1], sys.argv[2]
-text = open(path, encoding="utf-8").read()
-replaced = re.sub(r"sha256sums=\([^)]*\)\n", open(sums, encoding="utf-8").read(), text)
-open(path, "w", encoding="utf-8").write(replaced)
-PY
+sed -i "s/^sha256sums=('[0-9a-f]*'/sha256sums=('$tarball_sum'/
+        s/^            '[0-9a-f]*')/            '$engine_sum')/" \
+  "$project_dir/packaging/PKGBUILD"
 if git diff --quiet -- "$project_dir/packaging/PKGBUILD"; then
   ok "PKGBUILD checksums already correct"
 else
-  warn "PKGBUILD checksums updated for $tag — commit packaging/PKGBUILD"
+  git commit -q -m "Update the PKGBUILD checksums for $tag" -- "$project_dir/packaging/PKGBUILD"
+  ok "PKGBUILD checksums updated and committed — push when you are ready"
 fi
 
 echo

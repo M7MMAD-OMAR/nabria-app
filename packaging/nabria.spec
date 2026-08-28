@@ -25,7 +25,6 @@ Source1:        %{url}/releases/download/%{engine}/whisper-server-linux-x86_64
 # even though every line of Nabria itself is Python.
 ExclusiveArch:  x86_64
 
-BuildRequires:  sed
 Requires:       python3 >= 3.10
 Requires:       python3-gobject
 Requires:       python3-cairo
@@ -67,7 +66,6 @@ discrete GPU.
 %install
 . packaging/layout.sh
 stage_nabria %{buildroot} . %{SOURCE1}
-install -Dpm 644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 
 %files
 %license LICENSE
@@ -89,5 +87,5 @@ install -Dpm 644 LICENSE %{buildroot}%{_datadir}/licenses/%{name}/LICENSE
 %systemd_user_preun app-%{appid}.service
 
 %changelog
-* Fri Aug 28 2026 Nabria <noreply@github.com> - 0.2.1-1
-- First packaged release.
+* Fri Aug 28 2026 Nabria <noreply@github.com>
+- See the release notes on GitHub; this file does not restate the version.
