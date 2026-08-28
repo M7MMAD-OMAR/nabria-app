@@ -73,6 +73,18 @@ else
   fatal=1
 fi
 
+# pycairo, separately. The indicator is drawn with it, and on Debian it is a
+# different package from the GTK bindings -- so installing exactly what the
+# line above asks for produced a daemon that imported GTK fine and then died
+# on `import cairo` the moment it built the indicator.
+if python3 -c 'import cairo' 2>/dev/null; then
+  ok "pycairo"
+else
+  bad "pycairo is missing — the indicator is drawn with it"
+  echo "      $(hint python3-cairo 'python3-cairo python3-gi-cairo' python-cairo)"
+  fatal=1
+fi
+
 # The indicator is a layer-shell surface. Without this it silently becomes an
 # ordinary window that fullscreen apps cover -- which is the entire reason this
 # tool exists rather than the one it replaced.
