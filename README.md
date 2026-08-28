@@ -27,10 +27,14 @@ The installer tells you what is missing in your own distribution's package
 names, fetches the transcription engine, and downloads the model that suits
 your hardware. Re-run it any time; it repairs rather than reinstalls.
 
-The engine is a prebuilt binary, verified against a checksum committed to this
-repository — not one served alongside the download, which would only prove the
-bytes arrived intact. If there is no prebuilt for your architecture, or it will
-not run on your glibc, the installer builds it from source instead; that needs
+The engine is a prebuilt binary — verified against a checksum committed to this
+repository, not one served alongside the download, which would only prove the
+bytes arrived intact. It needs glibc 2.34 or newer (Debian 12, Ubuntu 22.04,
+RHEL 9 and anything later) and the Vulkan loader, and nothing else. Verified by
+installing it on a clean Debian 12 with no compiler present.
+
+If there is no prebuilt for your architecture, or it will not run on your
+system, the installer says why and builds from source instead; that needs
 `git`, `cmake` and a C++ compiler, and takes a few minutes once.
 
 Then bind a key. Wayland gives no way for an application to claim a shortcut

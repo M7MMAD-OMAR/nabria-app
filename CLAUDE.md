@@ -45,8 +45,15 @@ Window tests need a display and skip without one -- `check.sh` handles the
 
 CI is deliberately cheap: fast checks and the container matrix on every push,
 and **nothing that compiles whisper.cpp**. Publishing an engine is a local act
-(`scripts/release-engine.sh`), done in an Ubuntu 22.04 container because glibc
-is forward- but not backward-compatible.
+(`scripts/release-engine.sh`), built in a Debian bookworm container with
+**pinned Vulkan headers** — bookworm's own are too old to compile the backend,
+and the one older image with a shader compiler (Ubuntu 22.04) has none at all.
+
+The published binary must link nothing but libc and the Vulkan loader.
+`libgomp` in particular is part of the compiler runtime, so a binary needing it
+fails to start on precisely the machines a prebuilt engine exists for -- hence
+`-DGGML_OPENMP=OFF` and the static GCC runtimes in `build-engine.sh`. ggml has
+its own threadpool; CPU inference measured *faster* without OpenMP.
 
 Read `~/.local/state/nabria/nabria.log` first when anything misbehaves. It
 records every take with its measured level, so it distinguishes "the hotkey did

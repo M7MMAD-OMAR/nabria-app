@@ -177,8 +177,8 @@ way to bind a global hotkey on Wayland.
    `auto` in a fresh config, and the Levantine prompt is not shipped — it is
    the real differentiator and nobody gets it without being told. Ship it as an
    Arabic preset detected from the locale?
-6. **Who builds the engine?** Right now every user compiles whisper.cpp. That
-   is the remaining gap between a developer and an ordinary person.
+6. ~~**Who builds the engine?**~~ Nobody: `scripts/release-engine.sh` publishes
+   it and the installer fetches it. Compiling is the fallback.
 
 ## Session log
 
