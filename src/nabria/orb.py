@@ -41,10 +41,20 @@ import cairo
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Gtk4LayerShell", "1.0")
-from gi.repository import Gdk, GLib, Gtk, Gtk4LayerShell as LayerShell  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
-from . import config, theme
+# Layer shell is what makes the indicator sit above everything, but it is not
+# universally available: GNOME does not implement the protocol at all, and the
+# typelib is a separate package everywhere. Importing it unconditionally meant
+# a missing package stopped the whole application from starting -- turning a
+# degraded indicator into no dictation at all. See `_init_surface`.
+try:
+    gi.require_version("Gtk4LayerShell", "1.0")
+    from gi.repository import Gtk4LayerShell as LayerShell  # noqa: E402
+except (ImportError, ValueError):
+    LayerShell = None
+
+from . import config, theme  # noqa: E402
 
 WINDOW_W = 76
 WINDOW_H = 30
@@ -85,13 +95,26 @@ window.nabria {
 }
 """
 
+# Named rather than holding LayerShell.Edge values, because those cannot be
+# looked up when the typelib is absent -- and this table is read at import.
 ANCHORS = {
-    "bottom-right": (LayerShell.Edge.BOTTOM, LayerShell.Edge.RIGHT),
-    "bottom-left": (LayerShell.Edge.BOTTOM, LayerShell.Edge.LEFT),
-    "top-right": (LayerShell.Edge.TOP, LayerShell.Edge.RIGHT),
-    "top-left": (LayerShell.Edge.TOP, LayerShell.Edge.LEFT),
-    "bottom-center": (LayerShell.Edge.BOTTOM, None),
+    "bottom-right": ("BOTTOM", "RIGHT"),
+    "bottom-left": ("BOTTOM", "LEFT"),
+    "top-right": ("TOP", "RIGHT"),
+    "top-left": ("TOP", "LEFT"),
+    "bottom-center": ("BOTTOM", None),
 }
+
+
+def layer_shell_available() -> bool:
+    """Whether the indicator can be put on the overlay layer.
+
+    Two ways to fail and they look identical from the outside. The typelib may
+    not be installed, and `is_supported()` returns False when the compositor
+    does not implement the protocol -- or when the library was loaded after
+    libwayland-client, which is what LD_PRELOAD in run.sh exists to prevent.
+    """
+    return LayerShell is not None and LayerShell.is_supported()
 
 # state -> palette key for the glyph and any ring
 ACCENTS = {
@@ -141,8 +164,32 @@ class Orb:
         self.area.set_draw_func(self._draw)
         self.window.set_child(self.area)
 
-        self._init_layer_shell()
+        self.layered = layer_shell_available()
+        self._init_surface()
         self.window.add_tick_callback(self._tick)
+
+    def _init_surface(self) -> None:
+        if self.layered:
+            self._init_layer_shell()
+        else:
+            self._init_plain_window()
+
+    def _init_plain_window(self) -> None:
+        """The indicator as an ordinary window, where layer shell is missing.
+
+        Worse, and honestly so. Wayland gives a client no way to place its own
+        window or to ask to stay on top, so this lands wherever the compositor
+        decides and anything fullscreen will cover it -- exactly the failure
+        that made this tool worth writing. It is still much better than the
+        alternative, which is that dictation does not run at all: the words
+        still land in the document, and the transcript is still in the history.
+
+        Undecorated and unresizable, so at least it reads as an indicator
+        rather than as an application someone forgot to close.
+        """
+        self.window.set_decorated(False)
+        self.window.set_resizable(False)
+        self.window.set_default_size(WINDOW_W, WINDOW_H)
 
     def _init_layer_shell(self) -> None:
         window = self.window
@@ -160,11 +207,11 @@ class Orb:
         vertical, horizontal = ANCHORS.get(
             self.settings.get("orb_position", "bottom-right"), ANCHORS["bottom-right"]
         )
-        LayerShell.set_anchor(window, vertical, True)
-        LayerShell.set_margin(window, vertical, margin)
+        LayerShell.set_anchor(window, getattr(LayerShell.Edge, vertical), True)
+        LayerShell.set_margin(window, getattr(LayerShell.Edge, vertical), margin)
         if horizontal is not None:
-            LayerShell.set_anchor(window, horizontal, True)
-            LayerShell.set_margin(window, horizontal, margin)
+            LayerShell.set_anchor(window, getattr(LayerShell.Edge, horizontal), True)
+            LayerShell.set_margin(window, getattr(LayerShell.Edge, horizontal), margin)
 
     # -- drawing -----------------------------------------------------------
 

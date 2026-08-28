@@ -113,6 +113,14 @@ class Daemon:
 
         self.orb = Orb(application, self.settings)
         self.orb.hide()
+        if not self.orb.layered:
+            # Worth a line in the log, because every symptom of it -- the
+            # indicator in the wrong place, hidden behind a fullscreen window --
+            # otherwise looks like a bug in the indicator itself.
+            self.log(
+                "layer shell unavailable: the indicator is an ordinary window. "
+                "Install gtk4-layer-shell, or expect it to be covered."
+            )
         self._serve()
         threading.Thread(
             target=self._worker, daemon=True, name="nabria-transcribe"
