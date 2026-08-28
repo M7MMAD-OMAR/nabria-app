@@ -85,3 +85,48 @@ def test_the_microphone_bar_matches_the_silence_gate(fresh_config):
     assert wizard.GOOD_ENOUGH_DBFS >= float(
         fresh_config.DEFAULTS["silence_threshold_dbfs"]
     )
+
+
+def test_choosing_arabic_ships_the_dialect_prompt(application, fresh_config):
+    # The prompt is the reason Arabic works well here, and nobody would ever
+    # find it in a config file. If picking Arabic does not install it, the
+    # advantage exists only for people who read the source.
+    settings = fresh_config.load()
+    setup = wizard.Wizard(application, settings, lambda: None)
+    for code, radio in setup.languages:
+        radio.set_active(code == "ar")
+    setup._choose_language()
+
+    assert settings["language"] == "ar"
+    assert "هلأ" in settings["vocabulary"]
+
+
+def test_a_hand_written_vocabulary_is_never_overwritten(application, fresh_config):
+    settings = {**fresh_config.load(), "vocabulary": "mine"}
+    setup = wizard.Wizard(application, settings, lambda: None)
+    for code, radio in setup.languages:
+        radio.set_active(code == "ar")
+    setup._choose_language()
+    assert settings["vocabulary"] == "mine"
+
+
+def test_english_does_not_ship_an_arabic_prompt(application, fresh_config):
+    settings = fresh_config.load()
+    setup = wizard.Wizard(application, settings, lambda: None)
+    for code, radio in setup.languages:
+        radio.set_active(code == "en")
+    setup._choose_language()
+    assert settings["language"] == "en"
+    assert settings["vocabulary"] == ""
+
+
+def test_the_locale_preselects_arabic(application, fresh_config, monkeypatch):
+    monkeypatch.setenv("LANG", "ar_JO.UTF-8")
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    chosen = [code for code, radio in setup.languages if radio.get_active()]
+    assert chosen == ["ar"]
+
+
+def test_every_preset_is_offered(application, fresh_config):
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    assert {code for code, _ in setup.languages} == set(fresh_config.LANGUAGE_PRESETS)

@@ -151,11 +151,16 @@ everywhere except a terminal, and the safer of the two guesses.
 
 ## Arabic
 
-`language` is `ar`, not `auto`. Per-window auto-detection turned room noise into
-confident English gibberish.
+**Tell it the language.** Auto-detection runs per 30-second window, and a
+window of near-silence is what it most often gets wrong — turning room tone
+into confident gibberish in a language nobody was speaking. The setup wizard
+asks, preselecting from the locale; `auto` remains available and remains the
+worst of the three.
 
-The `vocabulary` initial prompt is not just a glossary. Measured over one
-retained take, same model, three runs differing only in the prompt:
+The `vocabulary` initial prompt is not just a glossary, and choosing Arabic in
+the wizard ships one — `config.LEVANTINE_PROMPT`. It is only ever written into
+an empty setting, so it cannot overwrite something hand-written. Measured over
+one retained take, same model, three runs differing only in the prompt:
 
 | prompt | |
 |---|---|

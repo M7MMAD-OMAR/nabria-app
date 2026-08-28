@@ -5,10 +5,10 @@ run before" flag, is deliberate -- it means the wizard is also the repair path
 when someone deletes a model, and it cannot get stuck marked done while the
 app is unusable.
 
-Four steps and no more, because the whole promise is that there is nothing to
-configure: pick a model, fetch it, check the microphone is heard, learn the
-shortcut. Everything else has a sensible default and lives in the settings
-window for the few who want it.
+Five steps and no more, because the whole promise is that there is nothing to
+configure: say what you speak, pick a model, fetch it, check the microphone is
+heard, learn the shortcut. Everything else has a sensible default and lives in
+the settings window for the few who want it.
 
 The styling comes from the shipped palette rather than the desktop theme, for
 the same reason the indicator's does: this has to look considered on a bare
@@ -17,6 +17,7 @@ Sway session, not only on a fully themed desktop.
 
 from __future__ import annotations
 
+import os
 import threading
 
 import gi
@@ -199,6 +200,7 @@ class Wizard(Gtk.ApplicationWindow):
         self.set_child(self.stack)
 
         self.stack.add_named(self._welcome_page(), "welcome")
+        self.stack.add_named(self._language_page(), "language")
         self.stack.add_named(self._model_page(), "model")
         self.stack.add_named(self._download_page(), "download")
         self.stack.add_named(self._microphone_page(), "microphone")
@@ -237,9 +239,74 @@ class Wizard(Gtk.ApplicationWindow):
         )
         start = Gtk.Button(label="Set up")
         start.add_css_class("suggested-action")
-        start.connect("clicked", lambda _b: self.stack.set_visible_child_name("model"))
+        start.connect("clicked", lambda _b: self.stack.set_visible_child_name("language"))
         self._buttons(page, start)
         return page
+
+    def _language_page(self) -> Gtk.Box:
+        page = self._page(
+            "What will you speak?",
+            "Telling it beats letting it guess. Detection runs per phrase, and "
+            "a phrase of near-silence is what it most often gets wrong — "
+            "confidently, and in the wrong language.",
+        )
+
+        # Preselect from the locale. Someone whose system is already in Arabic
+        # should not have to tell us that too.
+        locale = (os.environ.get("LC_ALL") or os.environ.get("LANG") or "").lower()
+        preferred = "ar" if locale.startswith("ar") else "en" if locale else "auto"
+
+        self.languages: list[tuple[str, Gtk.CheckButton]] = []
+        leader: Gtk.CheckButton | None = None
+        for code, preset in config.LANGUAGE_PRESETS.items():
+            card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            card.add_css_class("nabria-card")
+            radio = Gtk.CheckButton()
+            radio.set_valign(Gtk.Align.CENTER)
+            if leader is None:
+                leader = radio
+            else:
+                radio.set_group(leader)
+            card.append(radio)
+
+            column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            name = Gtk.Label(label=preset["label"], xalign=0)
+            name.add_css_class("nabria-choice-name")
+            column.append(name)
+            if preset["summary"]:
+                summary = Gtk.Label(label=preset["summary"], xalign=0, wrap=True)
+                summary.add_css_class("nabria-lede")
+                column.append(summary)
+            card.append(column)
+
+            radio.connect(
+                "toggled",
+                lambda button, box=card: box.add_css_class("selected")
+                if button.get_active() else box.remove_css_class("selected"),
+            )
+            radio.set_active(code == preferred)
+            self.languages.append((code, radio))
+            page.append(card)
+
+        onward = Gtk.Button(label="Next")
+        onward.add_css_class("suggested-action")
+        onward.connect("clicked", lambda _b: self._choose_language())
+        self._buttons(page, onward)
+        return page
+
+    def _choose_language(self) -> None:
+        code = next(
+            (code for code, radio in self.languages if radio.get_active()), "auto"
+        )
+        preset = config.LANGUAGE_PRESETS[code]
+        self.settings["language"] = code
+        # The dialect prompt is the whole reason Arabic works well here, and
+        # nobody would ever find it in a config file. Setting it only when it
+        # is empty means this never overwrites something the user wrote.
+        if preset["vocabulary"] and not str(self.settings.get("vocabulary") or "").strip():
+            self.settings["vocabulary"] = preset["vocabulary"]
+        config.save(self.settings)
+        self.stack.set_visible_child_name("model")
 
     def _model_page(self) -> Gtk.Box:
         recommended = models.recommended(self.has_gpu)

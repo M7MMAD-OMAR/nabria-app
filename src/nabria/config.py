@@ -28,6 +28,38 @@ LOG_PATH = STATE_DIR / "nabria.log"
 RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 SOCKET_PATH = RUNTIME_DIR / "nabria.sock"
 
+# A dialect prompt, offered when Arabic is chosen at setup.
+#
+# Not a glossary -- these are ordinary Levantine function words, and their job
+# is to stop the model pulling spoken dialect toward formal Arabic. Measured
+# over one utterance, three runs: a prompt of formal Arabic came out *worse*
+# than no prompt at all (هلأ became هلا), and adding these recovered هلأ twice,
+# شغال, and a word the formal prompt had split in half. Keep it short; a long
+# prompt starts leaking into the transcript.
+LEVANTINE_PROMPT = "هلأ، بحكي، شوف، هيك، كتير، منيح، شغال، لهيك، مشان، عنجد، طيب"
+
+# What the wizard offers. Deliberately three, not ninety: whisper knows a great
+# many languages, and a list of them is a worse first experience than a choice
+# between "the one I speak" and "work it out".
+LANGUAGE_PRESETS: dict[str, dict[str, str]] = {
+    "ar": {
+        "label": "العربية",
+        "summary": "Arabic, including spoken dialect. Ships a Levantine prompt.",
+        "vocabulary": LEVANTINE_PROMPT,
+    },
+    "en": {
+        "label": "English",
+        "summary": "",
+        "vocabulary": "",
+    },
+    "auto": {
+        "label": "Work it out",
+        "summary": "Detected per phrase. Least accurate, and it can turn room "
+                   "noise into confident nonsense in another language.",
+        "vocabulary": "",
+    },
+}
+
 DEFAULTS: dict[str, Any] = {
     # Transcription engine. Both are filled in by scripts/install.sh.
     "server_binary": str(LIBEXEC_DIR / "whisper-server"),
