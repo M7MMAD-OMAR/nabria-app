@@ -21,7 +21,7 @@ jobs:
     # development one: no discrete GPU, no Hyprland, no PipeWire.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install the desktop stack
         run: |
@@ -43,6 +43,6 @@ jobs:
     # could not drift. One of those had to give.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: scripts/check.sh --distros
         run: ./scripts/check.sh --distros
