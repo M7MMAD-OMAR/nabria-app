@@ -1,0 +1,84 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    # The point of running here is that it is not the development machine: no
+    # discrete GPU, no Hyprland, no PipeWire. Anything that only passes at home
+    # is exactly what needs catching.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run the tests
+        # GTK and engine tests skip themselves where their dependencies are
+        # absent, so this covers device selection, capture levels, the model
+        # downloader, transcript cleaning, history and injection.
+        run: python -m pytest -q -rs
+
+  gtk:
+    # A second job with the desktop stack present, so the daemon and control
+    # socket tests actually run rather than skipping.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GTK 4 and PyGObject
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0
+          pip install pytest
+
+      - name: Run the tests
+        run: python3 -m pytest -q -rs
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the shell scripts
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh
+
+  engine:
+    # The slow one: build whisper.cpp, fetch the smallest model, and transcribe
+    # through the app's own engine wrapper. This is the only job that proves a
+    # clean machine can get from a checkout to a working transcription.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential glslc libvulkan-dev \
+                                  spirv-headers python3-gi gir1.2-gtk-4.0
+          pip install pytest
+
+      - name: Build the engine
+        run: scripts/build-engine.sh
+
+      - name: Fetch the smallest model
+        run: PYTHONPATH=src python3 -m nabria.models base
+
+      - name: Transcribe for real
+        # No GPU on a runner, so this also exercises the CPU fallback path that
+        # every machine without a discrete card takes.
+        run: python3 -m pytest tests/test_engine.py -q -rs

@@ -7,7 +7,7 @@
 #   scripts/install.sh [--model KEY] [--no-model] [--no-engine] [--no-service]
 set -euo pipefail
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 export PYTHONPATH="$project_dir/src${PYTHONPATH:+:$PYTHONPATH}"
 
 libexec_dir=$HOME/.local/libexec/nabria

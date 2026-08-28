@@ -14,8 +14,8 @@
 #   scripts/build-engine.sh [--output PATH] [--no-vulkan] [--keep-source]
 set -euo pipefail
 
-project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-# shellcheck source=../engine/VERSION
+project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+# shellcheck source=../engine/VERSION disable=SC1091
 source "$project_dir/engine/VERSION"
 
 output=$HOME/.local/libexec/nabria/whisper-server
@@ -59,6 +59,9 @@ if [ "$want_vulkan" = yes ]; then
   fi
 fi
 
+vulkan_flag=OFF
+[ "$want_vulkan" = yes ] && vulkan_flag=ON
+
 echo "whisper.cpp $WHISPER_CPP_VERSION -> $output"
 rm -rf "$source_dir"
 git clone --depth 1 --branch "$WHISPER_CPP_VERSION" \
@@ -71,7 +74,7 @@ cmake -S "$source_dir" -B "$source_dir/build" \
   -DWHISPER_BUILD_EXAMPLES=ON \
   -DBUILD_SHARED_LIBS=OFF \
   -DGGML_NATIVE=OFF \
-  -DGGML_VULKAN=$([ "$want_vulkan" = yes ] && echo ON || echo OFF) \
+  -DGGML_VULKAN="$vulkan_flag" \
   > "$source_dir/configure.log" 2>&1 || {
     echo "cmake configure failed:" >&2; tail -20 "$source_dir/configure.log" >&2; exit 1;
   }
@@ -92,6 +95,9 @@ install -m 644 "$source_dir/LICENSE" "$(dirname "$output")/whisper.cpp-LICENSE"
 [ "$keep_source" = yes ] || rm -rf "$source_dir"
 
 echo "built $(du -h "$output" | cut -f1) with vulkan=$want_vulkan"
-"$output" --help >/dev/null 2>&1 && echo "engine runs" || {
-  echo "the engine was built but will not run" >&2; exit 1;
-}
+if "$output" --help >/dev/null 2>&1; then
+  echo "engine runs"
+else
+  echo "the engine was built but will not run" >&2
+  exit 1
+fi
