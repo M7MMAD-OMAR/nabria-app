@@ -20,6 +20,31 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 
+def display_available() -> bool:
+    """Whether GTK can actually open a display.
+
+    `Gtk.init_check()` alone is not a reliable test from Python: depending on
+    the PyGObject version it returns a bool or a `(bool, argv)` tuple, and a
+    bare `if not Gtk.init_check()` is therefore always false against the tuple
+    form. That is how the headless guard silently stopped guarding on CI, where
+    the tests then failed inside the first widget constructor instead of
+    skipping.
+    """
+    try:
+        import gi
+
+        gi.require_version("Gtk", "4.0")
+        from gi.repository import Gdk, Gtk
+    except (ImportError, ValueError):
+        return False
+
+    result = Gtk.init_check()
+    started = result[0] if isinstance(result, tuple) else bool(result)
+    # The display is the thing actually needed, so ask for it rather than
+    # trusting the return value.
+    return bool(started) and Gdk.Display.get_default() is not None
+
+
 @pytest.fixture
 def xdg(tmp_path, monkeypatch):
     """Point every XDG directory at a temporary tree.

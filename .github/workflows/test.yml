@@ -42,11 +42,14 @@ jobs:
       - name: Install GTK 4 and PyGObject
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0
+          sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 xvfb
           pip install pytest
 
       - name: Run the tests
-        run: python3 -m pytest -q -rs
+        # Under a virtual display, so the window tests actually run rather
+        # than skipping themselves -- a job whose only outcome is "skipped"
+        # proves nothing and reports success either way.
+        run: xvfb-run -a python3 -m pytest -q -rs
 
   shell:
     runs-on: ubuntu-latest

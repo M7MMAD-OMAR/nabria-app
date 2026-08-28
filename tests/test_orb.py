@@ -19,7 +19,9 @@ try:
 except (ImportError, ValueError) as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GTK 4 is unavailable: {exc}", allow_module_level=True)
 
-if not Gtk.init_check():  # pragma: no cover - needs a display
+from conftest import display_available  # noqa: E402
+
+if not display_available():  # pragma: no cover - environment dependent
     pytest.skip("no display", allow_module_level=True)
 
 from nabria import orb as orb_module  # noqa: E402
