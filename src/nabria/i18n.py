@@ -345,6 +345,23 @@ STRINGS: dict[str, dict[str, str]] = {
               "الجزء متروك لك.",
     },
     "wizard.done": {"en": "Done", "ar": "تم"},
+    "wizard.shortcut.bind": {"en": "Add it for me", "ar": "أضِفه عني"},
+    "wizard.shortcut.bound": {
+        "en": "Added to {path}. A copy of the old file is beside it.",
+        "ar": "أُضيف إلى {path}. نسخة من الملف القديم بجانبه.",
+    },
+    "wizard.shortcut.reload": {
+        "en": "Reload your compositor's configuration for it to take effect.",
+        "ar": "أعِد تحميل إعدادات مدير النوافذ ليصبح فعّالاً.",
+    },
+    "wizard.shortcut.already": {
+        "en": "{path} already binds this key.",
+        "ar": "{path} يربط هذا المفتاح أصلاً.",
+    },
+    "wizard.shortcut.failed": {
+        "en": "Could not write {path}: {error}",
+        "ar": "تعذّرت الكتابة إلى {path}: {error}",
+    },
 
     # -- how to bind the key, per compositor -------------------------------
     #

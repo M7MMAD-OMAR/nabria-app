@@ -14,7 +14,6 @@ speech to additionally check that words come back.
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
 
 import pytest
@@ -88,14 +87,27 @@ def test_a_loud_tone_does_not_crash_the_engine(engine, tmp_path):
 
 
 def test_the_model_stays_loaded_between_takes(engine, tmp_path):
-    # The second take must not pay the model load again; that is the whole
-    # point of keeping the server warm.
+    """The second take reuses the running server rather than starting one.
+
+    Asserted on the process, not on the clock. This used to allow the second
+    take ten seconds and call anything faster a success, which failed the
+    first time the machine had something else to do -- and a wall-clock budget
+    could not have distinguished "the model reloaded" from "the machine was
+    busy" anyway. The same pid on the same port is the actual claim.
+    """
     quiet = write_wav(tmp_path / "again.wav", [0] * 16_000)
     engine.transcribe(quiet)
 
-    started = time.monotonic()
+    assert engine.process is not None
+    pid, port = engine.process.pid, engine.port
+
     engine.transcribe(quiet)
-    assert time.monotonic() - started < 10.0
+
+    assert engine.process is not None and engine.process.pid == pid, (
+        "the server was restarted, so the model was loaded twice"
+    )
+    assert engine.port == port
+    assert engine.process.poll() is None, "the server died between takes"
 
 
 def test_real_speech_comes_back_as_words(engine):

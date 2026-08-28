@@ -172,7 +172,13 @@ way to bind a global hotkey on Wayland.
       prints the exact line, shared by the installer and the wizard.
 - [ ] Verify the portal on KDE and GNOME. Both backends advertise the
       interface; neither has been tried.
-- [ ] Offer to *write* the config snippet rather than print it.
+- [x] **Offer to *write* the config snippet.** The wizard's shortcut page has
+      an "Add it for me" button on Hyprland and sway, where the answer is a
+      flat file that can be appended to. Not on niri (its binds live inside a
+      block, so appending parses and does nothing), and not on KDE or GNOME
+      (a settings dialog, no file). It keeps a copy of the old file, refuses
+      to add a binding that is already there however it got there, and never
+      rewrites a line it did not add.
 - [ ] A window with a record button, for when no key can be bound at all.
 
 ## Phase 4 — release

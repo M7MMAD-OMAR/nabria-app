@@ -364,11 +364,55 @@ class Wizard(Gtk.ApplicationWindow):
         for command in commands:
             page.append(_key_line(command, pasteable=True))
 
+        self.bind_result = i18n.label("", wrap=True)
+        page.append(self.bind_result)
+
         done = Gtk.Button(label=i18n.t("wizard.done"))
         done.add_css_class("suggested-action")
         done.connect("clicked", lambda _b: self._finish())
-        self._buttons(page, done)
+
+        # Offered only where the answer is a file that can be appended to. On
+        # KDE and GNOME it is a settings dialog, and on niri the lines belong
+        # inside a block -- there is nothing honest for a button to do on any
+        # of the three, and one that failed would be worse than none.
+        if shortcut.config_file() is not None:
+            add = Gtk.Button(label=i18n.t("wizard.shortcut.bind"))
+            add.connect("clicked", self._bind_shortcut)
+            self._buttons(page, add, done)
+        else:
+            self._buttons(page, done)
         return page
+
+    def _bind_shortcut(self, button: Gtk.Button) -> None:
+        """Write the lines into the compositor's configuration file."""
+        path = shortcut.config_file()
+        assert path is not None  # the button only exists when there is one
+
+        for name in ("nabria-good", "nabria-bad"):
+            self.bind_result.remove_css_class(name)
+
+        if shortcut.already_bound(path):
+            # Not an error, and not a reason to write it twice.
+            self.bind_result.set_text(
+                i18n.t("wizard.shortcut.already", path=i18n.ltr(path))
+            )
+            button.set_sensitive(False)
+            return
+        try:
+            written = shortcut.bind(path)
+        except OSError as exc:
+            self.bind_result.add_css_class("nabria-bad")
+            self.bind_result.set_text(
+                i18n.t("wizard.shortcut.failed", path=i18n.ltr(path),
+                       error=i18n.ltr(exc))
+            )
+            return
+        self.bind_result.add_css_class("nabria-good")
+        self.bind_result.set_text(
+            i18n.t("wizard.shortcut.bound", path=i18n.ltr(written))
+            + " " + i18n.t("wizard.shortcut.reload")
+        )
+        button.set_sensitive(False)
 
     # -- actions -----------------------------------------------------------
 

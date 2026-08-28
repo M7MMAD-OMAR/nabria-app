@@ -13,12 +13,27 @@ allowed to be wrong: the fallback is a generic instruction, not an error.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from . import i18n
 
 TOGGLE = "toggle"
 CANCEL = "cancel"
 SETTINGS = "settings"
+
+# Where the lines go, for the compositors whose configuration is a flat file
+# that can be appended to. Deliberately not niri: its binds live *inside* a
+# `binds {}` block, so appending at the end produces a file that parses and
+# does nothing, which is worse than printing the lines and letting someone
+# paste them in the right place.
+CONFIG_FILES = {
+    "hyprland": Path("~/.config/hypr/hyprland.conf"),
+    "sway": Path("~/.config/sway/config"),
+}
+
+# Written above the block so it can be found and removed by hand later, and so
+# a second run recognises its own work rather than appending a duplicate.
+MARKER = "# nabria dictation shortcuts"
 
 
 def command(action: str = TOGGLE) -> str:
@@ -38,6 +53,66 @@ def detect() -> str:
         if name in desktop:
             return name
     return ""
+
+
+def config_file() -> Path | None:
+    """The file the shortcut lines can be appended to, if there is one.
+
+    None for every desktop where the answer is a settings dialog rather than a
+    file -- KDE and GNOME -- and for niri, where the right place is inside a
+    block rather than at the end.
+    """
+    path = CONFIG_FILES.get(detect())
+    return path.expanduser() if path else None
+
+
+def snippet() -> str:
+    """The block to append, marker included."""
+    lines = instructions()[1:]
+    return "\n".join([MARKER, *lines]) + "\n"
+
+
+def already_bound(path: Path) -> bool:
+    """Whether this file already binds the key, however it came to.
+
+    Checks for the command rather than for the marker, so a line somebody
+    pasted by hand -- the documented path until now -- counts. Offering to add
+    a binding that is already there is how a config file ends up with the same
+    shortcut twice and a compositor warning nobody reads.
+    """
+    try:
+        return command(TOGGLE) in path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def bind(path: Path | None = None) -> Path:
+    """Append the shortcut lines. Returns the file written.
+
+    Someone else's configuration file, so: a copy is kept beside it first, the
+    block is appended rather than inserted anywhere clever, and it starts with
+    a comment naming what put it there. Nothing is ever rewritten or reordered
+    -- the file this touches may be hundreds of lines somebody cares about.
+
+    Hyprland reloads a changed config by itself. Sway does not, which is why
+    the interface says so rather than leaving someone to wonder why the key
+    they just bound does nothing.
+    """
+    path = path or config_file()
+    if path is None:
+        raise OSError("no configuration file for this desktop")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.with_suffix(path.suffix + ".nabria-backup").write_bytes(path.read_bytes())
+        existing = path.read_text(encoding="utf-8")
+        # A file not ending in a newline would otherwise get the marker welded
+        # onto the end of whatever its last line happens to be.
+        separator = "" if existing.endswith("\n") or not existing else "\n"
+    else:
+        existing, separator = "", ""
+    with path.open("a", encoding="utf-8") as sink:
+        sink.write(separator + "\n" + snippet())
+    return path
 
 
 def instructions() -> list[str]:
