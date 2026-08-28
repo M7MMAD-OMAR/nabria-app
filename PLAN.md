@@ -204,6 +204,12 @@ No self-update code, and none wanted. A packaged install is updated by the
 same machinery that updates everything else on the machine, and that is a
 smaller and better answer than anything in-app.
 
+- [x] **`install.sh --uninstall`**, and a warning when a user install would
+      shadow a packaged one. It shadows at every point — the launcher on PATH,
+      the unit, the desktop entry — so `dnf install nabria` after `install.sh`
+      did nothing observable, and there was no way out of it because the repo
+      had no uninstall path at all.
+
 ## Phase 5 — the landing page
 
 Planned in `docs/SITE.md`; nothing built. All drawn, no screenshots, almost no

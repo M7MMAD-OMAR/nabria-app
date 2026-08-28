@@ -23,7 +23,7 @@ scripts/install.sh --uninstall          # remove it; config, models and history 
 scripts/bootstrap.sh                    # what `curl … | sh` runs: fetch a release, install it
 scripts/package.sh                      # build nabria.rpm and nabria.deb in containers
 scripts/check.sh --packages             # install those packages in clean Fedora/Debian/Ubuntu
-scripts/release.sh v0.3.0               # publish: tarball, installer, rpm, deb
+scripts/release.sh v0.3.1               # publish: tarball, installer, rpm, deb
 scripts/release-engine.sh               # build the published engine (local, not CI)
 systemctl --user enable --now nabria    # autostart (Hyprland ignores XDG autostart)
 systemctl --user restart nabria         # REQUIRED after any config.json edit

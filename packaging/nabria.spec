@@ -12,7 +12,7 @@
 %global debug_package %{nil}
 
 Name:           nabria
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Local voice dictation — press a key, speak, the words are typed
 

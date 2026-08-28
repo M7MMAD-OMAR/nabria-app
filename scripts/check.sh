@@ -159,6 +159,16 @@ if [ "$want_distros" = yes ]; then
              NABRIA_ALLOW_ROOT=1 NABRIA_TARBALL=/nabria.tar.gz NABRIA_HOME=/opt/nabria \
                ./scripts/bootstrap.sh --no-engine --no-model --no-service
              test -x /opt/nabria/scripts/run.sh
+             # Uninstall, and then what it must NOT have taken with it. Every
+             # path in that list is a rm -rf on a directory inside someone's
+             # home, so it is tested where a mistake costs a container and not
+             # a 1.6 GB model and every transcript they have ever taken.
+             mkdir -p \"\$HOME/.local/share/nabria/models\" \"\$HOME/.config/nabria\"
+             touch \"\$HOME/.local/share/nabria/models/pretend.bin\"
+             /opt/nabria/scripts/install.sh --uninstall
+             test ! -e \"\$HOME/.local/bin/nabria\"
+             test -f \"\$HOME/.local/share/nabria/models/pretend.bin\"
+             test -f \"\$HOME/.config/nabria/config.json\"
              # And the tests must pass on its Python. No file list: every
              # module that needs a display, GTK or an engine skips itself, and
              # a hand-written list only goes stale -- test_portal.py was added
