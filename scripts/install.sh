@@ -159,7 +159,22 @@ fetch_prebuilt_engine() {
   # It has to actually run: a binary built against a newer glibc than this
   # machine has will download and verify perfectly and then refuse to start.
   if ! "$target" --help >/dev/null 2>&1; then
-    rm -f "$target"; echo "  it will not run here"; return 1
+    # Say which library, because "it will not run here" sends people looking
+    # at the download when the answer is a one-package install. Measured on a
+    # minimal Debian 12: the Vulkan loader is absent on machines that have
+    # never had a GPU driver installed, and the engine links it.
+    local missing
+    missing=$(ldd "$target" 2>/dev/null | awk '/not found/ {print $1}' | paste -sd' ')
+    rm -f "$target"
+    if [ -n "$missing" ]; then
+      echo "  it needs $missing, which is not installed"
+      case $missing in
+        *libvulkan*) echo "      $(hint vulkan-loader libvulkan1 vulkan-icd-loader)" ;;
+      esac
+    else
+      echo "  it will not run here"
+    fi
+    return 1
   fi
   return 0
 }

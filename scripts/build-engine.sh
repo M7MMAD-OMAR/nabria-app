@@ -67,6 +67,12 @@ rm -rf "$source_dir"
 git clone --depth 1 --branch "$WHISPER_CPP_VERSION" \
   https://github.com/ggml-org/whisper.cpp.git "$source_dir" 2>&1 | tail -1
 
+# OpenMP off and the GCC runtimes linked in, so the result needs nothing but
+# libc and -- when Vulkan is compiled in -- the Vulkan loader. A binary that
+# fails to *load* is worse than a slow one: measured on a minimal Debian 12 it
+# would not start at all, because libgomp.so.1 is part of the compiler runtime
+# and is simply not installed on a machine that has never built anything.
+# ggml has its own threadpool; OpenMP is a convenience, not a requirement.
 cmake -S "$source_dir" -B "$source_dir/build" \
   -DCMAKE_BUILD_TYPE=Release \
   -DWHISPER_BUILD_SERVER=ON \
@@ -74,6 +80,8 @@ cmake -S "$source_dir" -B "$source_dir/build" \
   -DWHISPER_BUILD_EXAMPLES=ON \
   -DBUILD_SHARED_LIBS=OFF \
   -DGGML_NATIVE=OFF \
+  -DGGML_OPENMP=OFF \
+  -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++" \
   -DGGML_VULKAN="$vulkan_flag" \
   > "$source_dir/configure.log" 2>&1 || {
     echo "cmake configure failed:" >&2; tail -20 "$source_dir/configure.log" >&2; exit 1;
