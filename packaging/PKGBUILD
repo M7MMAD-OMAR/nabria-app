@@ -29,7 +29,7 @@ optdepends=('gtk4-layer-shell: lets the indicator float above other windows')
 
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/nabria.tar.gz"
         "whisper-server-$pkgver::$url/releases/download/$_engine/whisper-server-linux-x86_64")
-sha256sums=('884589a8953e05742ff36736adf55a01733b2b65c6d37db5e1ee6594eecff4b5'
+sha256sums=('4803052c7eb5833cd247053b36b7d3b7314df48c765301d7c5fa81078dc81f39'
             '81efb4c11e53f0225d8988e881f7563c86cef2fb4ed9f51e980b9a2dae66b927')
 
 package() {
