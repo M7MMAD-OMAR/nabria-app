@@ -72,6 +72,7 @@ class Daemon:
         self.started = False
         self.orb: Orb | None = None
         self.settings_window = None
+        self.wizard = None
         self.shortcuts = None
 
         from .whisper import WhisperServer
@@ -123,27 +124,21 @@ class Daemon:
                 "Install gtk4-layer-shell, or expect it to be covered."
             )
         self._serve()
-        self._bind_portal_shortcuts()
+        # Deferred rather than run inline: it is fully additive, and asking the
+        # portal can D-Bus-activate xdg-desktop-portal, which at login is not
+        # yet running -- that would hold up the socket, the worker thread and
+        # the wizard behind a round trip none of them need.
+        GLib.idle_add(self._bind_portal_shortcuts)
         threading.Thread(
             target=self._worker, daemon=True, name="nabria-transcribe"
         ).start()
         if self.settings.get("prewarm"):
             threading.Thread(target=self._prewarm, daemon=True).start()
         self.log("daemon ready")
-        if not self.settings.get("setup_done") or not config.models():
-            # Two triggers, and both are needed.
-            #
-            # `setup_done` is the first-run one. Keying only off the model --
-            # as this did -- meant the wizard never ran on the documented path
-            # at all, because install.sh downloads a model before the daemon
-            # ever starts. The language step went with it.
-            #
-            # The missing-model trigger stays as the repair path: it cannot get
-            # stuck marked done while the app is unusable, which is exactly
-            # what a first-run flag on its own would do.
+        if config.needs_setup(self.settings):
             GLib.idle_add(self._show_wizard)
 
-    def _bind_portal_shortcuts(self) -> None:
+    def _bind_portal_shortcuts(self) -> bool:
         """Ask the desktop to own our hotkeys, if it is willing.
 
         Purely additive. The socket and any hand-bound key work exactly as
@@ -154,13 +149,13 @@ class Daemon:
         """
         from . import portal
 
-        if not portal.enabled():
-            return
-        try:
-            self.shortcuts = portal.GlobalShortcuts(self._portal_activated, self.log)
-            self.shortcuts.start()
-        except Exception as exc:  # noqa: BLE001
-            self.log(f"could not set up portal shortcuts: {exc}")
+        if portal.enabled():
+            try:
+                self.shortcuts = portal.GlobalShortcuts(self._portal_activated, self.log)
+                self.shortcuts.start()
+            except Exception as exc:  # noqa: BLE001
+                self.log(f"could not set up portal shortcuts: {exc}")
+        return GLib.SOURCE_REMOVE
 
     def _portal_activated(self, shortcut_id: str) -> None:
         # Same entry point as the socket, so a portal key and a hand-bound key
@@ -240,6 +235,10 @@ class Daemon:
         from .wizard import Wizard
 
         def finished() -> None:
+            # Released here, or the daemon holds the whole window -- six pages
+            # of widgets -- for the rest of its life, in a reference cycle this
+            # closure is itself part of.
+            self.wizard = None
             # The settings the wizard wrote are already in self.settings, but
             # the engine may have been started against no model at all.
             self.settings = config.load()
@@ -465,7 +464,11 @@ class Daemon:
             backend = ""
             if text:
                 try:
-                    backend = inject.deliver(text, str(self.settings.get("inject", "auto")))
+                    backend = inject.deliver(
+                        text,
+                        str(self.settings.get("inject", "auto")),
+                        tuple(self.settings.get("terminal_classes") or ()),
+                    )
                 except inject.InjectionError as exc:
                     self.log(f"injection failed: {exc}")
                     GLib.idle_add(

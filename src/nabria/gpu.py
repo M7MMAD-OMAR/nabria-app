@@ -31,15 +31,7 @@ import sys
 from typing import NamedTuple
 
 # VkPhysicalDeviceType
-OTHER, INTEGRATED, DISCRETE, VIRTUAL, CPU = range(5)
-
-KINDS = {
-    OTHER: "other",
-    INTEGRATED: "integrated",
-    DISCRETE: "discrete",
-    VIRTUAL: "virtual",
-    CPU: "cpu",
-}
+KINDS = {0: "other", 1: "integrated", 2: "discrete", 3: "virtual", 4: "cpu"}
 
 VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO = 1
 VK_SUCCESS = 0
@@ -168,8 +160,17 @@ def enumerate_devices() -> list[Device]:
         vulkan.vkDestroyInstance(instance, None)
 
 
+_PROBED: list[Device] | None = None
+
+
 def probe(timeout: float = 10.0) -> list[Device]:
-    """`enumerate_devices` behind a subprocess.
+    """`enumerate_devices` behind a subprocess, asked once per process.
+
+    Cached because the answer cannot change while the machine is running and
+    finding it out is not free: measured at ~100 ms, nearly all of it the
+    Vulkan loader pulling in every installed driver. Two callers wanted it --
+    the setup wizard and the engine supervisor -- and without this they paid
+    for it twice.
 
     Creating a Vulkan instance loads the graphics drivers into whichever
     process does it. Two reasons not to let that be the daemon: a broken or
@@ -184,6 +185,10 @@ def probe(timeout: float = 10.0) -> list[Device]:
     # looks exactly like a machine with no GPU, which would quietly halve the
     # speed of the whole tool. Handing over the parent's own search path makes
     # the probe independent of how the daemon was launched.
+    global _PROBED
+    if _PROBED is not None:
+        return _PROBED
+
     environment = dict(os.environ)
     environment["PYTHONPATH"] = os.pathsep.join(path for path in sys.path if path)
     try:
@@ -191,9 +196,16 @@ def probe(timeout: float = 10.0) -> list[Device]:
             [sys.executable, "-m", "nabria.gpu"],
             capture_output=True, text=True, timeout=timeout, env=environment,
         )
-        return [Device(*entry) for entry in json.loads(result.stdout)]
+        _PROBED = [Device(*entry) for entry in json.loads(result.stdout)]
     except (OSError, subprocess.SubprocessError, ValueError, TypeError):
-        return []
+        _PROBED = []
+    return _PROBED
+
+
+def forget() -> None:
+    """Drop the cached probe. For tests; nothing in the app needs it."""
+    global _PROBED
+    _PROBED = None
 
 
 def plan(preference: str = "auto", devices: list[Device] | None = None) -> Plan:

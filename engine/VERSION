@@ -1,5 +1,15 @@
 # The whisper.cpp release the engine is built from. Single source of truth:
-# scripts/build-engine.sh, the CI workflow and scripts/install.sh all read this
-# file. Keeping it in three places is how a checksum mismatch starts looking
-# like a corrupt download.
+# scripts/build-engine.sh, scripts/release-engine.sh and scripts/install.sh all
+# read this file. Keeping it in three places is how a checksum mismatch starts
+# looking like a corrupt download.
 WHISPER_CPP_VERSION=v1.9.3
+
+# The GitHub release holding the prebuilt engine. Derived, not written out:
+# stated independently, bumping WHISPER_CPP_VERSION and forgetting this one
+# would make the installer fetch the previous release, verify it against a
+# checksum that still matched, pass the smoke test, and install an engine built
+# from a tag the repository does not claim. Every guard would have passed.
+#
+# Bump ENGINE_REVISION when republishing the same upstream version.
+ENGINE_REVISION=1
+ENGINE_RELEASE=engine-$WHISPER_CPP_VERSION-$ENGINE_REVISION

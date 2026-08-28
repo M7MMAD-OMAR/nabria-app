@@ -1,5 +1,14 @@
 name: test
 
+# Deliberately cheap. Every push runs the fast checks and the distribution
+# matrix; nothing here compiles whisper.cpp, which is a five-minute job that
+# only needs doing when engine/VERSION changes -- that lives in engine.yml
+# behind a tag.
+#
+# All of it can be run locally with `scripts/check.sh`, which is the point:
+# a green tick here should confirm what you already know, not be the only
+# place the truth exists.
+
 on:
   push:
     branches: [main]
@@ -7,86 +16,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  unit:
-    # The point of running here is that it is not the development machine: no
-    # discrete GPU, no Hyprland, no PipeWire. Anything that only passes at home
-    # is exactly what needs catching.
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.10", "3.13"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
-
-      - name: Install test dependencies
-        run: pip install pytest
-
-      - name: Run the tests
-        # GTK and engine tests skip themselves where their dependencies are
-        # absent, so this covers device selection, capture levels, the model
-        # downloader, transcript cleaning, history and injection.
-        run: python -m pytest -q -rs
-
-  gtk:
-    # A second job with the desktop stack present, so the daemon and control
-    # socket tests actually run rather than skipping.
+  check:
+    # Lint, syntax and the full test suite, on a machine that is not the
+    # development one: no discrete GPU, no Hyprland, no PipeWire.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install GTK 4 and PyGObject
+      - name: Install the desktop stack
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 xvfb
+          sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-4.0 \
+                                  shellcheck xvfb
           pip install pytest
 
-      - name: Run the tests
-        # Under a virtual display, so the window tests actually run rather
-        # than skipping themselves -- a job whose only outcome is "skipped"
-        # proves nothing and reports success either way.
-        run: xvfb-run -a python3 -m pytest -q -rs
+      - name: scripts/check.sh --quick
+        # Under a virtual display, so the window tests run rather than skip
+        # themselves. A job whose only outcome is "skipped" proves nothing
+        # while reporting success.
+        run: xvfb-run -a ./scripts/check.sh --quick
 
-  shell:
+  distros:
+    # Runs scripts/check.sh, not a copy of it. The images and their package
+    # lists used to be restated here, with a comment asking the next person to
+    # keep the two in step by hand -- while the docs claimed CI and the script
+    # could not drift. One of those had to give.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check the shell scripts
-        run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck --version
-          # -S info explicitly: the runner's shellcheck is older than a typical
-          # development machine's and reports things a newer one does not, so
-          # the severity has to be stated rather than inherited from whatever
-          # version happens to be installed.
-          shellcheck -S info scripts/*.sh
-
-  engine:
-    # The slow one: build whisper.cpp, fetch the smallest model, and transcribe
-    # through the app's own engine wrapper. This is the only job that proves a
-    # clean machine can get from a checkout to a working transcription.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install build and runtime dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential glslc libvulkan-dev \
-                                  spirv-headers python3-gi gir1.2-gtk-4.0
-          pip install pytest
-
-      - name: Build the engine
-        run: scripts/build-engine.sh
-
-      - name: Fetch the smallest model
-        run: PYTHONPATH=src python3 -m nabria.models base
-
-      - name: Transcribe for real
-        # No GPU on a runner, so this also exercises the CPU fallback path that
-        # every machine without a discrete card takes.
-        run: python3 -m pytest tests/test_engine.py -q -rs
+      - name: scripts/check.sh --distros
+        run: ./scripts/check.sh --distros

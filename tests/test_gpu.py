@@ -70,9 +70,31 @@ def test_probe_survives_a_broken_subprocess(monkeypatch):
     def explode(*args, **kwargs):
         raise OSError("no python here")
 
+    gpu.forget()
     monkeypatch.setattr(gpu.subprocess, "run", explode)
-    assert gpu.probe() == []
-    assert gpu.plan("auto").use_gpu is False
+    try:
+        assert gpu.probe() == []
+        assert gpu.plan("auto").use_gpu is False
+    finally:
+        gpu.forget()
+
+
+def test_the_probe_is_only_paid_for_once(monkeypatch):
+    # ~100ms a time, nearly all of it the Vulkan loader opening every driver.
+    # Two callers want it and neither should pay twice.
+    calls = []
+    gpu.forget()
+
+    class Result:
+        stdout = "[]"
+
+    monkeypatch.setattr(gpu.subprocess, "run", lambda *a, **k: calls.append(1) or Result())
+    try:
+        gpu.probe()
+        gpu.probe()
+        assert len(calls) == 1
+    finally:
+        gpu.forget()
 
 
 def test_enumeration_matches_this_machine_if_vulkan_is_present():
@@ -83,6 +105,7 @@ def test_enumeration_matches_this_machine_if_vulkan_is_present():
     truncates a device handle, which is exactly how the first version of this
     module segfaulted.
     """
+    gpu.forget()
     devices = gpu.probe()
     if not devices:
         import pytest

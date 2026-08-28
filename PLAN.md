@@ -60,10 +60,12 @@ source (MIT) and that is what is installed.
       distro's own package names, builds the engine, fetches the right model,
       writes the unit and a desktop entry. Verified in clean Fedora, Debian
       trixie and Ubuntu 24.04 containers.
-- [ ] **Publish the binary from CI** so the installer can fetch it instead of
-      building. The build is 3 minutes and needs cmake and a compiler, which is
-      the last thing standing between "a developer can install this" and
-      "anyone can". Checksums must come from our own build at release time.
+- [x] **Prebuilt engine.** `scripts/release-engine.sh` builds it in an Ubuntu
+      22.04 container (old glibc, so it runs everywhere newer) and records the
+      sha256 in `engine/CHECKSUMS`; the installer fetches and verifies against
+      that in-repo checksum, runs `--help` on the result, and falls back to
+      building only if any of it fails. Done locally rather than in CI: it
+      happens when `engine/VERSION` changes, which is rarely.
 
 ### Which model to default to — settled by measurement
 
@@ -108,8 +110,8 @@ order:
 
 1. **`scripts/install.sh`** — what actually ships today, and the only path
    that has been tested. Verified in clean Fedora, Debian trixie and Ubuntu
-   24.04 containers. It needs `git`, `cmake` and a compiler, which is its
-   limitation.
+   24.04 containers, automatically, by `scripts/check.sh --distros`. It fetches
+   a prebuilt engine, so a compiler is a fallback rather than a requirement.
 2. **AppImage** — *unproven*. Attractive because it is one unsandboxed file,
    but bundling GTK4, PyGObject and the layer-shell typelib is a build-container
    job that has not been attempted. Do not describe it as the plan until

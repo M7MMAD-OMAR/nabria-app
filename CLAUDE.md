@@ -16,12 +16,18 @@ needs explaining does not go in. See `PLAN.md`.
 ## Commands
 
 ```sh
+scripts/check.sh                        # THE check: lint, tests, every distro
+scripts/check.sh --quick                # lint and tests only, seconds
 scripts/install.sh                      # deps, engine, model, unit, desktop entry
-scripts/build-engine.sh                 # rebuild the engine from engine/VERSION
+scripts/release-engine.sh               # build the published engine (local, not CI)
 systemctl --user enable --now nabria    # autostart (Hyprland ignores XDG autostart)
 systemctl --user restart nabria         # REQUIRED after any config.json edit
-python3 -m pytest                        # 126 tests
 ```
+
+**Run `scripts/check.sh`, not `pytest` alone.** CI calls the same script, so the
+two cannot drift, and everything works offline with podman. The distribution
+matrix inside it is where every packaging bug so far has been found — package
+names cannot be reasoned about, only run.
 
 `nabria.service` is a **symlink** to `app-com.sbarah.Nabria.service`. The real
 name is not cosmetic -- see "The shortcut portal" below.
@@ -33,8 +39,14 @@ scripts/run.sh toggle | cancel | settings | last | quit
 ```
 
 The Python runs from source via `PYTHONPATH=src`; there is no build step.
-Window tests need a display and skip without one -- use `xvfb-run` as CI does.
+Window tests need a display and skip without one -- `check.sh` handles the
+`LD_PRELOAD` the layered path needs, and CI uses `xvfb-run`.
 `NABRIA_TEST_WAV=/path/to/speech.wav` additionally checks a real transcription.
+
+CI is deliberately cheap: fast checks and the container matrix on every push,
+and **nothing that compiles whisper.cpp**. Publishing an engine is a local act
+(`scripts/release-engine.sh`), done in an Ubuntu 22.04 container because glibc
+is forward- but not backward-compatible.
 
 Read `~/.local/state/nabria/nabria.log` first when anything misbehaves. It
 records every take with its measured level, so it distinguishes "the hotkey did

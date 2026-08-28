@@ -54,11 +54,11 @@ def test_clipboard_preference_never_sends_a_keystroke(recorder):
 def test_falls_through_to_the_next_backend(monkeypatch):
     attempted: list[str] = []
 
-    def fail_paste(text):
+    def fail_paste(text, terminals=()):
         attempted.append("paste")
         raise inject.InjectionError("no wl-copy")
 
-    def ok_wtype(text):
+    def ok_wtype(text, terminals=()):
         attempted.append("wtype")
 
     monkeypatch.setitem(inject.BACKENDS, "paste", fail_paste)
@@ -76,7 +76,7 @@ def test_total_failure_still_leaves_the_text_on_the_clipboard(monkeypatch):
     for name in inject.BACKENDS:
         monkeypatch.setitem(
             inject.BACKENDS, name,
-            lambda text: (_ for _ in ()).throw(inject.InjectionError("nope")),
+            lambda text, terminals=(): (_ for _ in ()).throw(inject.InjectionError("nope")),
         )
 
     with pytest.raises(inject.InjectionError):
@@ -154,3 +154,17 @@ def test_an_image_on_the_clipboard_is_carried_back_by_type(monkeypatch):
 def test_empty_clipboard_snapshot_is_none(monkeypatch):
     monkeypatch.setattr(inject, "_wl_paste", lambda *args: None)
     assert inject._clipboard_snapshot() is None
+
+
+def test_terminal_matching_is_case_insensitive_and_extensible():
+    # The shipped list is a guess about software this machine cannot
+    # enumerate, so a terminal missing from it must be fixable without a
+    # source edit -- otherwise the paste keystroke silently does nothing.
+    assert inject.is_terminal("kitty")
+    assert inject.is_terminal("KiTTY")
+    assert not inject.is_terminal("firefox")
+    assert inject.is_terminal("my-terminal", ("my-terminal",))
+
+
+def test_an_unknown_focus_is_not_treated_as_a_terminal():
+    assert inject.is_terminal("") is False

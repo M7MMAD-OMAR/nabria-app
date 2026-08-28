@@ -80,6 +80,51 @@ def recommended(has_discrete_gpu: bool) -> Model:
     return CATALOG[DEFAULT_WITH_GPU if has_discrete_gpu else DEFAULT_WITHOUT_GPU]
 
 
+def best_installed(model_dir: Path, has_gpu: bool | None = None) -> Path | None:
+    """The best model actually on disk, or None.
+
+    "Best" is not "biggest". large-v3-turbo is 21 s per 11 s of audio without a
+    discrete GPU -- so on a machine that has both it and `base` installed,
+    picking the larger one is picking the unusable one. The whole point of
+    `recommended` is that this is a hardware question, not a preference.
+
+    `has_gpu=None` means the caller could not afford to find out (asking costs
+    a subprocess). Then the safe answer is the largest model that does not want
+    a GPU, because being wrong that way costs some accuracy and being wrong the
+    other way costs a tool that runs slower than speech.
+    """
+    present = {path.name: path for path in models_in(model_dir)}
+    if not present:
+        return None
+
+    known = [model for model in CATALOG.values() if model.filename in present]
+    if has_gpu is not None:
+        preferred = recommended(has_gpu)
+        if preferred.filename in present:
+            return present[preferred.filename]
+    else:
+        known = [model for model in known if not model.needs_gpu] or known
+
+    if known:
+        return present[max(known, key=lambda model: model.size).filename]
+    # Something dropped into the directory by hand; nothing to rank it by.
+    return max(present.values(), key=lambda path: path.stat().st_size)
+
+
+def models_in(model_dir: Path) -> list[Path]:
+    """Finished `.bin` files in a directory. Mirrors `config.models`."""
+    try:
+        found = sorted(model_dir.glob("*.bin"))
+    except OSError:
+        return []
+    return [
+        path
+        for path in found
+        if not path.with_suffix(path.suffix + ".aria2").exists()
+        and not path.with_suffix(path.suffix + ".part").exists()
+    ]
+
+
 def installed(model_dir: Path, model: Model) -> bool:
     path = model_dir / model.filename
     # Size alone, not the checksum: hashing 1.6 GB on every settings window
@@ -87,15 +132,11 @@ def installed(model_dir: Path, model: Model) -> bool:
     return path.exists() and path.stat().st_size == model.size
 
 
-def verify(path: Path, model: Model, on_progress: Callable[[float], None] | None = None) -> bool:
+def verify(path: Path, model: Model) -> bool:
     digest = hashlib.sha256()
-    done = 0
     with path.open("rb") as source:
         while chunk := source.read(CHUNK):
             digest.update(chunk)
-            done += len(chunk)
-            if on_progress:
-                on_progress(done / max(model.size, 1))
     return digest.hexdigest() == model.sha256
 
 

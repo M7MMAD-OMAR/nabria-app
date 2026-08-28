@@ -27,25 +27,6 @@ if not display_available():  # pragma: no cover - environment dependent
 from nabria import orb as orb_module  # noqa: E402
 
 
-_serial = iter(range(1, 10_000))
-
-
-@pytest.fixture
-def application():
-    # A fresh id per test, and NON_UNIQUE. Without the flag the application
-    # would hand its activation to the daemon already running on this machine;
-    # without the unique id the second registration collides, because the first
-    # is still exported on the session bus.
-    from gi.repository import Gio
-
-    app = Gtk.Application(
-        application_id=f"com.sbarah.NabriaTest{next(_serial)}",
-        flags=Gio.ApplicationFlags.NON_UNIQUE,
-    )
-    app.register()
-    yield app
-
-
 @pytest.fixture
 def without_layer_shell(monkeypatch):
     """Stand in for a machine where the typelib is not installed."""

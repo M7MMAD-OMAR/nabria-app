@@ -43,7 +43,10 @@ def test_request_path_handles_a_name_with_several_dots():
 
 
 def test_tokens_are_unique_per_call():
-    assert portal._token("createsession", 1) != portal._token("createsession", 2)
+    # Two requests in flight at once would otherwise subscribe to the same
+    # object path and each receive the other's Response.
+    shortcuts = portal.GlobalShortcuts(lambda name: None, lambda message: None)
+    assert shortcuts._next_token("createsession") != shortcuts._next_token("createsession")
 
 
 def test_no_session_bus_is_not_fatal(monkeypatch):

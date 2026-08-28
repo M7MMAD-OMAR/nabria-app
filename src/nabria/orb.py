@@ -116,6 +116,7 @@ def layer_shell_available() -> bool:
     """
     return LayerShell is not None and LayerShell.is_supported()
 
+
 # state -> palette key for the glyph and any ring
 ACCENTS = {
     "loading": "tertiary",
@@ -143,20 +144,7 @@ class Orb:
         self.window.add_css_class("nabria")
         self.window.set_default_size(WINDOW_W, WINDOW_H)
 
-        provider = Gtk.CssProvider()
-        if hasattr(provider, "load_from_string"):
-            provider.load_from_string(STYLE)
-        else:
-            provider.load_from_data(STYLE.encode("utf-8"))
-        # Two things matter here. The default display, not window.get_display():
-        # an unrealised window has no display yet and the provider would attach
-        # to nothing. And a priority above USER (800): the desktop theme writes
-        # `window { background: @window_bg_color; }` into ~/.config/gtk-4.0/gtk.css,
-        # which loads at USER and would otherwise paint an opaque rectangle
-        # around the orb no matter what this rule says.
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_USER + 100
-        )
+        theme.add_css(STYLE)
 
         self.area = Gtk.DrawingArea()
         self.area.set_content_width(WINDOW_W)
@@ -207,11 +195,12 @@ class Orb:
         vertical, horizontal = ANCHORS.get(
             self.settings.get("orb_position", "bottom-right"), ANCHORS["bottom-right"]
         )
-        LayerShell.set_anchor(window, getattr(LayerShell.Edge, vertical), True)
-        LayerShell.set_margin(window, getattr(LayerShell.Edge, vertical), margin)
-        if horizontal is not None:
-            LayerShell.set_anchor(window, getattr(LayerShell.Edge, horizontal), True)
-            LayerShell.set_margin(window, getattr(LayerShell.Edge, horizontal), margin)
+        for name in (vertical, horizontal):
+            if name is None:  # bottom-center anchors vertically only
+                continue
+            edge = getattr(LayerShell.Edge, name)
+            LayerShell.set_anchor(window, edge, True)
+            LayerShell.set_margin(window, edge, margin)
 
     # -- drawing -----------------------------------------------------------
 

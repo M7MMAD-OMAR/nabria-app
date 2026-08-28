@@ -14,8 +14,7 @@ other 90-odd languages Whisper knows work too.
 
 ## Install
 
-Linux, Wayland. You need `git`, `cmake` and a C++ compiler for the one-time
-engine build.
+Linux, Wayland.
 
 ```sh
 git clone https://github.com/M7MMAD-OMAR/nabria-app.git
@@ -25,8 +24,14 @@ systemctl --user enable --now nabria
 ```
 
 The installer tells you what is missing in your own distribution's package
-names, builds the transcription engine from source, and downloads the model
-that suits your hardware. Re-run it any time; it repairs rather than reinstalls.
+names, fetches the transcription engine, and downloads the model that suits
+your hardware. Re-run it any time; it repairs rather than reinstalls.
+
+The engine is a prebuilt binary, verified against a checksum committed to this
+repository — not one served alongside the download, which would only prove the
+bytes arrived intact. If there is no prebuilt for your architecture, or it will
+not run on your glibc, the installer builds it from source instead; that needs
+`git`, `cmake` and a C++ compiler, and takes a few minutes once.
 
 Then bind a key. Wayland gives no way for an application to claim a shortcut
 for itself, so this part is yours — the installer prints the exact line for
@@ -98,9 +103,16 @@ menu, cloud sync, a plugin system. There is one key and it types what you said.
 measurements that took a while to get. Read it before changing thresholds.
 
 ```sh
-python3 -m pytest        # 118 tests
-scripts/build-engine.sh  # rebuild the engine from a pinned whisper.cpp tag
+scripts/check.sh           # everything: lint, tests, and every distribution
+scripts/check.sh --quick   # lint and tests only, a few seconds
+scripts/build-engine.sh    # rebuild the engine from the pinned whisper.cpp tag
 ```
+
+`check.sh` is the real check, not a wrapper around CI — it runs the installer
+inside clean Ubuntu, Debian and Fedora containers, which is how every
+packaging bug so far was found. CI runs the same script, so a green tick
+confirms what you already know rather than being the only place the truth
+exists. Everything works offline with `podman` or `docker` installed.
 
 ## Licence
 

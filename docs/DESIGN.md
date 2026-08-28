@@ -222,6 +222,33 @@ that refuses -- is a log line, and the manually bound key works regardless. A
 daemon that would not start because a portal was unhappy would be a much worse
 tool than one whose shortcut has to be bound by hand.
 
+## Testing
+
+`scripts/check.sh` is the check; CI calls the same script. That ordering is
+deliberate — a project whose correctness is only knowable by pushing to a
+service is a project you cannot work on offline, and this one was written
+largely through a tunnel that makes GitHub slow.
+
+The part that earns its keep is the distribution matrix. Every packaging bug
+found so far was found by running the installer in a clean container and none
+by reading it: `LD_PRELOAD` missing the multiarch path Debian uses, a typelib
+packaged separately from its library, `pw-record` living in a different package
+on Arch. Reasoning about package names does not work; running them does.
+
+The engine is published as a prebuilt binary built in an **Ubuntu 22.04**
+container. glibc is forward compatible and not backward compatible, so a binary
+linked against a new one refuses to start on an older distribution — and the
+people most likely to want a prebuilt engine are the least likely to be on the
+newest release. `scripts/release-engine.sh` does that build locally rather than
+in CI: it happens when `engine/VERSION` changes, which is rarely, and it is
+better done where the result can be looked at.
+
+The installer verifies the download against `engine/CHECKSUMS`, which is
+committed here. A hash published beside the file it describes only proves the
+bytes arrived intact; one in the repository proves they are the bytes we built.
+It then runs `--help` on it, because a binary built against a newer glibc
+downloads and verifies perfectly and then refuses to start.
+
 ## Judging a transcript
 
 You cannot, without the audio. `keep_audio` files every take and puts a play

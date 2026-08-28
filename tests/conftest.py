@@ -97,3 +97,32 @@ def tone(frames: int, amplitude: int, rate: int = 16_000, hz: float = 440.0) -> 
         int(amplitude * math.sin(2 * math.pi * hz * index / rate))
         for index in range(frames)
     ]
+
+
+_serial = iter(range(1, 100_000))
+
+
+@pytest.fixture
+def application():
+    """A throwaway Gtk.Application for widget tests.
+
+    A fresh id each time, and NON_UNIQUE. Without the flag the application
+    hands its activation to the daemon already running on this machine and
+    never activates; without a fresh id the second registration collides,
+    because the first is still exported on the session bus.
+    """
+    from gi.repository import Gio, Gtk
+
+    app = Gtk.Application(
+        application_id=f"com.sbarah.NabriaTest{next(_serial)}",
+        flags=Gio.ApplicationFlags.NON_UNIQUE,
+    )
+    app.register()
+    return app
+
+
+@pytest.fixture
+def models_dir(tmp_path):
+    directory = tmp_path / "models"
+    directory.mkdir()
+    return directory

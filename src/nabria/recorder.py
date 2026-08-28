@@ -118,10 +118,15 @@ class Recorder:
         # A machine without PipeWire cannot record at all, and saying so is
         # worth more than any amount of stack.
         if not shutil.which("pw-record"):
+            # Package names live in scripts/install.sh, which is the thing
+            # that can actually check them against a distribution. This said
+            # "pipewire" for Arch while the installer said "pipewire-audio";
+            # only one of them is right, and it is not the one that cannot be
+            # tested. So point at the installer rather than guess again.
             raise MissingRecorder(
-                "pw-record was not found. Nabria records through PipeWire; "
-                "install pipewire-utils (Fedora), pipewire-bin (Debian) "
-                "or pipewire (Arch)."
+                "pw-record was not found. Nabria records through PipeWire -- "
+                "install it with your package manager, or re-run "
+                "scripts/install.sh, which names the package for your system."
             )
         self.destination.parent.mkdir(parents=True, exist_ok=True)
         command = [

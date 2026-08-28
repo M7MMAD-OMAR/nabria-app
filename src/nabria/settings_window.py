@@ -27,25 +27,22 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
-from . import audio, config, history
+from . import audio, config, history, models
 
-# Languages worth a one-click switch. "auto" re-detects per 30s window, which
-# is what turns room noise into confident English; a fixed language is both
-# more accurate and far less prone to inventing a sentence out of nothing.
-LANGUAGES = [
-    ("ar", "العربية (Arabic)"),
-    ("en", "English"),
-    ("auto", "Auto-detect"),
-]
+# Both lists come from the modules that own them rather than being restated
+# here. They used to be restated, and both copies had gone stale: the model
+# labels named only the two large variants, so anyone who took the setup
+# wizard's own recommendation saw a raw "ggml-base.bin" in the picker, and the
+# language list knew nothing about the dialect prompt -- so choosing Arabic in
+# the wizard shipped the Levantine prompt and choosing it here did not.
+LANGUAGES = [(code, preset["label"]) for code, preset in config.LANGUAGE_PRESETS.items()]
 
-MODEL_LABELS = {
-    "ggml-large-v3-turbo.bin": "large-v3-turbo — fast, 4 decoder layers",
-    "ggml-large-v3.bin": "large-v3 — full 32 decoder layers, slower",
-}
+_BY_FILENAME = {model.filename: model for model in models.CATALOG.values()}
 
 
 def _model_label(name: str) -> str:
-    return MODEL_LABELS.get(name, name)
+    model = _BY_FILENAME.get(name)
+    return f"{model.key} — {model.summary}" if model else name
 
 
 class SettingsWindow(Gtk.ApplicationWindow):

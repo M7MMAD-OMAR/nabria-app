@@ -23,9 +23,10 @@ def test_recording_without_pipewire_says_what_to_install(monkeypatch, tmp_path):
         take.start()
     message = str(raised.value)
     assert "pw-record" in message
-    # Named for each distro, because "install PipeWire" is not actionable when
-    # the package is called something different everywhere.
-    assert "pipewire-bin" in message and "pipewire-utils" in message
+    # Points at the installer rather than restating package names. It used to
+    # name them, and its list contradicted install.sh's on Arch -- only one of
+    # the two can actually be checked against a distribution.
+    assert "install.sh" in message
 
 
 def test_focus_probe_falls_through_to_nothing(monkeypatch):
@@ -83,9 +84,3 @@ def test_malformed_compositor_output_does_not_raise(monkeypatch):
     monkeypatch.setattr(inject.subprocess, "run",
                         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="not json"))
     assert inject._focused_class() == ""
-
-
-def test_every_probe_is_named_after_a_command_that_can_be_looked_up():
-    for command, probe in inject.FOCUS_PROBES:
-        assert isinstance(command, str) and command
-        assert callable(probe)

@@ -27,6 +27,8 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib  # noqa: E402
 
+from . import shortcut
+
 BUS = "org.freedesktop.portal.Desktop"
 OBJECT = "/org/freedesktop/portal/desktop"
 SHORTCUTS = "org.freedesktop.portal.GlobalShortcuts"
@@ -37,13 +39,9 @@ REQUEST = "org.freedesktop.portal.Request"
 # and GNOME let the user rebind afterwards, which is the point of going through
 # the portal rather than owning the key ourselves.
 SHORTCUT_DEFINITIONS = (
-    ("toggle", "Start or stop dictating", "CTRL+ALT+q"),
-    ("cancel", "Throw away the current take", "CTRL+ALT+SHIFT+q"),
+    (shortcut.TOGGLE, "Start or stop dictating", "CTRL+ALT+q"),
+    (shortcut.CANCEL, "Throw away the current take", "CTRL+ALT+SHIFT+q"),
 )
-
-
-def _token(prefix: str, counter: int) -> str:
-    return f"nabria_{prefix}_{counter}"
 
 
 class GlobalShortcuts:
@@ -59,9 +57,8 @@ class GlobalShortcuts:
         self.log = log
         self.bus: Gio.DBusConnection | None = None
         self.session = ""
-        self.bound = False
         self._counter = 0
-        self._subscriptions: list[int] = []
+        self._subscriptions: set[int] = set()
 
     # -- plumbing ----------------------------------------------------------
 
@@ -72,6 +69,10 @@ class GlobalShortcuts:
 
     def _request_path(self, token: str) -> str:
         return f"{OBJECT}/request/{self._sender()}/{token}"
+
+    def _next_token(self, prefix: str) -> str:
+        self._counter += 1
+        return f"nabria_{prefix}_{self._counter}"
 
     def _call(self, method: str, signature: str, args: tuple, options: dict, on_response) -> None:
         """Invoke a portal method and route its Response to `on_response`.
@@ -87,8 +88,7 @@ class GlobalShortcuts:
         reply can genuinely arrive first, and then the signal is delivered to
         nobody and the whole thing hangs with no error at all.
         """
-        self._counter += 1
-        token = _token(method.lower(), self._counter)
+        token = self._next_token(method.lower())
         path = self._request_path(token)
 
         assert self.bus
@@ -96,8 +96,7 @@ class GlobalShortcuts:
 
         def handler(_conn, _sender, _path, _iface, _signal, payload):
             self.bus.signal_unsubscribe(subscription)
-            if subscription in self._subscriptions:
-                self._subscriptions.remove(subscription)
+            self._subscriptions.discard(subscription)
             code, results = payload.unpack()
             if code != 0:
                 # 1 is the user cancelling, 2 is anything else. Neither is
@@ -109,7 +108,7 @@ class GlobalShortcuts:
         subscription = self.bus.signal_subscribe(
             BUS, REQUEST, "Response", path, None, Gio.DBusSignalFlags.NONE, handler
         )
-        self._subscriptions.append(subscription)
+        self._subscriptions.add(subscription)
 
         parameters = GLib.Variant(
             signature, (*args, {**options, "handle_token": GLib.Variant("s", token)})
@@ -149,10 +148,9 @@ class GlobalShortcuts:
         if not self.available():
             self.log("shortcuts portal unavailable, using manually bound keys")
             return
-        self._counter += 1
         self._call(
             "CreateSession", "(a{sv})", (),
-            {"session_handle_token": GLib.Variant("s", _token("session", self._counter))},
+            {"session_handle_token": GLib.Variant("s", self._next_token("session"))},
             self._session_created,
         )
 
@@ -164,7 +162,7 @@ class GlobalShortcuts:
         assert self.bus
         # Subscribed before binding: on a backend that restores previously
         # bound shortcuts, a key can fire the moment the bind lands.
-        self._subscriptions.append(
+        self._subscriptions.add(
             self.bus.signal_subscribe(
                 BUS, SHORTCUTS, "Activated", OBJECT, None,
                 Gio.DBusSignalFlags.NONE, self._on_activated,
@@ -183,7 +181,6 @@ class GlobalShortcuts:
         )
 
     def _bound(self, results: dict) -> None:
-        self.bound = True
         names = [entry[0] for entry in results.get("shortcuts", [])]
         self.log(f"shortcuts bound through the portal: {', '.join(names) or 'none'}")
 

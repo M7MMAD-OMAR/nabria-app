@@ -8,6 +8,8 @@
 set -euo pipefail
 
 project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+# shellcheck source=common.sh disable=SC1091
+. "$project_dir/scripts/common.sh"
 export PYTHONPATH="$project_dir/src${PYTHONPATH:+:$PYTHONPATH}"
 
 libexec_dir=$HOME/.local/libexec/nabria
@@ -74,15 +76,7 @@ fi
 # The indicator is a layer-shell surface. Without this it silently becomes an
 # ordinary window that fullscreen apps cover -- which is the entire reason this
 # tool exists rather than the one it replaced.
-# Each candidate tested on its own: `ls a b c` fails when *any* argument is
-# missing, so one absent path reported the library as absent even where it was
-# installed.
-layer_shell=""
-for candidate in /usr/lib64/libgtk4-layer-shell.so.0 \
-                 /usr/lib/libgtk4-layer-shell.so.0 \
-                 /usr/lib/*/libgtk4-layer-shell.so.0; do
-  [ -e "$candidate" ] && { layer_shell=$candidate; break; }
-done
+layer_shell=$(layer_shell_library) || layer_shell=""
 # The library alone is not enough -- PyGObject needs the typelib, which Debian
 # ships in a *separate* package. Installing only the library there gets you a
 # working install with no indicator and nothing saying why, so both are checked
@@ -130,13 +124,58 @@ fi
 
 # ---------------------------------------------------------------------- engine
 
+# shellcheck source=../engine/VERSION disable=SC1091
+source "$project_dir/engine/VERSION"
+
+# Try the prebuilt engine before compiling. Building needs cmake, a C++
+# compiler and the Vulkan shader toolchain and takes a few minutes -- which is
+# most of the distance between "a developer can install this" and "anyone can".
+#
+# The checksum is the one committed to this repository, not one fetched
+# alongside the download. A hash published next to the file it describes only
+# proves the bytes arrived intact; this proves they are the bytes we built.
+fetch_prebuilt_engine() {
+  local target=$1 expected artifact url tmp
+  [ "$(uname -m)" = x86_64 ] || { echo "  no prebuilt engine for $(uname -m)"; return 1; }
+  [ -r "$project_dir/engine/CHECKSUMS" ] || { echo "  no recorded checksum"; return 1; }
+
+  artifact=$(awk 'NR==1 {print $2}' "$project_dir/engine/CHECKSUMS")
+  expected=$(awk 'NR==1 {print $1}' "$project_dir/engine/CHECKSUMS")
+  [ -n "$artifact" ] && [ -n "$expected" ] || return 1
+
+  url="https://github.com/M7MMAD-OMAR/nabria-app/releases/download/$ENGINE_RELEASE/$artifact"
+  tmp=$(mktemp) || return 1
+  echo "  fetching $artifact"
+  if ! curl -fsSL --retry 2 -o "$tmp" "$url"; then
+    rm -f "$tmp"; echo "  download failed"; return 1
+  fi
+  if [ "$(sha256sum "$tmp" | cut -d\  -f1)" != "$expected" ]; then
+    # Never install this. A mismatch is either a corrupt transfer or something
+    # that is not what we published, and there is no way to tell which.
+    rm -f "$tmp"; echo "  checksum mismatch — refusing it"; return 1
+  fi
+  install -m 755 "$tmp" "$target"
+  rm -f "$tmp"
+  # It has to actually run: a binary built against a newer glibc than this
+  # machine has will download and verify perfectly and then refuse to start.
+  if ! "$target" --help >/dev/null 2>&1; then
+    rm -f "$target"; echo "  it will not run here"; return 1
+  fi
+  return 0
+}
+
 if [ "$do_engine" = yes ]; then
   if [ -x "$libexec_dir/whisper-server" ]; then
     say "Engine"; ok "already installed at $libexec_dir/whisper-server"
   else
-    say "Building the transcription engine"
-    echo "  whisper.cpp from source. This takes a few minutes, once."
-    "$project_dir/scripts/build-engine.sh" --output "$libexec_dir/whisper-server"
+    say "Transcription engine"
+    mkdir -p "$libexec_dir"
+    if fetch_prebuilt_engine "$libexec_dir/whisper-server"; then
+      ok "prebuilt engine installed and verified"
+    else
+      echo "  building whisper.cpp from source instead. A few minutes, once."
+      "$project_dir/scripts/build-engine.sh" --output "$libexec_dir/whisper-server"
+    fi
   fi
 fi
 
@@ -177,14 +216,9 @@ if [ "$do_service" = yes ]; then
   unit_name=app-com.sbarah.Nabria.service
   sed "s#@RUN_SH@#$project_dir/scripts/run.sh#g" \
     "$project_dir/systemd/$unit_name" > "$unit_dir/$unit_name"
+  # -f replaces a plain file from a pre-rename install as well as an old
+  # symlink, so nothing further is needed to clear the shadowing case.
   ln -sf "$unit_dir/$unit_name" "$unit_dir/nabria.service"
-  # An install from before the rename leaves a real file here that would
-  # shadow the symlink and quietly keep the old name -- and with it the
-  # portal refusal.
-  if [ -f "$unit_dir/nabria.service" ] && [ ! -L "$unit_dir/nabria.service" ]; then
-    rm -f "$unit_dir/nabria.service"
-    ln -sf "$unit_dir/$unit_name" "$unit_dir/nabria.service"
-  fi
   systemctl --user daemon-reload
   ok "systemd unit written ($unit_name)"
 fi

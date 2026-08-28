@@ -30,6 +30,12 @@ TIMEOUT = 30
 
 # Terminals paste on Ctrl+Shift+V, because Ctrl+V is a control character there.
 # Matched against the focused window's class; anything unlisted gets Ctrl+V.
+#
+# A shipped list is a guess about software this machine cannot enumerate, and a
+# terminal that is not on it gets a keystroke that does nothing -- so the
+# `terminal_classes` setting extends it, the same escape hatch `gpu_select` and
+# `inject` already provide for the other shipped guesses. Matched casefolded,
+# because window classes are not consistently capitalised.
 TERMINAL_CLASSES = ("kitty", "foot", "alacritty", "wezterm", "org.wezfurlong.wezterm",
                     "com.mitchellh.ghostty", "konsole", "org.gnome.Console", "xterm")
 
@@ -44,11 +50,14 @@ class InjectionError(RuntimeError):
     pass
 
 
-def _wtype(text: str) -> None:
+def _wtype(text: str, terminals: tuple[str, ...] = ()) -> None:
+    # `terminals` is accepted and unused: every backend takes the same
+    # arguments so `deliver` can call them all the same way. A signature that
+    # varied per backend would put a special case in the dispatch loop.
     subprocess.run(["wtype", text], check=True, timeout=TIMEOUT, capture_output=True)
 
 
-def _ydotool(text: str) -> None:
+def _ydotool(text: str, terminals: tuple[str, ...] = ()) -> None:
     # Typing from stdin rather than argv: escape processing is off for stdin,
     # so backslashes and newlines in the transcript arrive verbatim.
     subprocess.run(
@@ -161,8 +170,17 @@ def _focused_class() -> str:
     return ""
 
 
-def _send_paste_key() -> None:
-    shift = _focused_class() in TERMINAL_CLASSES
+def is_terminal(window_class: str, extra: tuple[str, ...] = ()) -> bool:
+    if not window_class:
+        # Nothing could say what has focus. Ctrl+V is right everywhere but a
+        # terminal; guessing the other way would be wrong far more often.
+        return False
+    known = {name.casefold() for name in (*TERMINAL_CLASSES, *extra)}
+    return window_class.casefold() in known
+
+
+def _send_paste_key(terminals: tuple[str, ...] = ()) -> None:
+    shift = is_terminal(_focused_class(), terminals)
     if shutil.which("wtype"):
         modifiers = ["-M", "ctrl"] + (["-M", "shift"] if shift else [])
         release = ["-m", "ctrl"] + (["-m", "shift"] if shift else [])
@@ -198,12 +216,12 @@ def _restore_clipboard(previous: tuple[str, bytes], pasted: str) -> None:
         pass
 
 
-def _paste(text: str) -> None:
+def _paste(text: str, terminals: tuple[str, ...] = ()) -> None:
     if not shutil.which("wl-copy"):
         raise InjectionError("wl-copy is not installed")
     previous = _clipboard_snapshot()
     subprocess.run(["wl-copy", "--", text], check=True, timeout=TIMEOUT)
-    _send_paste_key()
+    _send_paste_key(terminals)
     if previous is not None and previous[1] != text.encode("utf-8"):
         timer = threading.Timer(RESTORE_DELAY, _restore_clipboard, (previous, text))
         timer.daemon = True
@@ -213,7 +231,8 @@ def _paste(text: str) -> None:
 BACKENDS = {"paste": _paste, "wtype": _wtype, "ydotool": _ydotool}
 
 
-def deliver(text: str, preference: str = "auto") -> str:
+def deliver(text: str, preference: str = "auto",
+            terminals: tuple[str, ...] = ()) -> str:
     """Type the text; returns the backend that actually did it."""
     if not text:
         return "none"
@@ -235,7 +254,7 @@ def deliver(text: str, preference: str = "auto") -> str:
             failures.append(f"{name}: not installed")
             continue
         try:
-            backend(text)
+            backend(text, terminals)
             return name
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or b"").decode("utf-8", "replace").strip()

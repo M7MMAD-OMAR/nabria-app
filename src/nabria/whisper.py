@@ -126,15 +126,14 @@ class WhisperServer:
         if self.device is None:
             self.device = gpu.plan(str(self.settings.get("gpu_select") or "auto"))
             self.log(f"engine device: {self.device.reason}")
-        if self.device.use_gpu:
-            if self.device.visible is not None:
-                # Leaves ggml holding a list of exactly one device, so its own
-                # "use every GPU" default cannot reach the integrated one.
-                env["GGML_VK_VISIBLE_DEVICES"] = str(self.device.visible)
-        else:
+        if not self.device.use_gpu:
             # Without this ggml would happily pick an integrated GPU, which is
             # slower than the CPU it is standing in for and crashes besides.
             command.append("-ng")
+        elif self.device.visible is not None:
+            # Leaves ggml holding a list of exactly one device, so its own
+            # "use every GPU" default cannot reach the integrated one.
+            env["GGML_VK_VISIBLE_DEVICES"] = str(self.device.visible)
         vocabulary = str(self.settings.get("vocabulary") or "").strip()
         if vocabulary:
             # carry-initial-prompt re-applies the bias to every 30s window, so

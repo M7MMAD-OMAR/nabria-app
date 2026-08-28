@@ -1,9 +1,9 @@
 """First run: get from "nothing installed" to "it typed my words".
 
-Shown when there is no model on disk. That condition, rather than a "have I
-run before" flag, is deliberate -- it means the wizard is also the repair path
-when someone deletes a model, and it cannot get stuck marked done while the
-app is unusable.
+Opened when `config.needs_setup` says so: on a first run, and again whenever
+there is no model on disk. The second condition is why it cannot get stuck
+marked done while the app is unusable -- it doubles as the repair path when
+someone deletes a model.
 
 Five steps and no more, because the whole promise is that there is nothing to
 configure: say what you speak, pick a model, fetch it, check the microphone is
@@ -84,51 +84,31 @@ window.nabria-setup, .nabria-setup {{ background-color: {surface}; color: {on_su
 """
 
 
-def _lighten(colour: tuple[float, float, float], amount: float = 0.12) -> str:
-    return "#" + "".join(
-        f"{round(min(1.0, channel + amount) * 255):02x}" for channel in colour
-    )
-
-
-def _hex(colour: tuple[float, float, float]) -> str:
-    return "#" + "".join(f"{round(channel * 255):02x}" for channel in colour)
-
-
 def install_style(settings: dict) -> None:
     palette = theme.load(config.CONFIG_DIR, bool(settings.get("follow_desktop_palette")))
-    css = STYLE_TEMPLATE.format(
-        surface=_hex(palette["surface_container"]),
-        card="#241d19",
-        outline=_hex(palette["outline_variant"]),
-        primary=_hex(palette["primary"]),
-        primary_hover=_lighten(palette["primary"]),
-        error=_hex(palette["error"]),
-        on_surface=_hex(palette["on_surface"]),
-    )
-    provider = Gtk.CssProvider()
-    if hasattr(provider, "load_from_string"):
-        provider.load_from_string(css)
-    else:
-        provider.load_from_data(css.encode("utf-8"))
-    from gi.repository import Gdk
-
-    # Above PRIORITY_USER for the same reason the indicator's rules are: the
-    # desktop theme's own gtk.css loads there and would otherwise win.
-    Gtk.StyleContext.add_provider_for_display(
-        Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_USER + 100
-    )
+    theme.add_css(STYLE_TEMPLATE.format(
+        surface=theme.to_hex(palette["surface_container"]),
+        card=theme.to_hex(palette["card"]),
+        outline=theme.to_hex(palette["outline_variant"]),
+        primary=theme.to_hex(palette["primary"]),
+        primary_hover=theme.to_hex(palette["primary"], lighten=0.12),
+        error=theme.to_hex(palette["error"]),
+        on_surface=theme.to_hex(palette["on_surface"]),
+    ))
 
 
-class ModelChoice(Gtk.Box):
-    """One selectable model, as a card rather than a combo box entry.
+class Choice(Gtk.Box):
+    """One selectable option, as a card rather than a combo box entry.
 
-    A dropdown would hide exactly the information the choice turns on -- how
-    big the download is and whether this machine can run it at a useful speed.
+    A dropdown would hide exactly the information these choices turn on -- how
+    big a download is, whether this machine can run it faster than speech.
+    Both choice pages use this: the language page used to re-type the whole
+    thing inline, so the two consecutive screens could drift apart.
     """
 
-    def __init__(self, model: models.Model, recommended: bool, has_gpu: bool):
+    def __init__(self, name: str, summary: str = "", *, note: str = "",
+                 badge: str = "", trailing: str = ""):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        self.model = model
         self.add_css_class("nabria-card")
 
         self.radio = Gtk.CheckButton()
@@ -142,30 +122,26 @@ class ModelChoice(Gtk.Box):
         column.set_hexpand(True)
 
         heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        name = Gtk.Label(label=model.key, xalign=0)
-        name.add_css_class("nabria-choice-name")
-        heading.append(name)
-        size = Gtk.Label(label=f"{model.megabytes} MB", xalign=0)
-        size.add_css_class("nabria-hint")
-        heading.append(size)
-        if recommended:
-            badge = Gtk.Label(label="recommended for this machine", xalign=0)
-            badge.add_css_class("nabria-good")
-            badge.add_css_class("nabria-hint")
-            heading.append(badge)
+        title = Gtk.Label(label=name, xalign=0)
+        title.add_css_class("nabria-choice-name")
+        heading.append(title)
+        for text, style in ((trailing, "nabria-hint"), (badge, "nabria-good")):
+            if not text:
+                continue
+            label = Gtk.Label(label=text, xalign=0)
+            label.add_css_class(style)
+            label.add_css_class("nabria-hint")
+            heading.append(label)
         column.append(heading)
 
-        summary = Gtk.Label(label=model.summary, xalign=0, wrap=True)
-        summary.add_css_class("nabria-lede")
-        column.append(summary)
+        if summary:
+            body = Gtk.Label(label=summary, xalign=0, wrap=True)
+            body.add_css_class("nabria-lede")
+            column.append(body)
 
-        # The one thing that turns a preference into a mistake: this model on
-        # this machine would run slower than speech.
-        if model.needs_gpu and not has_gpu:
-            warning = Gtk.Label(
-                label="No discrete GPU found — this would run slower than you speak.",
-                xalign=0, wrap=True,
-            )
+        # Reserved for the thing that turns a preference into a mistake.
+        if note:
+            warning = Gtk.Label(label=note, xalign=0, wrap=True)
             warning.add_css_class("nabria-bad")
             warning.add_css_class("nabria-hint")
             column.append(warning)
@@ -179,6 +155,12 @@ class ModelChoice(Gtk.Box):
             self.remove_css_class("selected")
 
 
+def group(cards: list[Choice]) -> None:
+    """Make a list of cards one radio group."""
+    for card in cards[1:]:
+        card.radio.set_group(cards[0].radio)
+
+
 class Wizard(Gtk.ApplicationWindow):
     def __init__(self, application: Gtk.Application, settings: dict, on_finished):
         super().__init__(application=application, title="Nabria")
@@ -188,9 +170,7 @@ class Wizard(Gtk.ApplicationWindow):
         self.add_css_class("nabria-setup")
         install_style(settings)
 
-        self.devices = gpu.probe()
-        self.has_gpu = gpu.plan("auto", self.devices).use_gpu
-        self.cancelled = False
+        self.has_gpu = gpu.plan("auto").use_gpu
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT)
         self.stack.set_margin_top(24)
@@ -256,37 +236,16 @@ class Wizard(Gtk.ApplicationWindow):
         locale = (os.environ.get("LC_ALL") or os.environ.get("LANG") or "").lower()
         preferred = "ar" if locale.startswith("ar") else "en" if locale else "auto"
 
+        cards = []
         self.languages: list[tuple[str, Gtk.CheckButton]] = []
-        leader: Gtk.CheckButton | None = None
         for code, preset in config.LANGUAGE_PRESETS.items():
-            card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-            card.add_css_class("nabria-card")
-            radio = Gtk.CheckButton()
-            radio.set_valign(Gtk.Align.CENTER)
-            if leader is None:
-                leader = radio
-            else:
-                radio.set_group(leader)
-            card.append(radio)
-
-            column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-            name = Gtk.Label(label=preset["label"], xalign=0)
-            name.add_css_class("nabria-choice-name")
-            column.append(name)
-            if preset["summary"]:
-                summary = Gtk.Label(label=preset["summary"], xalign=0, wrap=True)
-                summary.add_css_class("nabria-lede")
-                column.append(summary)
-            card.append(column)
-
-            radio.connect(
-                "toggled",
-                lambda button, box=card: box.add_css_class("selected")
-                if button.get_active() else box.remove_css_class("selected"),
-            )
-            radio.set_active(code == preferred)
-            self.languages.append((code, radio))
+            card = Choice(preset["label"], preset["summary"])
+            cards.append(card)
+            self.languages.append((code, card.radio))
             page.append(card)
+        group(cards)
+        for code, radio in self.languages:
+            radio.set_active(code == preferred)
 
         onward = Gtk.Button(label="Next")
         onward.add_css_class("suggested-action")
@@ -316,17 +275,21 @@ class Wizard(Gtk.ApplicationWindow):
             f"{'A discrete GPU was found, so the best one is worth it.' if self.has_gpu else 'No discrete GPU here, so the smaller ones are the practical choice.'}",
         )
 
-        self.choices: list[ModelChoice] = []
-        leader: Gtk.CheckButton | None = None
+        self.choices = []
         for model in models.CATALOG.values():
-            choice = ModelChoice(model, model.key == recommended.key, self.has_gpu)
-            if leader is None:
-                leader = choice.radio
-            else:
-                choice.radio.set_group(leader)
-            choice.radio.set_active(model.key == recommended.key)
-            self.choices.append(choice)
-            page.append(choice)
+            card = Choice(
+                model.key, model.summary,
+                trailing=f"{model.megabytes} MB",
+                badge="recommended for this machine" if model.key == recommended.key else "",
+                note="No discrete GPU found — this would run slower than you speak."
+                     if model.needs_gpu and not self.has_gpu else "",
+            )
+            card.model = model
+            self.choices.append(card)
+            page.append(card)
+        group(self.choices)
+        for card in self.choices:
+            card.radio.set_active(card.model.key == recommended.key)
 
         fetch = Gtk.Button(label="Download")
         fetch.add_css_class("suggested-action")

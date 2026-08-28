@@ -131,6 +131,11 @@ DEFAULTS: dict[str, Any] = {
     # a paste is one event whatever the length. The clipboard is borrowed for
     # it and handed back a moment later.
     "inject": "auto",
+    # Extra window classes that paste with Ctrl+Shift+V. The shipped list
+    # covers the common terminals; anything else -- a terminal nobody here has
+    # heard of, or one that reports an unexpected class -- goes here rather
+    # than requiring a source edit.
+    "terminal_classes": [],
     # bottom-right | bottom-left | top-right | top-left | bottom-center
     "orb_position": "bottom-right",
     "orb_margin": 28,
@@ -156,13 +161,19 @@ def load() -> dict[str, Any]:
 
     # The default names large-v3-turbo, which is the right model only where
     # there is a discrete GPU -- on a CPU it runs at half realtime. Rather than
-    # fail with "model missing" or, worse, load something unusable, fall back
-    # to whatever is actually installed. Largest wins, since a bigger model is
-    # better and nothing gets downloaded that the hardware cannot carry.
+    # fail with "model missing", fall back to whatever is installed.
+    #
+    # Which one is a hardware question and models.py owns it. Asking about the
+    # GPU costs a subprocess and this runs on the daemon's startup path, so the
+    # answer is left unknown and models.best_installed takes its safe branch --
+    # it would rather hand back a smaller model than one this machine might not
+    # be able to run faster than speech.
     if not Path(settings["model"]).exists():
-        available = models()
-        if available:
-            settings["model"] = str(max(available, key=lambda path: path.stat().st_size))
+        from . import models as model_catalogue
+
+        fallback = model_catalogue.best_installed(MODEL_DIR)
+        if fallback is not None:
+            settings["model"] = str(fallback)
     return settings
 
 
@@ -175,22 +186,32 @@ def save(settings: dict[str, Any]) -> None:
 
 
 def models() -> list[Path]:
-    """Every model sitting in the model directory, largest last.
+    """Every model sitting in the model directory.
 
     Scanned rather than hardcoded: dropping a `.bin` in there is how a new
     model is offered, and a half-finished download leaves an `.aria2` or
     `.part` beside it, which is what keeps it out of the list.
     """
-    try:
-        found = sorted(MODEL_DIR.glob("*.bin"))
-    except OSError:
-        return []
-    return [
-        path
-        for path in found
-        if not path.with_suffix(path.suffix + ".aria2").exists()
-        and not path.with_suffix(path.suffix + ".part").exists()
-    ]
+    from . import models as model_catalogue
+
+    return model_catalogue.models_in(MODEL_DIR)
+
+
+def needs_setup(settings: dict[str, Any]) -> bool:
+    """Whether the setup wizard should open.
+
+    Two conditions, and both are needed.
+
+    `setup_done` is the first-run one. Keying only off the model -- which this
+    did at first -- meant the wizard never ran on the documented path at all,
+    because install.sh downloads a model before the daemon ever starts. The
+    language step, and with it the Arabic dialect prompt, went with it.
+
+    The missing-model condition stays as the repair path: a first-run flag on
+    its own can get stuck marked done while the app is unusable, which is
+    exactly what keying off the model was avoiding.
+    """
+    return not settings.get("setup_done") or not models()
 
 
 def write_default_config() -> Path:

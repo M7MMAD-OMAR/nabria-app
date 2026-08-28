@@ -24,19 +24,6 @@ if not display_available():  # pragma: no cover - environment dependent
 
 from nabria import gpu, models, wizard  # noqa: E402
 
-_serial = iter(range(1, 10_000))
-
-
-@pytest.fixture
-def application():
-    app = Gtk.Application(
-        application_id=f"com.sbarah.NabriaWizardTest{next(_serial)}",
-        flags=Gio.ApplicationFlags.NON_UNIQUE,
-    )
-    app.register()
-    return app
-
-
 @pytest.fixture
 def cpu_only(monkeypatch):
     monkeypatch.setattr(gpu, "probe", list)

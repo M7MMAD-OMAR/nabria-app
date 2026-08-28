@@ -43,9 +43,46 @@ DARK = {
     "surface_container": "#1c1613",  # the pill
     "outline_variant": "#4a3a35",   # its edge
     "on_surface": "#f4e6e0",
+    "card": "#241d19",             # a raised surface: wizard choice cards
 }
 
-FALLBACK = DARK  # kept for callers that referred to it by the old name
+
+
+
+def to_hex(colour: tuple[float, float, float], lighten: float = 0.0) -> str:
+    """Back to `#rrggbb`, since GTK CSS wants text and Cairo wants floats.
+
+    Both directions live here so the palette has one home; the wizard used to
+    convert back itself, having received values this module had just converted.
+    """
+    return "#" + "".join(
+        f"{round(min(1.0, channel + lighten) * 255):02x}" for channel in colour
+    )
+
+
+def add_css(css: str) -> None:
+    """Register a stylesheet above the desktop theme's own.
+
+    Priority matters and is the whole reason this is a function: the theme
+    writes `window { background: @window_bg_color; }` into
+    ~/.config/gtk-4.0/gtk.css, which loads at PRIORITY_USER and would otherwise
+    win -- painting an opaque rectangle around the indicator. The default
+    display rather than a window's, because an unrealised window has none yet
+    and the provider would attach to nothing.
+    """
+    import gi
+
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gdk, Gtk
+
+    provider = Gtk.CssProvider()
+    if hasattr(provider, "load_from_string"):
+        provider.load_from_string(css)
+    else:
+        provider.load_from_data(css.encode("utf-8"))
+    Gtk.StyleContext.add_provider_for_display(
+        Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_USER + 100
+    )
 
 
 def _rgb(value: str) -> tuple[float, float, float]:
