@@ -16,11 +16,15 @@ needs explaining does not go in. See `PLAN.md`.
 ## Commands
 
 ```sh
-scripts/install.sh                      # launchers, systemd unit, engine, model
+scripts/install.sh                      # deps, engine, model, unit, desktop entry
+scripts/build-engine.sh                 # rebuild the engine from engine/VERSION
 systemctl --user enable --now nabria    # autostart (Hyprland ignores XDG autostart)
 systemctl --user restart nabria         # REQUIRED after any config.json edit
-journalctl --user -u nabria -f          # daemon stderr
+python3 -m pytest                        # 126 tests
 ```
+
+`nabria.service` is a **symlink** to `app-com.sbarah.Nabria.service`. The real
+name is not cosmetic -- see "The shortcut portal" below.
 
 ```sh
 scripts/run.sh daemon                   # run in the foreground instead of the unit
@@ -28,8 +32,9 @@ scripts/run.sh status                   # idle | recording | working
 scripts/run.sh toggle | cancel | settings | last | quit
 ```
 
-There is no test suite, no linter config and no build step yet — the Python is
-run from source via `PYTHONPATH=src`. `PLAN.md` Phase 4 tracks adding CI.
+The Python runs from source via `PYTHONPATH=src`; there is no build step.
+Window tests need a display and skip without one -- use `xvfb-run` as CI does.
+`NABRIA_TEST_WAV=/path/to/speech.wav` additionally checks a real transcription.
 
 Read `~/.local/state/nabria/nabria.log` first when anything misbehaves. It
 records every take with its measured level, so it distinguishes "the hotkey did
@@ -55,7 +60,11 @@ settings_window.py  model / microphone / history, built inside the daemon
 audio.py      input devices and level measurement, via wpctl
 config.py     every path, and the one JSON config file
 theme.py      the shipped dark palette, optional desktop-palette override
-gpu.py        sysfs GPU detection for MESA_VK_DEVICE_SELECT
+gpu.py        Vulkan enumeration (ctypes, in a subprocess) -> device decision
+models.py     the three-model catalogue, and a resumable checksummed download
+wizard.py     first run: model, download, microphone test, shortcut
+shortcut.py   compositor detection + the exact line to paste
+portal.py     org.freedesktop.portal.GlobalShortcuts (optional, additive)
 history.py    transcript log (JSONL)
 notify.py     desktop notifications
 ```
@@ -128,17 +137,39 @@ Two consequences that are easy to get backwards:
 - **`large-v3-turbo` on CPU is 2× slower than realtime**, i.e. unusable. Any
   machine without a discrete GPU needs a smaller model.
 
-`gpu_select` is applied to the whisper subprocess only. Exporting
-`MESA_VK_DEVICE_SELECT` process-wide would drag the GTK UI onto the discrete
-card too.
+Selection goes through `GGML_VK_VISIBLE_DEVICES`, applied to the whisper
+subprocess only — exporting it would drag the GTK UI onto the discrete card
+too. Not `MESA_VK_DEVICE_SELECT`: that is a loader layer which silently does
+nothing when the layer is not installed. The index it takes is a *raw Vulkan*
+device index, which is why `gpu.py` enumerates through `libvulkan` by ctypes
+rather than reading sysfs, and why it does so in a subprocess (a broken driver
+aborting must not take the daemon with it).
 
-Build the engine from upstream whisper.cpp (MIT). `-DGGML_NATIVE=OFF`
-`-DBUILD_SHARED_LIBS=OFF` `-DGGML_VULKAN=ON` produces one portable static
-binary that runs everywhere: it falls back to CPU cleanly when no Vulkan driver
-is present, and still picks up AVX2/FMA through ggml's runtime dispatch —
-`GGML_NATIVE=ON` measured no faster. **Do not redistribute the
-`whisper-server` currently installed on the original development machine**; it
-was copied out of OpenWhispr.
+`scripts/build-engine.sh` builds from the whisper.cpp tag pinned in
+`engine/VERSION` — the single source of truth for the build script, CI and any
+packaging. `-DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=ON` gives
+one portable static binary for every machine: it falls back to CPU cleanly with
+no Vulkan driver and still picks up AVX2/FMA through ggml's runtime dispatch
+(`GGML_NATIVE=ON` measured no faster).
+
+### The shortcut portal
+
+`org.freedesktop.portal.GlobalShortcuts` refuses to bind for a caller it cannot
+name, and for a host application it takes that name from the **systemd unit**,
+following `app-<app-id>-<...>`. Measured: the same binary bound both shortcuts
+under `app-com.sbarah.Nabria-probe.scope` and was refused with "An app id is
+required" under `nabria-control-probe.scope`.
+
+So **renaming the unit file breaks portal shortcuts**, quietly -- the daemon
+starts normally and the key simply never fires.
+
+### Flatpak is impossible
+
+Not an oversight. Compositors implementing `wp_security_context_v1` withhold
+`zwlr_layer_shell_v1`, `zwp_virtual_keyboard_manager_v1` and
+`zwlr_data_control_manager_v1` from sandboxed clients -- the indicator, `wtype`
+and clipboard restore respectively. Measured with `WAYLAND_DEBUG=1` inside the
+sandbox: 123 globals against the host's 154.
 
 ### Arabic
 
