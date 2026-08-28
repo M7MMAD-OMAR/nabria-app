@@ -188,7 +188,8 @@ way to bind a global hotkey on Wayland.
       release attached and was eleven commits behind — no prebuilt engine, no
       portal shortcuts, the `pycairo` bug still in it — so it was left as the
       historical marker it is and `v0.2.x` published instead.
-- [ ] `CONTRIBUTING.md`, issue templates.
+- [x] `CONTRIBUTING.md`, and three issue templates that lead with the log
+      rather than with a form.
 
 ## Phase 4b — one command, and updates
 
