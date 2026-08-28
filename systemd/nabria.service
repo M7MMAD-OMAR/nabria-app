@@ -1,13 +1,18 @@
 [Unit]
-# Hyprland does not read XDG autostart, so a .desktop file in ~/.config/autostart
-# would never fire. This unit is the Hyprland-side replacement.
-Description=Local voice dictation
+# Autostart. A .desktop file in ~/.config/autostart would be the obvious
+# choice, but several Wayland compositors -- Hyprland among them -- do not read
+# XDG autostart at all, and a unit works everywhere systemd does.
+Description=Nabria voice dictation
+Documentation=https://github.com/M7MMAD-OMAR/nabria-app
 PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/R/Projects/P/nabria-app/scripts/run.sh daemon
+# @RUN_SH@ is replaced by scripts/install.sh with the real path of this
+# checkout. It used to be written out literally, which meant the unit only
+# ever worked on the machine it was written on.
+ExecStart=@RUN_SH@ daemon
 # SIGTERM is handled inside the daemon, which stops the whisper server and
 # releases its VRAM before exiting.
 KillSignal=SIGTERM
