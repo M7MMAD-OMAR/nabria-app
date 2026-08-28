@@ -83,18 +83,30 @@ for candidate in /usr/lib64/libgtk4-layer-shell.so.0 \
                  /usr/lib/*/libgtk4-layer-shell.so.0; do
   [ -e "$candidate" ] && { layer_shell=$candidate; break; }
 done
-if [ -n "$layer_shell" ]; then
+# The library alone is not enough -- PyGObject needs the typelib, which Debian
+# ships in a *separate* package. Installing only the library there gets you a
+# working install with no indicator and nothing saying why, so both are checked
+# and both are named.
+if python3 -c 'import gi; gi.require_version("Gtk4LayerShell","1.0")' 2>/dev/null; then
   ok "gtk4-layer-shell"
+elif [ -n "$layer_shell" ]; then
+  warn "gtk4-layer-shell is installed but its typelib is not"
+  echo "      $(hint gtk4-layer-shell gir1.2-gtk4layershell-1.0 gtk4-layer-shell)"
 else
   warn "gtk4-layer-shell not found — the indicator will fall back to a plain window"
-  echo "      $(hint gtk4-layer-shell libgtk4-layer-shell0 gtk4-layer-shell)"
+  echo "      $(hint gtk4-layer-shell 'libgtk4-layer-shell0 gir1.2-gtk4layershell-1.0' gtk4-layer-shell)"
+  if [ "$family" = debian ] && ! apt-cache show libgtk4-layer-shell0 >/dev/null 2>&1; then
+    # True on Ubuntu 24.04, which packages only the GTK3 version. Saying so
+    # beats letting someone hunt for a package that is not there.
+    echo "      (not packaged on this release — the indicator will be a plain window)"
+  fi
 fi
 
 if command -v pw-record >/dev/null 2>&1; then
   ok "PipeWire (pw-record)"
 else
   bad "pw-record is missing — there is no way to record without it"
-  echo "      $(hint pipewire-utils pipewire-bin pipewire)"
+  echo "      $(hint pipewire-utils pipewire-bin pipewire-audio)"
   fatal=1
 fi
 
@@ -177,34 +189,9 @@ cat <<'EOS'
     nabria settings        model, microphone, history
 EOS
 
-compositor=""
-[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && compositor=hyprland
-[ "${XDG_CURRENT_DESKTOP:-}" = "KDE" ] && compositor=kde
-[ "${XDG_CURRENT_DESKTOP:-}" = "GNOME" ] && compositor=gnome
-case "${XDG_CURRENT_DESKTOP:-}" in *sway*|*Sway*) compositor=sway ;; esac
-
-case $compositor in
-  hyprland)
-    echo
-    echo "  Hyprland — add to ~/.config/hypr/hyprland.conf:"
-    echo "    bind = CTRL ALT, Q, exec, $bin_dir/nabria toggle"
-    echo "    bind = CTRL ALT SHIFT, Q, exec, $bin_dir/nabria cancel"
-    echo "    bind = CTRL ALT, W, exec, $bin_dir/nabria settings"
-    ;;
-  sway)
-    echo
-    echo "  Sway — add to ~/.config/sway/config:"
-    echo "    bindsym Ctrl+Alt+q exec $bin_dir/nabria toggle"
-    ;;
-  kde)
-    echo
-    echo "  KDE — System Settings > Keyboard > Shortcuts > Add Command"
-    ;;
-  gnome)
-    echo
-    echo "  GNOME — Settings > Keyboard > Custom Shortcuts"
-    ;;
-esac
+# Detected and phrased by the same module the setup wizard uses, so the two
+# can never drift into telling people different things.
+python3 -c 'from nabria import shortcut; print("\n".join("  " + line for line in shortcut.instructions()))'
 
 say "Then"
 echo "  systemctl --user enable --now nabria"
