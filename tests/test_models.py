@@ -1,0 +1,259 @@
+"""The model catalogue and its downloader.
+
+The download is served from a local HTTP server rather than mocked, because
+the failures worth catching are protocol-level: a resume that appends to the
+wrong offset, a server that ignores Range, a truncated file that passes for
+finished.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import http.server
+import threading
+from pathlib import Path
+
+import pytest
+
+from nabria import models
+
+
+class RangeHandler(http.server.BaseHTTPRequestHandler):
+    """A file server that honours Range, because the real one does.
+
+    Written out rather than using SimpleHTTPRequestHandler, which ignores
+    Range and answers 200 with the whole file. Against that server the resume
+    test passes without ever resuming -- it silently re-downloads and gets the
+    right answer, which is exactly the kind of test that reports success while
+    checking nothing.
+    """
+
+    root: Path
+    serve_ranges = True
+
+    def log_message(self, *args):  # noqa: A003 - quiet
+        pass
+
+    def do_GET(self):  # noqa: N802 - BaseHTTPRequestHandler's spelling
+        path = self.root / self.path.lstrip("/")
+        if not path.is_file():
+            self.send_error(404)
+            return
+        payload = path.read_bytes()
+        start = 0
+        requested = self.headers.get("Range")
+        if requested and self.serve_ranges and requested.startswith("bytes="):
+            start = int(requested.removeprefix("bytes=").split("-")[0])
+            if start >= len(payload):
+                self.send_error(416)
+                return
+
+        body = payload[start:]
+        self.send_response(206 if start else 200)
+        self.send_header("Content-Length", str(len(body)))
+        if start:
+            self.send_header(
+                "Content-Range", f"bytes {start}-{len(payload) - 1}/{len(payload)}"
+            )
+        self.end_headers()
+        self.wfile.write(body)
+
+
+@pytest.fixture
+def served(tmp_path):
+    root = tmp_path / "www"
+    root.mkdir()
+
+    handler = type("Rooted", (RangeHandler,), {"root": root})
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server.handle_error = lambda *args: None  # a cancelled download closes early
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield root, f"http://127.0.0.1:{server.server_port}", handler
+    server.shutdown()
+
+
+def make_model(root: Path, payload: bytes, name: str = "ggml-test.bin") -> models.Model:
+    (root / name).write_bytes(payload)
+    return models.Model(
+        key="test", filename=name, size=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        summary="", needs_gpu=False,
+    )
+
+
+@pytest.fixture
+def at_served(served, monkeypatch):
+    root, base, _handler = served
+    monkeypatch.setattr(models, "BASE_URL", base)
+    return root
+
+
+@pytest.fixture
+def no_range(served):
+    """Make the server ignore Range, the way some CDNs and proxies do."""
+    _root, _base, handler = served
+    handler.serve_ranges = False
+    return handler
+
+
+def test_catalogue_is_self_consistent():
+    for key, model in models.CATALOG.items():
+        assert model.key == key
+        assert len(model.sha256) == 64
+        assert model.size > 0
+        assert model.filename.endswith(".bin")
+
+
+def test_recommendation_follows_the_hardware():
+    # large-v3-turbo is 21s per 11s of audio on a CPU. Recommending it to
+    # someone without a discrete GPU is recommending a tool that does not work.
+    assert models.recommended(True).key == "large-v3-turbo"
+    assert models.recommended(False).needs_gpu is False
+
+
+def test_download_and_verify(at_served, tmp_path):
+    model = make_model(at_served, b"x" * 5000)
+    path = models.download(model, tmp_path / "models")
+    assert path.read_bytes() == b"x" * 5000
+    assert not list((tmp_path / "models").glob("*.part"))
+
+
+def test_progress_is_reported(at_served, tmp_path):
+    model = make_model(at_served, b"y" * (3 << 20))
+    seen: list[tuple[int, int]] = []
+    models.download(model, tmp_path / "models", on_progress=lambda d, t: seen.append((d, t)))
+    assert seen and seen[-1][0] == model.size
+    assert all(total == model.size for _, total in seen)
+
+
+def test_an_existing_complete_file_is_not_downloaded_again(at_served, tmp_path):
+    payload = b"z" * 4000
+    model = make_model(at_served, payload)
+    target = tmp_path / "models"
+    target.mkdir()
+    (target / model.filename).write_bytes(payload)
+    (at_served / model.filename).unlink()  # nothing to download from
+
+    assert models.download(model, target).read_bytes() == payload
+
+
+def test_a_partial_download_resumes(at_served, tmp_path):
+    payload = bytes(range(256)) * 400
+    model = make_model(at_served, payload)
+    target = tmp_path / "models"
+    target.mkdir()
+    (target / f"{model.filename}.part").write_bytes(payload[:5000])
+
+    transferred: list[int] = []
+    path = models.download(
+        model, target, on_progress=lambda done, total: transferred.append(done)
+    )
+    assert path.read_bytes() == payload
+    # Progress starts from where the partial left off, which is the proof that
+    # it resumed rather than quietly starting again and landing on the same
+    # bytes -- the two are indistinguishable from the finished file alone.
+    assert transferred[0] > 5000
+    assert transferred[-1] == model.size
+
+
+def test_a_server_that_ignores_range_still_produces_the_right_file(
+    at_served, no_range, tmp_path
+):
+    # Answering 200 to a Range request means the body starts at zero. Appending
+    # that to what we already have would give a file of the correct length made
+    # of the wrong bytes, so the partial has to be thrown away first.
+    payload = bytes(range(256)) * 400
+    model = make_model(at_served, payload)
+    target = tmp_path / "models"
+    target.mkdir()
+    (target / f"{model.filename}.part").write_bytes(payload[:5000])
+
+    assert models.download(model, target).read_bytes() == payload
+
+
+def test_a_full_length_corrupt_partial_is_discarded_not_resumed_forever(at_served, tmp_path):
+    # The nastiest case: the partial is already as long as the finished model,
+    # so there is nothing left to request. Asking anyway gets a 416, which
+    # reads as a network error and -- before this was fixed -- left the bad
+    # file in place, so every later attempt failed the same way and the model
+    # could never be installed again.
+    payload = b"a" * 8000
+    model = make_model(at_served, payload)
+    target = tmp_path / "models"
+    target.mkdir()
+    (target / f"{model.filename}.part").write_bytes(b"b" * 8000)
+
+    assert models.download(model, target).read_bytes() == payload
+    assert not (target / f"{model.filename}.part").exists()
+
+
+def test_a_complete_partial_is_promoted_rather_than_refetched(at_served, tmp_path):
+    # Killed between the last byte and the rename. The bytes are all there and
+    # correct; re-downloading hundreds of megabytes to learn that would be a
+    # poor way to find out.
+    payload = b"a" * 8000
+    model = make_model(at_served, payload)
+    target = tmp_path / "models"
+    target.mkdir()
+    (target / f"{model.filename}.part").write_bytes(payload)
+    (at_served / model.filename).unlink()  # nothing to download from
+
+    assert models.download(model, target).read_bytes() == payload
+
+
+def test_a_short_corrupt_partial_is_caught_by_the_checksum(at_served, tmp_path):
+    payload = b"a" * 8000
+    model = make_model(at_served, payload)
+    target = tmp_path / "models"
+    target.mkdir()
+    # Wrong bytes, but short enough that a resume looks reasonable. Only the
+    # checksum at the end can tell.
+    (target / f"{model.filename}.part").write_bytes(b"b" * 3000)
+
+    with pytest.raises(models.DownloadError, match="checksum"):
+        models.download(model, target)
+    assert not (target / f"{model.filename}.part").exists()
+
+
+def test_an_oversized_partial_is_thrown_away(at_served, tmp_path):
+    payload = b"c" * 3000
+    model = make_model(at_served, payload)
+    target = tmp_path / "models"
+    target.mkdir()
+    (target / f"{model.filename}.part").write_bytes(b"d" * 9000)
+
+    assert models.download(model, target).read_bytes() == payload
+
+
+def test_the_partial_is_never_offered_to_the_model_picker(at_served, tmp_path, fresh_config):
+    # A half-downloaded model in the picker loads a truncated file and fails
+    # with something that reads like a broken engine.
+    fresh_config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    (fresh_config.MODEL_DIR / "ggml-half.bin").write_bytes(b"x")
+    (fresh_config.MODEL_DIR / "ggml-half.bin.part").write_bytes(b"x")
+    assert fresh_config.models() == []
+
+
+def test_a_missing_file_reports_plainly(at_served, tmp_path):
+    model = models.Model("gone", "ggml-absent.bin", 10, "0" * 64, "", False)
+    with pytest.raises(models.DownloadError):
+        models.download(model, tmp_path / "models")
+
+
+def test_cancellation_stops_the_download(at_served, tmp_path):
+    model = make_model(at_served, b"e" * (8 << 20))
+    with pytest.raises(models.DownloadError, match="cancelled"):
+        models.download(model, tmp_path / "models", should_cancel=lambda: True)
+
+
+def test_installed_notices_a_truncated_file(tmp_path):
+    model = models.CATALOG["base"]
+    tmp_path.joinpath(model.filename).write_bytes(b"not the whole thing")
+    assert models.installed(tmp_path, model) is False
+
+
+def test_verify_rejects_the_wrong_contents(tmp_path):
+    model = make_model(tmp_path, b"the real thing")
+    tmp_path.joinpath(model.filename).write_bytes(b"something else")
+    assert models.verify(tmp_path / model.filename, model) is False

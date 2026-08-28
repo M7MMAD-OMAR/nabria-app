@@ -1,0 +1,5 @@
+# The whisper.cpp release the engine is built from. Single source of truth:
+# scripts/build-engine.sh, the CI workflow and scripts/install.sh all read this
+# file. Keeping it in three places is how a checksum mismatch starts looking
+# like a corrupt download.
+WHISPER_CPP_VERSION=v1.9.3
