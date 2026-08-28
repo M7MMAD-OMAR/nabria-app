@@ -58,7 +58,12 @@ jobs:
       - name: Check the shell scripts
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh
+          shellcheck --version
+          # -S info explicitly: the runner's shellcheck is older than a typical
+          # development machine's and reports things a newer one does not, so
+          # the severity has to be stated rather than inherited from whatever
+          # version happens to be installed.
+          shellcheck -S info scripts/*.sh
 
   engine:
     # The slow one: build whisper.cpp, fetch the smallest model, and transcribe

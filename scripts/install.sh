@@ -199,8 +199,9 @@ mkdir -p "$applications_dir"
 sed "s#^Exec=nabria#Exec=$bin_dir/nabria#" \
   "$project_dir/share/com.sbarah.Nabria.desktop" \
   > "$applications_dir/com.sbarah.Nabria.desktop"
-command -v update-desktop-database >/dev/null 2>&1 &&
+if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$applications_dir" 2>/dev/null || true
+fi
 ok "desktop entry installed"
 
 # -------------------------------------------------------------------- shortcut
