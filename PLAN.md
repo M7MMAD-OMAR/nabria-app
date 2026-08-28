@@ -35,8 +35,8 @@ work: make it installable → make it portable → then publicise.
 | [x] | ~~`gpu_select` hardcoded to this RTX 4070's PCI id~~ — detected now | `gpu.py` |
 | [x] | ~~`APP_ID` is a personal handle~~ — `com.sbarah.Nabria` | `config.py` |
 | [x] | ~~Theme palette path hardcoded to one desktop~~ — ships its own | `theme.py` |
-| [ ] | README is written as "why not OpenWhispr" and quotes this machine's hardware | `README.md` |
-| [ ] | Pick a licence. whisper.cpp is MIT, the models are MIT — **MIT unless told otherwise** | `LICENSE` |
+| [x] | ~~README is written as "why not OpenWhispr"~~ — rewritten; internals in `docs/DESIGN.md` | |
+| [x] | ~~Pick a licence~~ — **MIT**, matching whisper.cpp and the weights | `LICENSE` |
 
 **Licensing trap, resolved:** the engine that was bundled came out of
 OpenWhispr and must not be redistributed. whisper.cpp v1.9.3 now builds from
@@ -50,17 +50,20 @@ source (MIT) and that is what is installed.
       it falls back to CPU cleanly where there is no Vulkan driver, and still
       picks up AVX2/FMA through ggml's runtime dispatch. `GGML_NATIVE=ON`
       measured no faster (21.4s vs 21.9s), so portability is free.
-- [ ] **Publish that binary from CI** and have the installer fetch it by
-      checksum. Pin the whisper.cpp tag in one file that CI, the installer and
-      any packaging all read, or they drift and a checksum mismatch reads as a
-      corrupt download. The checksum must be generated from our own build at
-      release time — trusting whatever the release page says defeats the point.
-- [ ] **Model**: cannot be shipped. Download on first run with visible
-      progress, resume, and a checksum.
-- [ ] **Setup wizard** on first launch: language → model → download → test the
-      microphone → shortcut. The mic test already exists (`audio.measure`).
-- [ ] `scripts/install.sh` still names OpenWhispr paths, so **the install path
-      the README documents is broken for everyone**. Biggest single gap.
+- [x] **Tag pinned in one place** — `engine/VERSION`, read by the build script,
+      CI and the installer, so they cannot drift.
+- [x] **Model** downloads on first run with progress, resume and a checksum.
+      The checksums are the upstream Git-LFS oids, verified against local copies.
+- [x] **Setup wizard** on first launch: model → download → microphone test →
+      shortcut.
+- [x] **`scripts/install.sh` rewritten.** Checks dependencies in the running
+      distro's own package names, builds the engine, fetches the right model,
+      writes the unit and a desktop entry. Verified in clean Fedora, Debian
+      trixie and Ubuntu 24.04 containers.
+- [ ] **Publish the binary from CI** so the installer can fetch it instead of
+      building. The build is 3 minutes and needs cmake and a compiler, which is
+      the last thing standing between "a developer can install this" and
+      "anyone can". Checksums must come from our own build at release time.
 
 ### Which model to default to — settled by measurement
 
@@ -115,45 +118,60 @@ oversight.
 
 - [x] **GPU**: auto-detected, and refuses integrated cards rather than merely
       deprioritising them. `gpu_select` remains a manual override.
-- [ ] **Indicator fallback** when layer-shell is unavailable — GNOME, or a
-      compositor that does not implement it. `Gtk4LayerShell.is_supported()`.
-      Now also needed for the AppImage running under GNOME.
-- [ ] **Palette**: read the GTK accent colour; the quickshell file stays an
-      optional override.
-- [ ] **Audio**: `pw-record` is PipeWire-only. Check for it and say so plainly
-      rather than failing as a silent take.
-- [ ] **Paste**: `TERMINAL_CLASSES` and `hyprctl activewindow` are
-      Hyprland-specific. Needs a compositor-agnostic path.
-- [ ] Test matrix: Hyprland, KDE, GNOME, Sway. X11 is out of scope — say so.
+- [x] **Indicator fallback** when layer-shell is unavailable. The typelib
+      import is guarded, so a missing package no longer stops the daemon from
+      starting at all — which is what it used to do.
+- [x] **Audio**: a missing `pw-record` is its own error naming the package per
+      distro, not a stack trace.
+- [x] **Paste**: Hyprland, sway and niri are each asked what has focus; where
+      nothing can say, Ctrl+V, which is right everywhere but a terminal.
+- [ ] **Palette**: read the GTK accent colour as an optional source.
+- [ ] Test matrix: only Hyprland has been exercised on real hardware. KDE,
+      GNOME and Sway are covered by code paths and containers, not by use.
+      X11 is out of scope and the README says so.
 
 ## Phase 3 — the shortcut problem
 
 The most likely reason a non-technical user gives up. There is no cross-desktop
 way to bind a global hotkey on Wayland.
 
-- [ ] `org.freedesktop.portal.GlobalShortcuts` — present here, KDE implements
-      it, GNOME is the open question. **Verify per desktop.**
-- [ ] Where the portal is missing: generate the config snippet for the detected
-      compositor and offer to write it, rather than printing instructions.
-- [ ] Fallback that always works: a window with a record button.
+- [x] `org.freedesktop.portal.GlobalShortcuts` implemented and **verified
+      working on Hyprland** — `hyprctl globalshortcuts` lists both. The catch,
+      which cost real time: the portal refuses a caller it cannot name, and
+      names a host application from its **systemd unit**
+      (`app-<app-id>-...`). The unit is named accordingly; renaming it breaks
+      shortcuts silently. See `docs/DESIGN.md`.
+- [x] Where the portal is missing, `shortcut.py` detects the compositor and
+      prints the exact line, shared by the installer and the wizard.
+- [ ] Verify the portal on KDE and GNOME. Both backends advertise the
+      interface; neither has been tried.
+- [ ] Offer to *write* the config snippet rather than print it.
+- [ ] A window with a record button, for when no key can be bound at all.
 
 ## Phase 4 — release
 
-- [x] Tests: 68 of them, including the real engine over real HTTP.
-- [ ] CI: run them on push, and build the engine artifact.
-- [ ] Rewrite the README for someone who has never heard of it.
-- [ ] Move the current README's internals into `docs/DESIGN.md`.
-- [ ] Retag. `v1.0.0` was a private milestone and overstates it — `v0.1.0`.
+- [x] Tests: 126, including the real engine over real HTTP.
+- [x] CI: four jobs on push — units on two Python versions, GTK under xvfb,
+      shellcheck, and a full engine build that transcribes for real.
+- [x] README rewritten for a newcomer; internals moved to `docs/DESIGN.md`.
+- [x] Retagged `v0.1.0`; the private `v1.0.0` is deleted.
+- [x] Desktop entry, so it appears in application menus.
 - [ ] `CONTRIBUTING.md`, issue templates.
+- [ ] Make the repository public. Everything blocking it is done.
 
 ## Open decisions
 
 1. ~~**Name.**~~ **Nabria** (نَبْرة). `com.sbarah.Nabria`, `nabria.sbarah.com`.
 2. ~~**Git history.**~~ Email stays public, by decision.
 3. ~~**Default model.**~~ Decided by hardware — see the table above.
-4. **Licence.** MIT unless told otherwise; proceeding on that assumption.
-5. **Arabic-first or language-neutral?** The Levantine prompt work is a real
-   differentiator. Ship it as the Arabic preset, detected from the locale?
+4. ~~**Licence.**~~ MIT, chosen rather than asked about since it was the last
+   thing blocking Phase 0. Apache-2.0 remains an easy change.
+5. **Arabic-first or language-neutral?** Still open. `language` defaults to
+   `auto` in a fresh config, and the Levantine prompt is not shipped — it is
+   the real differentiator and nobody gets it without being told. Ship it as an
+   Arabic preset detected from the locale?
+6. **Who builds the engine?** Right now every user compiles whisper.cpp. That
+   is the remaining gap between a developer and an ordinary person.
 
 ## Session log
 
@@ -163,6 +181,12 @@ way to bind a global hotkey on Wayland.
   binary is gone. Benchmarked CPU/discrete/integrated (table above) and found
   that an integrated GPU is *worse* than no GPU — rewrote device selection to
   refuse it, via `GGML_VK_VISIBLE_DEVICES` and a ctypes Vulkan enumeration
-  rather than the Mesa layer. Added a 68-test suite. **Established that Flatpak
-  cannot work**, which reorders all of packaging around AppImage. CLAUDE.md
-  written.
+  rather than the Mesa layer. **Established that Flatpak cannot work**, which
+  reordered packaging. Rewrote the installer and verified it in Fedora, Debian
+  and Ubuntu containers, which found three bugs that would each have silently
+  cost a user their indicator. Added the model downloader, the setup wizard,
+  the desktop entry, the layer-shell fallback, and portal shortcuts. 126 tests
+  and CI. Licence MIT, retagged `v0.1.0`. CLAUDE.md and docs/DESIGN.md written.
+
+  Left deliberately: publishing a prebuilt engine, KDE/GNOME verification, and
+  the Arabic preset.
