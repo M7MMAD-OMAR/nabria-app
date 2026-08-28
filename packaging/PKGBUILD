@@ -7,7 +7,7 @@
 # pkgver is checked against src/nabria/__init__.py by tests/test_packaging.py.
 
 pkgname=nabria
-pkgver=0.3.1
+pkgver=0.4.0
 pkgrel=1
 _engine=engine-v1.9.3-1
 pkgdesc="Local voice dictation for Wayland — press a key, speak, the words are typed"
