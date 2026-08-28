@@ -91,10 +91,13 @@ box with the arrows curving back into it — the picture makes the point without
 a paragraph about privacy, which is the one topic where a paragraph reads as a
 sales pitch.
 
-**4 · Speed.** Bars to true scale. 0.3 s and 21 s at the same scale is a bar
-you can barely see against one that crosses the screen, which is the entire
-argument for choosing the model by hardware. Numbers only — the moment this
-section gains a sentence it becomes a benchmark claim rather than a picture.
+**4 · What it needs.** Not speed. A bar chart of seconds would be a benchmark
+of one laptop presented as a property of the software, and the honest version
+of that picture is different on every machine that loads the page. Draw the
+requirement instead: three cards — smaller, middle, largest, unnamed — each
+with its download size and the memory it wants, and a mark on the one that
+asks for a graphics card. Sizes are facts about the models; times are facts
+about hardware, and this page has no way to know the reader's.
 
 **5 · Arabic.** The differentiator, and it must be shown rather than asserted.
 Draw a wave, then the Arabic text it produced, right-aligned, in a real font.
@@ -183,6 +186,7 @@ envelope — the same shape the application draws — and to honour
 ## Not on the page
 
 Named applications, of any kind — this is a standing rule for everything
-outward-facing, not a preference for this page. Model names and version
-numbers. Anything the repository cannot prove. A newsletter, a star count, a
+outward-facing, not a preference for this page. **Timings, benchmarks, or any
+number measured on one machine and presented as a property of the software.**
+Model names and version numbers. Anything the repository cannot prove. A newsletter, a star count, a
 testimonial, a roadmap.

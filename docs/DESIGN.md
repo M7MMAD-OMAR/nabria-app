@@ -56,22 +56,27 @@ series of different pictures:
 
 ## Choosing a device
 
-Left alone, ggml uses every discrete *and integrated* GPU it can see. Measured
-on 11 s of audio with `large-v3-turbo`:
+Left alone, ggml uses every discrete *and integrated* GPU it can see. That is
+the wrong default here, and the measurement that settled it ran the same audio
+through the largest model on a discrete card, on the CPU, and on an integrated
+GPU.
 
-| | |
-|---|---|
-| discrete (RTX 4070, Vulkan) | 0.32 s |
-| CPU, 16 threads | 21.4 s |
-| integrated (Intel, Vulkan) | 63.5 s, then `vk::Queue::submit: ErrorDeviceLost` |
-| `base` on CPU, 8 threads | 0.9 s |
-| `base` on CPU, 4 threads | 1.4 s |
+**The times are deliberately not written down.** They describe one laptop, and
+a number from one laptop kept in a repository is a number that ends up quoted
+as though it described the software. What they established is ordinal, and
+that part does generalise:
 
-An integrated GPU is not a lesser accelerator here — it is three times worse
-than the CPU it would replace, and it crashes. So the policy is: a discrete GPU
-if there is one, otherwise `-ng` and the CPU. Getting this backwards on the
-commonest laptop there is — Intel integrated, no discrete card — means a tool
-that does not work.
+- the discrete card was far ahead of everything else
+- the CPU was usable with a small model and not with the largest
+- the integrated GPU came *last* — behind the CPU it would have been standing
+  in for — and then died with `vk::Queue::submit: ErrorDeviceLost`
+
+So an integrated GPU is not a lesser accelerator here, it is a worse answer
+than no accelerator, and the policy is: a discrete GPU if there is one,
+otherwise `-ng` and the CPU. Getting this backwards on the commonest laptop
+there is — integrated graphics, no discrete card — means a tool that does not
+work. `gpu_select: any` is there for anyone who wants to test the claim on
+their own hardware, which is the only place it can honestly be tested.
 
 Selection uses `GGML_VK_VISIBLE_DEVICES`, not `MESA_VK_DEVICE_SELECT`. The Mesa
 variable is a loader layer that silently does nothing when the layer is not
@@ -90,8 +95,8 @@ card belongs in the GTK daemon.
 whisper.cpp, built from a pinned tag in `engine/VERSION`, static, with
 `GGML_NATIVE=OFF` and Vulkan on. One binary covers every machine: it falls back
 to the CPU by itself where no Vulkan driver exists, and still selects AVX2/FMA
-paths through ggml's runtime dispatch — a `-march=native` build measured no
-faster (21.4 s against 21.9 s).
+paths through ggml's runtime dispatch — a `-march=native` build measured
+no faster, within noise, so the portable build costs nothing.
 
 It is spoken to over HTTP on a loopback port it binds only after the model has
 loaded, so a successful connection is a sufficient readiness check. The model
@@ -133,8 +138,8 @@ is never sent at all.
 ## Getting the text into the window
 
 Three mechanisms, tried in order. `wtype` and `ydotool` type one character at a
-time — 2.59 s for 585 characters, against 0.02 s for a paste, with every
-keystroke a round trip through the compositor. So paste comes first: the text
+time, each keystroke a round trip through the compositor, so a long transcript
+crawls onto the screen character by character. So paste comes first: the text
 goes on the clipboard and one keystroke sends it, in constant time whatever the
 length.
 

@@ -257,3 +257,38 @@ def test_verify_rejects_the_wrong_contents(tmp_path):
     model = make_model(tmp_path, b"the real thing")
     tmp_path.joinpath(model.filename).write_bytes(b"something else")
     assert models.verify(tmp_path / model.filename, model) is False
+
+
+def test_the_readme_states_the_catalogue_s_real_sizes():
+    """The README's size table is the catalogue restated in another unit.
+
+    Restated facts drift -- a model list in two places had both copies stale
+    before, which is why nothing in this project is written down twice without
+    something binding the copies. This is the binding: the README quotes MiB
+    and GiB because those are the units upstream publishes, the catalogue
+    holds exact bytes, and only one of the two gets updated when a model is
+    replaced.
+
+    Sizes are publishable and timings are not, which is the other half of why
+    this table exists at all: how fast a model runs belongs to the reader's
+    hardware, so the README states what each one *needs* instead.
+    """
+    import re
+    from pathlib import Path
+
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text()
+    rows = dict(re.findall(r"\| `([\w.-]+)` \| ([\d.]+ [MG]iB) \|", readme))
+    assert set(rows) == set(models.CATALOG), "the README table and the catalogue disagree"
+
+    for key, stated in rows.items():
+        amount, unit = stated.split()
+        scale = 1024 ** 2 if unit == "MiB" else 1024 ** 3
+        actual = models.CATALOG[key].size / scale
+        # Half of the last digit the README chose to print, so a row written
+        # to one decimal is held to one decimal and a whole number to a whole
+        # number. A fixed tolerance would either wave through a wrong figure
+        # or fail an honestly rounded one.
+        _, _, decimals = amount.partition(".")
+        assert abs(actual - float(amount)) <= 0.5 * 10 ** -len(decimals), (
+            f"README says {key} is {stated}, catalogue says {actual:.2f} {unit}"
+        )

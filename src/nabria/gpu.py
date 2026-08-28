@@ -2,18 +2,24 @@
 
 Left alone, ggml uses *every* discrete and integrated GPU it can see. On a
 hybrid laptop that includes the integrated one, and an integrated GPU is not a
-lesser accelerator here -- it is actively worse than not using a GPU at all.
-Measured on 11 s of audio with large-v3-turbo:
+lesser accelerator here -- it is actively worse than not using a GPU at all. It
+has no memory of its own, shares bandwidth with everything else running, and
+its Vulkan driver is the least exercised for sustained compute. Measured
+locally it came last, behind the CPU it would have been standing in for, and
+then died with vk::Queue::submit: ErrorDeviceLost.
 
-    discrete (RTX 4070, Vulkan)     0.32 s
-    CPU (16 threads)               21.4 s
-    integrated (Intel, Vulkan)     63.5 s, then vk::Queue::submit: ErrorDeviceLost
+(The figures are not written down, here or anywhere else in this repository.
+They describe one laptop, and a time from one laptop kept in a source comment
+is a time that ends up quoted as though it described the software. What
+generalises is the ordering, and that is what is stated.)
 
 So the policy is not "prefer discrete". It is: use a discrete GPU if there is
 one, and otherwise run on the CPU and do not touch Vulkan at all. Getting this
-backwards on the most common laptop in the world -- Intel integrated, no
-discrete card -- means a tool that is three times slower than the obvious
-fallback and crashes halfway through.
+backwards on the most common laptop there is -- integrated graphics, no
+discrete card -- means a tool that is slower than the obvious fallback and
+crashes halfway through. `gpu_select: any` is the escape hatch for anyone who
+wants to test that on their own hardware, which is the only place it can
+honestly be tested.
 
 Devices are enumerated through libvulkan directly rather than by matching PCI
 ids in sysfs, because the number ggml wants is a *Vulkan* physical device

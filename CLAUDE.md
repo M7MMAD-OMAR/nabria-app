@@ -168,21 +168,22 @@ beginning with a level ("-66 dBFS…") is silently dropped. Pass `--` first.
 - `Gtk.Application.run([])` skips `activate` entirely and exits. Pass
   `sys.argv[:1]`.
 
-### Engine and hardware (measured, 11 s of audio, `large-v3-turbo`)
+### Engine and hardware
 
-| backend | time |
-|---|---|
-| discrete GPU (RTX 4070, Vulkan) | 0.32 s warm |
-| CPU, 16 threads | 21.4 s |
-| integrated GPU (Intel, Vulkan) | 63.5 s, then `ErrorDeviceLost` |
+Two rules that are easy to get backwards. Both came out of local measurement
+and **neither the figures nor the machine they came from are published**: how
+fast a model runs is a property of somebody's hardware, not of this software,
+so stating one laptop's seconds anywhere outward-facing would be a benchmark
+claim dressed as a specification. Requirements are publishable; timings are
+not. See "What it needs" in the README for the form this takes.
 
-Two consequences that are easy to get backwards:
-
-- **An integrated GPU is worse than useless** — three times slower than CPU and
-  it crashes. GPU selection must *refuse* integrated cards, not merely prefer
-  discrete ones.
-- **`large-v3-turbo` on CPU is 2× slower than realtime**, i.e. unusable. Any
-  machine without a discrete GPU needs a smaller model.
+- **An integrated GPU is refused, not deprioritised.** It measured slower than
+  the CPU it would be standing in for, and then lost the device. GPU selection
+  must treat "integrated" as "no GPU"; `gpu_select: any` is the escape hatch
+  for anyone who wants to try theirs.
+- **The largest model needs a discrete GPU.** On a CPU it ran slower than
+  speech, which is not a slower experience but an unusable one, so the wizard
+  picks by hardware rather than by taste.
 
 Selection goes through `GGML_VK_VISIBLE_DEVICES`, applied to the whisper
 subprocess only — exporting it would drag the GTK UI onto the discrete card
@@ -265,9 +266,10 @@ Keep it short; a long prompt leaks into the transcript.
 
 ### Delivery
 
-`wtype` and `ydotool` type one keystroke at a time — 2.59 s for 585 characters,
-against 0.02 s for a paste. So `auto` pastes first: Ctrl+V, or Ctrl+Shift+V
-when the focused window's class is a terminal.
+`wtype` and `ydotool` type one keystroke at a time, so a long transcript
+crawls onto the screen character by character, while a paste is a single event
+whatever the length. So `auto` pastes first: Ctrl+V, or Ctrl+Shift+V when the
+focused window's class is a terminal.
 
 The clipboard is *borrowed*. Previous contents are captured with their MIME
 type and restored 1.5 s later, typed — reading a copied image back as text

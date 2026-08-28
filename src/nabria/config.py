@@ -102,14 +102,15 @@ DEFAULTS: dict[str, Any] = {
     #   any   let the engine choose, integrated cards included
     #   10de:2860  a specific `vendor:device` reported by Vulkan
     #
-    # "auto" refuses integrated GPUs rather than merely deprioritising them.
-    # Measured on 11s of audio with large-v3-turbo: discrete 0.32s, CPU 21.4s,
-    # integrated 63.5s followed by a driver crash. An integrated GPU is not a
-    # slower accelerator here, it is a worse answer than no accelerator.
+    # "auto" refuses integrated GPUs rather than merely deprioritising them:
+    # measured, an integrated GPU came last -- behind the CPU it would have
+    # been standing in for -- and then crashed its driver. It is not a slower
+    # accelerator here, it is a worse answer than no accelerator. Figures are
+    # deliberately not recorded; see gpu.py for why.
     "gpu_select": "auto",
     "server_port": 0,  # 0 = pick a free port
     # Seconds the loaded model may sit idle before the server is stopped and
-    # its ~2.5 GB of VRAM released. The next dictation reloads it while you are
+    # its ~2 GB of VRAM released. The next dictation reloads it while you are
     # still speaking, so the cost is usually invisible. 0 disables unloading.
     "idle_unload_seconds": 900,
     "prewarm": False,
@@ -184,7 +185,7 @@ def load() -> dict[str, Any]:
             settings["server_binary"] = str(packaged)
 
     # The default names large-v3-turbo, which is the right model only where
-    # there is a discrete GPU -- on a CPU it runs at half realtime. Rather than
+    # there is a discrete GPU -- on a CPU it runs slower than speech. Rather than
     # fail with "model missing", fall back to whatever is installed.
     #
     # Which one is a hardware question and models.py owns it. Asking about the

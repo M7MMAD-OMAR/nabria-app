@@ -32,7 +32,7 @@ work: make it installable → make it portable → then publicise.
 |---|---|---|
 | [x] | ~~Author email in every commit~~ — accepted, staying public | |
 | [x] | ~~`هرميز` and a personal tool list in the default `vocabulary`~~ | `config.py` |
-| [x] | ~~`gpu_select` hardcoded to this RTX 4070's PCI id~~ — detected now | `gpu.py` |
+| [x] | ~~`gpu_select` hardcoded to one card's PCI id~~ — detected now | `gpu.py` |
 | [x] | ~~`APP_ID` is a personal handle~~ — `com.sbarah.Nabria` | `config.py` |
 | [x] | ~~Theme palette path hardcoded to one desktop~~ — ships its own | `theme.py` |
 | [x] | ~~README is written as "why not OpenWhispr"~~ — rewritten; internals in `docs/DESIGN.md` | |
@@ -49,7 +49,7 @@ source (MIT) and that is what is installed.
       -DBUILD_SHARED_LIBS=OFF`. One 57 MB static binary covers every machine:
       it falls back to CPU cleanly where there is no Vulkan driver, and still
       picks up AVX2/FMA through ggml's runtime dispatch. `GGML_NATIVE=ON`
-      measured no faster (21.4s vs 21.9s), so portability is free.
+      measured no faster, within noise, so portability is free.
 - [x] **Tag pinned in one place** — `engine/VERSION`, read by the build script,
       CI and the installer, so they cannot drift.
 - [x] **Model** downloads on first run with progress, resume and a checksum.
@@ -69,19 +69,19 @@ source (MIT) and that is what is installed.
 
 ### Which model to default to — settled by measurement
 
-11 s of audio, `large-v3-turbo` unless stated:
+Measured locally across the three models on a discrete GPU, on the CPU, and on
+an integrated GPU. **The figures are not recorded here or anywhere else in the
+repository**, because a time from one machine published as a property of the
+software is a benchmark claim, and it is wrong for every reader whose hardware
+differs — which is all of them. What the measurement settled:
 
-| | |
-|---|---|
-| discrete GPU (RTX 4070, Vulkan) | 0.32 s |
-| CPU, 16 threads | 21.4 s |
-| integrated GPU (Intel, Vulkan) | 63.5 s, then `ErrorDeviceLost` |
-| **`base` on CPU, 8 threads** | **0.9 s** |
-| `base` on CPU, 4 threads | 1.4 s |
+- the largest model is only usable where there is a discrete GPU; on a CPU it
+  ran slower than speech, which is unusable rather than slow
+- the smallest model is comfortable on a CPU
+- an integrated GPU was worse than the CPU it would replace, and unstable
 
-So the wizard picks by hardware, not by taste: `large-v3-turbo` only where
-there is a discrete GPU, `base` otherwise. Turbo on a CPU is half realtime,
-which is not a slower experience but an unusable one.
+So the wizard picks by hardware, not by taste. The README states requirements
+instead: what is needed at least, and what the largest model wants.
 
 `config.load()` falls back to the largest model actually present when the
 configured one is missing, so skipping the wizard cannot leave a machine

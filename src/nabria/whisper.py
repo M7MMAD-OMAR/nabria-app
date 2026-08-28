@@ -1,7 +1,7 @@
 """Supervises the local whisper.cpp HTTP server.
 
 The server is started on demand and kept warm, then stopped again once it has
-been idle long enough that holding ~2.5 GB of VRAM is no longer worth it. It
+been idle long enough that holding ~2 GB of VRAM is no longer worth it. It
 binds its port only after the model has finished loading, so a successful TCP
 connection is a sufficient readiness check.
 """

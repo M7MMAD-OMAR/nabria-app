@@ -76,9 +76,11 @@ DEFAULT_WITHOUT_GPU = "base"
 def recommended(has_discrete_gpu: bool) -> Model:
     """Chosen by hardware, because the wrong answer here is not a preference.
 
-    Measured on 11 s of audio: large-v3-turbo takes 0.32 s on a discrete GPU
-    and 21 s on a CPU -- half realtime, so a minute of dictation costs two
-    minutes of waiting. `base` on the same CPU takes 0.9 s.
+    The largest model measured slower than speech on a CPU -- a minute of
+    dictation costing more than a minute of waiting -- and comfortably faster
+    than speech on a discrete GPU. The smallest was comfortable on both. No
+    figures: they were one machine's, and how fast a model runs is a property
+    of somebody's hardware rather than of this software.
     """
     return CATALOG[DEFAULT_WITH_GPU if has_discrete_gpu else DEFAULT_WITHOUT_GPU]
 
@@ -86,10 +88,10 @@ def recommended(has_discrete_gpu: bool) -> Model:
 def best_installed(model_dir: Path, has_gpu: bool | None = None) -> Path | None:
     """The best model actually on disk, or None.
 
-    "Best" is not "biggest". large-v3-turbo is 21 s per 11 s of audio without a
-    discrete GPU -- so on a machine that has both it and `base` installed,
-    picking the larger one is picking the unusable one. The whole point of
-    `recommended` is that this is a hardware question, not a preference.
+    "Best" is not "biggest". The largest model runs slower than speech without
+    a discrete GPU, so on a machine that has both it and the smallest one
+    installed, picking the larger is picking the unusable one. The whole point
+    of `recommended` is that this is a hardware question, not a preference.
 
     `has_gpu=None` means the caller could not afford to find out (asking costs
     a subprocess). Then the safe answer is the largest model that does not want

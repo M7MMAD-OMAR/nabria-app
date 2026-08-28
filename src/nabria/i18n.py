@@ -291,9 +291,13 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "recommended for this machine",
         "ar": "الأنسب لهذا الجهاز",
     },
+    # A requirement, not a prediction. What this model does on a particular
+    # machine is that machine's business; what it *needs* is the same
+    # everywhere, and is the honest thing to put in front of someone about to
+    # download 1.5 GiB.
     "wizard.model.needs_gpu": {
-        "en": "No discrete GPU found — this would run slower than you speak.",
-        "ar": "لا توجد بطاقة رسوميات منفصلة — سيكون أبطأ من كلامك.",
+        "en": "Needs a discrete graphics card to keep up with speech.",
+        "ar": "يحتاج بطاقة رسوميات منفصلة ليواكب الكلام.",
     },
     "wizard.model.size": {"en": "{megabytes} MB", "ar": "{megabytes} م.ب"},
     "wizard.download": {"en": "Download", "ar": "تنزيل"},
