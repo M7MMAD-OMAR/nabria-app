@@ -31,9 +31,6 @@ main() {
   home=${NABRIA_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/nabria/app}
   source=${NABRIA_TARBALL:-$DEFAULT_TARBALL}
 
-  bold=''; plain=''
-  [ -t 1 ] && { bold=$(printf '\033[1m'); plain=$(printf '\033[0m'); }
-
   # Nabria is a user application: a --user systemd unit, a config under
   # $XDG_CONFIG_HOME, a desktop entry in the user's menu. Under sudo every one
   # of those lands in root's home, and the install appears to succeed while
@@ -43,24 +40,25 @@ main() {
     exit 1
   fi
 
-  fetch=''
-  if   command -v curl >/dev/null 2>&1; then fetch='curl -fsSL --retry 2 -o'
-  elif command -v wget >/dev/null 2>&1; then fetch='wget -qO'
-  fi
   command -v tar >/dev/null 2>&1 || { echo "tar is required." >&2; exit 1; }
 
-  work=$(mktemp -d)
+  # The scratch directory is a sibling of the destination rather than somewhere
+  # under /tmp, which is usually a different filesystem -- so the swap below is
+  # a rename instead of a copy, and therefore actually atomic.
+  mkdir -p "$(dirname "$home")"
+  work=$(mktemp -d "$(dirname "$home")/.nabria-install.XXXXXX")
   # Covers the failure paths as well as the happy one: an interrupted download
   # otherwise leaves a temporary tree behind on every retry.
   trap 'rm -rf "$work"' EXIT INT TERM
-  tarball=$work/nabria.tar.gz
 
   case $source in
     http://*|https://*)
-      [ -n "$fetch" ] || { echo "Neither curl nor wget is installed." >&2; exit 1; }
-      printf '%sFetching%s %s\n' "$bold" "$plain" "$source"
-      # shellcheck disable=SC2086  # $fetch is a command and its flags, split on purpose
-      $fetch "$tarball" "$source" || { echo "Download failed." >&2; exit 1; }
+      tarball=$work/nabria.tar.gz
+      printf '\033[1mFetching\033[0m %s\n' "$source"
+      if   command -v curl >/dev/null 2>&1; then curl -fsSL --retry 2 -o "$tarball" "$source"
+      elif command -v wget >/dev/null 2>&1; then wget -qO "$tarball" "$source"
+      else echo "Neither curl nor wget is installed." >&2; exit 1
+      fi || { echo "Download failed." >&2; exit 1; }
       ;;
     *)
       [ -r "$source" ] || { echo "No such tarball: $source" >&2; exit 1; }
@@ -80,10 +78,9 @@ main() {
 
   # The new tree is put in place only once it has been unpacked and checked, so
   # a bad download cannot leave a working install half-replaced.
-  mkdir -p "$(dirname "$home")"
   rm -rf "$home"
   mv "$work/tree" "$home"
-  printf '%sInstalled to%s %s\n' "$bold" "$plain" "$home"
+  printf '\033[1mInstalled to\033[0m %s\n' "$home"
 
   # install.sh writes absolute paths -- the launcher and the systemd unit both
   # point back at this tree -- so it has to run from where the tree now lives,

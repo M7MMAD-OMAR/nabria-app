@@ -87,9 +87,16 @@ if [ "$publish" = yes ]; then
   command -v gh >/dev/null 2>&1 || { echo "gh is required to publish" >&2; exit 1; }
   echo
   echo "Publishing as $ENGINE_RELEASE"
+  # --prerelease is load-bearing, not a label. The install command in the
+  # README and bootstrap.sh's default both resolve through
+  # releases/latest/download/, and GitHub picks "latest" by publish date --
+  # so without this the next engine build silently repoints the one-line
+  # install at a release whose only asset is a whisper-server binary, and it
+  # 404s. A prerelease is never latest.
   gh release view "$ENGINE_RELEASE" >/dev/null 2>&1 ||
     gh release create "$ENGINE_RELEASE" \
       --title "Engine $ENGINE_RELEASE" \
+      --prerelease \
       --notes "whisper-server built from whisper.cpp $WHISPER_CPP_VERSION.
 Static, Vulkan compiled in with automatic CPU fallback, built on Ubuntu 22.04
 so it runs on that vintage of glibc and newer.

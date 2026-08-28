@@ -132,6 +132,11 @@ oversight.
       distro, not a stack trace.
 - [x] **Paste**: Hyprland, sway and niri are each asked what has focus; where
       nothing can say, Ctrl+V, which is right everywhere but a terminal.
+- [x] **Installable without git.** `scripts/bootstrap.sh` is the one-line
+      install; `scripts/release.sh` publishes it beside a source tarball built
+      from the tag. Verified end to end on a clean Debian trixie with nothing
+      but the dependencies: fetched the installer from the published URL,
+      verified the engine, downloaded the model and transcribed.
 - [ ] **Palette**: read the GTK accent colour as an optional source.
 - [ ] Test matrix: only Hyprland has been exercised on real hardware. KDE,
       GNOME and Sway are covered by code paths and containers, not by use.
@@ -163,8 +168,28 @@ way to bind a global hotkey on Wayland.
 - [x] README rewritten for a newcomer; internals moved to `docs/DESIGN.md`.
 - [x] Retagged `v0.1.0`; the private `v1.0.0` is deleted.
 - [x] Desktop entry, so it appears in application menus.
+- [x] Repository public.
+- [x] **A release that can actually be downloaded.** The `v0.1.0` tag had no
+      release attached and was eleven commits behind — no prebuilt engine, no
+      portal shortcuts, the `pycairo` bug still in it — so it was left as the
+      historical marker it is and `v0.2.x` published instead.
 - [ ] `CONTRIBUTING.md`, issue templates.
-- [ ] Make the repository public. Everything blocking it is done.
+
+## Phase 5 — the landing page
+
+Planned in `docs/SITE.md`; nothing built. All drawn, no screenshots, almost no
+words, and the drawing is the orb's own geometry rather than an invented
+visual language. GitHub Pages from `main` `/docs`, so there is no build step
+and nothing that can fail. Four questions are open at the bottom of that file.
+
+## Phase 6 — other platforms
+
+Analysed in `docs/WINDOWS.md`. Recommendation is **not now**, and the reason is
+not the code: the port would land with none of the container matrix that found
+every packaging bug this project has had, and `windows-latest` has no audio
+device and no interactive session — so precisely the new parts could not be
+tested. A reduced shape (hotkey + CLI + notifications, no GTK) is described
+there and would sidestep that.
 
 ## Open decisions
 
@@ -197,3 +222,20 @@ way to bind a global hotkey on Wayland.
 
   Left deliberately: publishing a prebuilt engine, KDE/GNOME verification, and
   the Arabic preset.
+
+- **2026-08-28, later** — Published a release anyone can install from:
+  `bootstrap.sh` for the one-line path, `release.sh` to publish it. Proved end
+  to end on a clean Debian trixie, from the real URL through to a
+  transcription. Planned the landing page and analysed a Windows port; both
+  documents, no code.
+
+  A cleanup review found three things worth recording. The container matrix was
+  tarring the *working tree* and calling it the release archive — the one
+  archive that cannot catch a file missing from the release, since it contains
+  everything uncommitted too; both it and `release.sh` now go through
+  `release_tarball` in `common.sh`, which also made that step ~200× cheaper.
+  `release-engine.sh` did not pass `--prerelease`, so the next engine build
+  would have taken `releases/latest` away from the install command in the
+  README and 404ed it. And `__version__` said 0.1.0 with `v0.2.0` tagged, with
+  nothing reading either — `release.sh` now refuses a tag that disagrees with
+  the source, which is how the mismatch was found.

@@ -19,6 +19,8 @@ needs explaining does not go in. See `PLAN.md`.
 scripts/check.sh                        # THE check: lint, tests, every distro
 scripts/check.sh --quick                # lint and tests only, seconds
 scripts/install.sh                      # deps, engine, model, unit, desktop entry
+scripts/bootstrap.sh                    # what `curl … | sh` runs: fetch a release, install it
+scripts/release.sh v0.2.1               # publish the app: tarball + installer
 scripts/release-engine.sh               # build the published engine (local, not CI)
 systemctl --user enable --now nabria    # autostart (Hyprland ignores XDG autostart)
 systemctl --user restart nabria         # REQUIRED after any config.json edit
@@ -48,6 +50,27 @@ and **nothing that compiles whisper.cpp**. Publishing an engine is a local act
 (`scripts/release-engine.sh`), built in a Debian bookworm container with
 **pinned Vulkan headers** — bookworm's own are too old to compile the backend,
 and the one older image with a shader compiler (Ubuntu 22.04) has none at all.
+
+### Releases
+
+Two kinds, and they must not collide. The app release carries
+`nabria.tar.gz` and `install-nabria.sh`; the engine release carries the
+compiled `whisper-server`. Both the README's install command and
+`bootstrap.sh`'s default resolve through `releases/latest/download/…`, and
+GitHub picks "latest" by publish date — so **an engine release must be a
+prerelease** (`release-engine.sh` passes `--prerelease`) or the next engine
+build silently repoints the one-line install at a binary and 404s it.
+
+`__version__` in `src/nabria/__init__.py` is the app's version and the only
+place it is written. `release.sh` refuses a tag that disagrees with it, the way
+`release-engine.sh` derives its name from `engine/VERSION`. Before that check
+existed the two had already drifted.
+
+`release_tarball` in `common.sh` is `git archive`, and both `release.sh` and
+`check.sh` go through it — so the archive the container matrix installs from is
+the archive that ships. It used to `tar` the working tree, which is the one
+archive that cannot catch a file missing from the release, because it contains
+every uncommitted file as well.
 
 The published binary must link nothing but libc and the Vulkan loader.
 `libgomp` in particular is part of the compiler runtime, so a binary needing it

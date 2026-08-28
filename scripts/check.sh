@@ -111,30 +111,42 @@ if [ "$want_distros" = yes ]; then
     step "Distributions"
     echo "  (neither podman nor docker, skipped)"
   else
+    # Built once, on the host, and the same way release.sh builds the published
+    # asset -- so what gets installed below is the archive that ships. Doing it
+    # inside each container instead would have tarred the working tree, which
+    # carries untracked files and a gitignored 39 MB engine binary: three times
+    # the work, on the one archive that cannot catch a file missing from the
+    # release.
+    #
+    # HEAD, so this deliberately installs the committed tree -- uncommitted
+    # edits are covered by the direct install.sh run below, which uses the
+    # working copy. An edit that is only in the tree and never committed
+    # failing here is the point, not a false alarm.
+    tarball=$(mktemp -d)/nabria.tar.gz
+    release_tarball HEAD > "$tarball"
+
     for entry in "${DISTROS[@]}"; do
       image=${entry%%|*}
       setup=${entry#*|}
       step "Distribution: $image"
       log=$(mktemp)
-      if $runner run --rm -v "$project_dir":/src:ro,z "docker.io/library/$image" \
+      if $runner run --rm -v "$project_dir":/src:ro,z -v "$tarball":/nabria.tar.gz:ro,z \
+           "docker.io/library/$image" \
            bash -c "set -e
              $setup >/dev/null 2>&1
              cp -r /src /app && cd /app
              # The dependency check must pass with exactly the packages this
              # distribution's own hint names -- that is the thing being tested.
              ./scripts/install.sh --no-engine --no-model --no-service
-             # And then the same install through the published path: a tarball
-             # unpacked by bootstrap.sh. This is what someone running the
-             # one-line command actually gets, and it is a different code path
-             # from the line above -- it strips a directory level, moves the
-             # tree into place and runs the installer from there, so a file
-             # missing from the archive or a wrong relative path shows up here
-             # instead of in a stranger's terminal. Local tarball, no network:
-             # the unpacking is what is being tested, not GitHub.
-             tar -czf /tmp/nabria.tar.gz -C / --transform 's,^app,nabria,' app
-             NABRIA_ALLOW_ROOT=1 NABRIA_TARBALL=/tmp/nabria.tar.gz \
+             # Then the same install through the published path: the release
+             # tarball, unpacked by bootstrap.sh. That is what someone running
+             # the one-line command gets, and it is a different code path --
+             # it strips a directory level and moves the tree into place before
+             # running the installer from there. Mounted, not fetched: the
+             # unpacking is under test here, not GitHub.
+             NABRIA_ALLOW_ROOT=1 NABRIA_TARBALL=/nabria.tar.gz NABRIA_HOME=/opt/nabria \
                ./scripts/bootstrap.sh --no-engine --no-model --no-service
-             test -x \"\$HOME/.local/share/nabria/app/scripts/run.sh\"
+             test -x /opt/nabria/scripts/run.sh
              # And the tests must pass on its Python. No file list: every
              # module that needs a display, GTK or an engine skips itself, and
              # a hand-written list only goes stale -- test_portal.py was added

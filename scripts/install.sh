@@ -32,10 +32,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
-ok()  { printf '  \033[32m✓\033[0m %s\n' "$*"; }
-warn(){ printf '  \033[33m!\033[0m %s\n' "$*"; }
-bad() { printf '  \033[31m✗\033[0m %s\n' "$*"; }
+# say/ok/warn/bad come from common.sh, shared with release.sh.
 
 # Package names differ per distro and guessing wrong sends people down a
 # dead end, so the hint is chosen from what is actually installed here.
@@ -124,6 +121,18 @@ else
   fatal=1
 fi
 
+# A warning rather than fatal: only the prebuilt engine needs it, and building
+# from source is a working answer without it. But say so here, because the
+# failure downstream is a bare "download failed" followed by a five-minute
+# compile -- which reads as the engine being unavailable rather than as one
+# missing package.
+if command -v curl >/dev/null 2>&1; then
+  ok "curl"
+else
+  warn "curl is missing — the prebuilt engine cannot be fetched, so it will be built"
+  echo "      $(hint curl curl curl)"
+fi
+
 if command -v wtype >/dev/null 2>&1 || command -v ydotool >/dev/null 2>&1; then
   ok "a way to send keystrokes ($(command -v wtype >/dev/null 2>&1 && echo wtype || echo ydotool))"
 else
@@ -155,7 +164,7 @@ fetch_prebuilt_engine() {
   expected=$(awk 'NR==1 {print $1}' "$project_dir/engine/CHECKSUMS")
   [ -n "$artifact" ] && [ -n "$expected" ] || return 1
 
-  url="https://github.com/M7MMAD-OMAR/nabria-app/releases/download/$ENGINE_RELEASE/$artifact"
+  url="https://github.com/$NABRIA_REPO/releases/download/$ENGINE_RELEASE/$artifact"
   tmp=$(mktemp) || return 1
   echo "  fetching $artifact"
   if ! curl -fsSL --retry 2 -o "$tmp" "$url"; then
@@ -248,6 +257,16 @@ if [ "$do_service" = yes ]; then
   ln -sf "$unit_dir/$unit_name" "$unit_dir/nabria.service"
   systemctl --user daemon-reload
   ok "systemd unit written ($unit_name)"
+
+  # An upgrade replaces the source tree under a daemon that is still running
+  # the code it imported at startup, so without this the install completes and
+  # nothing observably changes -- the one ambiguity a one-line installer exists
+  # to remove. Config is read once in Daemon.__init__ for the same reason, so a
+  # restart is what makes any of it take effect.
+  if systemctl --user is-active --quiet "$unit_name" 2>/dev/null; then
+    systemctl --user restart "$unit_name"
+    ok "restarted the running daemon"
+  fi
 fi
 
 python3 -c 'from nabria import config; print("  config:", config.write_default_config())'
