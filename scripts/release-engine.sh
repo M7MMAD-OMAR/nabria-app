@@ -45,12 +45,22 @@ trap 'rm -rf "$work"' EXIT
 # The container script is single quoted on purpose: it runs in there, so
 # nothing in it should expand against this shell.
 # shellcheck disable=SC2016
-$runner run --rm -v "$project_dir":/src:ro,z -v "$work":/out:z "$BUILDER_IMAGE" \
+$runner run --rm -v "$project_dir":/src:ro,z -v "$work":/out:z \
+  -e "VULKAN_HEADERS_VERSION=$VULKAN_HEADERS_VERSION" "$BUILDER_IMAGE" \
   bash -c '
     set -e
     apt-get update -qq >/dev/null
     apt-get install -y -qq git cmake build-essential glslc libvulkan-dev \
                           spirv-headers >/dev/null
+
+    # Newer Vulkan headers over the packaged ones. Header-only and installed
+    # to /usr/local, which cmake searches first.
+    git clone --depth 1 --branch "$VULKAN_HEADERS_VERSION" \
+      https://github.com/KhronosGroup/Vulkan-Headers.git /tmp/vulkan-headers 2>&1 | tail -1
+    cmake -S /tmp/vulkan-headers -B /tmp/vulkan-headers/build \
+      -DCMAKE_INSTALL_PREFIX=/usr/local >/dev/null
+    cmake --install /tmp/vulkan-headers/build >/dev/null
+    echo "vulkan headers: $(grep -m1 VK_HEADER_VERSION /usr/local/include/vulkan/vulkan_core.h)"
     cp -r /src /app
     /app/scripts/build-engine.sh --output /out/whisper-server >/dev/null
     # Recorded in the log so a "will not start" report can be answered without
