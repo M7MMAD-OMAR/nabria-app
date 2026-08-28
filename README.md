@@ -17,6 +17,16 @@ other 90-odd languages Whisper knows work too.
 Linux, Wayland.
 
 ```sh
+curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh
+systemctl --user enable --now nabria
+```
+
+If you would rather read it first — and you should, for anything that arrives
+down a pipe — it is [`scripts/bootstrap.sh`](scripts/bootstrap.sh): it fetches
+the release tarball, unpacks it to `~/.local/share/nabria/app`, and runs the
+installer from there. The same thing by hand:
+
+```sh
 git clone https://github.com/M7MMAD-OMAR/nabria-app.git
 cd nabria-app
 scripts/install.sh
