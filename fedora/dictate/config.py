@@ -33,19 +33,23 @@ DEFAULTS: dict[str, Any] = {
     "server_binary": str(LIBEXEC_DIR / "whisper-server"),
     "model": str(MODEL_DIR / "ggml-large-v3-turbo.bin"),
     "language": "auto",
-    # Fed to whisper as its initial prompt. Mixing both scripts is what tells
-    # the model that code-switching is expected, so an Arabic sentence with
-    # "terminal" or "Hyprland" in it comes out with those words spelled rather
-    # than transliterated. Keep it short: a long prompt starts leaking into
-    # the transcript. Set to "" to switch the bias off entirely.
-    "vocabulary": "هرميز، تيرمينال، كلود، Hyprland, kitty, systemd, Fedora, Claude Code, git",
+    # Fed to whisper as its initial prompt: names and terms it should spell
+    # rather than guess at, plus -- for a dialect -- a few of its own function
+    # words. Empty by default, because a prompt is not free. Measured over one
+    # utterance, a prompt of formal Arabic and Latin technical terms came out
+    # *worse* than no prompt at all: it pulled spoken dialect toward the formal
+    # register (هلأ became هلا) that the prompt was written in. Add words you
+    # actually say. Keep it short -- a long prompt starts leaking into the
+    # transcript.
+    "vocabulary": "",
     "threads": 8,
-    # Vulkan picks physical device 0, which on this hybrid laptop is the Intel
-    # iGPU -- 2.5x slower than realtime on large-v3-turbo. This reorders the
-    # device list by vendor:device so the RTX 4070 comes first. Identity-based,
-    # so it no-ops instead of breaking if the dGPU is absent. Applied ONLY to
-    # the whisper subprocess: the GTK UI must stay on the iGPU.
-    "gpu_select": "10de:2860",
+    # MESA_VK_DEVICE_SELECT for the whisper subprocess only -- exporting it
+    # process-wide would drag the GTK UI onto the discrete card too. "auto"
+    # detects a discrete GPU from sysfs and prefers it; Vulkan otherwise
+    # enumerates the integrated one first, which on a hybrid laptop is 2.5x
+    # slower than realtime. "" disables the override, or set a
+    # `vendor:device` by hand.
+    "gpu_select": "auto",
     "server_port": 0,  # 0 = pick a free port
     # Seconds the loaded model may sit idle before the server is stopped and
     # its ~2.5 GB of VRAM released. The next dictation reloads it while you are
@@ -87,6 +91,10 @@ DEFAULTS: dict[str, Any] = {
     # bottom-right | bottom-left | top-right | top-left | bottom-center
     "orb_position": "bottom-right",
     "orb_margin": 28,
+    # Take colours from a desktop-generated Material You palette when one
+    # exists. Off by default: the app ships its own dark theme and should look
+    # the same everywhere. ~/.config/dictate/palette.json overrides either way.
+    "follow_desktop_palette": False,
 }
 
 

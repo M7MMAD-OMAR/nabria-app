@@ -44,7 +44,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gtk4LayerShell", "1.0")
 from gi.repository import Gdk, GLib, Gtk, Gtk4LayerShell as LayerShell  # noqa: E402
 
-from . import theme
+from . import config, theme
 
 WINDOW_W = 76
 WINDOW_H = 30
@@ -106,7 +106,9 @@ ACCENTS = {
 class Orb:
     def __init__(self, application: Gtk.Application, settings: dict):
         self.settings = settings
-        self.colours = theme.load()
+        self.colours = theme.load(
+            config.CONFIG_DIR, bool(settings.get("follow_desktop_palette"))
+        )
         self.state = "recording"
         self.level = 0.0  # target, straight off the microphone
         self.shown = 0.0  # what is drawn, easing toward the target

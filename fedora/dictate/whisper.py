@@ -22,6 +22,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from . import gpu
+
 STARTUP_TIMEOUT = 90.0
 POLL_INTERVAL = 0.2
 
@@ -108,9 +110,13 @@ class WhisperServer:
         # The GPU override belongs to this subprocess only. Exporting it into
         # the daemon would drag the GTK UI onto the discrete card as well.
         env = dict(os.environ)
-        gpu_select = self.settings.get("gpu_select")
+        gpu_select = str(self.settings.get("gpu_select") or "")
+        if gpu_select == "auto":
+            gpu_select = gpu.preferred()
+            if gpu_select:
+                self.log(f"selecting GPU {gpu_select}")
         if gpu_select:
-            env["MESA_VK_DEVICE_SELECT"] = str(gpu_select)
+            env["MESA_VK_DEVICE_SELECT"] = gpu_select
 
         command = [
             str(binary),
