@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import subprocess
 import sys
 from typing import NamedTuple
@@ -177,10 +178,18 @@ def probe(timeout: float = 10.0) -> list[Device]:
     holding a handle to the discrete card for the sake of one question asked
     once per engine start.
     """
+    # The child has to be able to import this package. Inheriting PYTHONPATH is
+    # not enough: it is set by run.sh in normal use, but not when the daemon is
+    # started any other way, and the failure is silent -- an unimportable child
+    # looks exactly like a machine with no GPU, which would quietly halve the
+    # speed of the whole tool. Handing over the parent's own search path makes
+    # the probe independent of how the daemon was launched.
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = os.pathsep.join(path for path in sys.path if path)
     try:
         result = subprocess.run(
             [sys.executable, "-m", "nabria.gpu"],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, timeout=timeout, env=environment,
         )
         return [Device(*entry) for entry in json.loads(result.stdout)]
     except (OSError, subprocess.SubprocessError, ValueError, TypeError):
