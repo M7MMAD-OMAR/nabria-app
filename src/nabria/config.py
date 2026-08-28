@@ -114,6 +114,16 @@ def load() -> dict[str, Any]:
         pass
     for key in ("server_binary", "model"):
         settings[key] = str(Path(settings[key]).expanduser())
+
+    # The default names large-v3-turbo, which is the right model only where
+    # there is a discrete GPU -- on a CPU it runs at half realtime. Rather than
+    # fail with "model missing" or, worse, load something unusable, fall back
+    # to whatever is actually installed. Largest wins, since a bigger model is
+    # better and nothing gets downloaded that the hardware cannot carry.
+    if not Path(settings["model"]).exists():
+        available = models()
+        if available:
+            settings["model"] = str(max(available, key=lambda path: path.stat().st_size))
     return settings
 
 

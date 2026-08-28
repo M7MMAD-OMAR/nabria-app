@@ -128,6 +128,13 @@ class Daemon:
         if self.settings.get("prewarm"):
             threading.Thread(target=self._prewarm, daemon=True).start()
         self.log("daemon ready")
+        if not config.models():
+            # No model means nothing can be transcribed, so there is no sense
+            # in waiting for a keypress to say so. Keyed off what is on disk
+            # rather than a "first run" flag, which would leave the wizard
+            # marked done while the app stayed unusable -- and this way it is
+            # also the repair path when a model is deleted.
+            GLib.idle_add(self._show_wizard)
 
     def _prewarm(self) -> None:
         try:
@@ -196,6 +203,22 @@ class Daemon:
         window.connect("close-request", self._on_settings_closed)
         self.settings_window = window
         window.present()
+        return GLib.SOURCE_REMOVE
+
+    def _show_wizard(self) -> bool:
+        from .wizard import Wizard
+
+        def finished() -> None:
+            # The settings the wizard wrote are already in self.settings, but
+            # the engine may have been started against no model at all.
+            self.settings = config.load()
+            self.whisper.settings = self.settings
+            self.whisper.stop()
+            self.log(f"setup finished, model {self.settings.get('model')}")
+
+        window = Wizard(self.application, self.settings, finished)
+        window.present()
+        self.wizard = window
         return GLib.SOURCE_REMOVE
 
     def _on_settings_closed(self, _window) -> bool:
