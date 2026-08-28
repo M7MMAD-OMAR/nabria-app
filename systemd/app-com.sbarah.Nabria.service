@@ -2,6 +2,14 @@
 # Autostart. A .desktop file in ~/.config/autostart would be the obvious
 # choice, but several Wayland compositors -- Hyprland among them -- do not read
 # XDG autostart at all, and a unit works everywhere systemd does.
+#
+# The file name is not cosmetic. xdg-desktop-portal identifies a host
+# application by its systemd unit, following the app-<app-id>-<...> convention,
+# and the GlobalShortcuts portal refuses to bind anything for a caller it
+# cannot name. Measured: running the same binary under a scope called
+# app-com.sbarah.Nabria-probe.scope bound both shortcuts, while the identical
+# run under nabria-control-probe.scope was refused with "An app id is
+# required". Renaming this file breaks the portal shortcuts.
 Description=Nabria voice dictation
 Documentation=https://github.com/M7MMAD-OMAR/nabria-app
 PartOf=graphical-session.target

@@ -169,10 +169,24 @@ case ":$PATH:" in
 esac
 
 if [ "$do_service" = yes ]; then
+  # The unit is named app-<app-id>.service because that is how
+  # xdg-desktop-portal identifies a host application; without it the
+  # GlobalShortcuts portal refuses to bind anything. `nabria.service` remains
+  # as a symlink so `systemctl --user ... nabria` still works, which is what
+  # every instruction and every muscle memory says.
+  unit_name=app-com.sbarah.Nabria.service
   sed "s#@RUN_SH@#$project_dir/scripts/run.sh#g" \
-    "$project_dir/systemd/nabria.service" > "$unit_dir/nabria.service"
+    "$project_dir/systemd/$unit_name" > "$unit_dir/$unit_name"
+  ln -sf "$unit_dir/$unit_name" "$unit_dir/nabria.service"
+  # An install from before the rename leaves a real file here that would
+  # shadow the symlink and quietly keep the old name -- and with it the
+  # portal refusal.
+  if [ -f "$unit_dir/nabria.service" ] && [ ! -L "$unit_dir/nabria.service" ]; then
+    rm -f "$unit_dir/nabria.service"
+    ln -sf "$unit_dir/$unit_name" "$unit_dir/nabria.service"
+  fi
   systemctl --user daemon-reload
-  ok "systemd unit written"
+  ok "systemd unit written ($unit_name)"
 fi
 
 python3 -c 'from nabria import config; print("  config:", config.write_default_config())'

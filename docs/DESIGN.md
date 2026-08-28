@@ -184,6 +184,39 @@ the host sees 154. Three of the 31 withheld are the ones this is built on:
 No Flatseal permission reaches this — it is the compositor refusing, which is
 the entire point of the protocol. Nabria is a host application.
 
+## The shortcut, and the app id
+
+`org.freedesktop.portal.GlobalShortcuts` is the standard way to claim a hotkey
+on Wayland, and it is implemented here by the Hyprland, KDE and GNOME backends.
+Nabria registers `toggle` and `cancel` through it at startup.
+
+Getting that to work turned on something undocumented enough to be worth
+recording. The portal refuses to bind anything for a caller it cannot name --
+`org.freedesktop.portal.Error.NotAllowed: An app id is required` -- and for a
+host (non-sandboxed) application it derives that name from the **systemd unit**,
+following the `app-<app-id>-<...>` convention. Measured directly:
+
+| unit | result |
+|---|---|
+| `app-com.sbarah.Nabria-probe.scope` | both shortcuts bound |
+| `nabria-control-probe.scope` | `An app id is required` |
+
+Same binary, same everything else. So the unit is called
+`app-com.sbarah.Nabria.service`, with `nabria.service` left as a symlink so the
+familiar `systemctl --user restart nabria` still works. **Renaming that file
+breaks portal shortcuts**, and it breaks them quietly -- the daemon starts
+fine and the key simply never fires.
+
+On Hyprland this registers the shortcut with the compositor but you still bind
+a key to it (`bind = CTRL ALT, Q, global, com.sbarah.Nabria:toggle`). On KDE and
+GNOME the desktop's own shortcut editor picks it up, which is the case this is
+really for.
+
+All of it is additive. Every failure -- no portal, no session bus, a backend
+that refuses -- is a log line, and the manually bound key works regardless. A
+daemon that would not start because a portal was unhappy would be a much worse
+tool than one whose shortcut has to be bound by hand.
+
 ## Judging a transcript
 
 You cannot, without the audio. `keep_audio` files every take and puts a play

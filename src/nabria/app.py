@@ -72,6 +72,7 @@ class Daemon:
         self.started = False
         self.orb: Orb | None = None
         self.settings_window = None
+        self.shortcuts = None
 
         from .whisper import WhisperServer
 
@@ -122,6 +123,7 @@ class Daemon:
                 "Install gtk4-layer-shell, or expect it to be covered."
             )
         self._serve()
+        self._bind_portal_shortcuts()
         threading.Thread(
             target=self._worker, daemon=True, name="nabria-transcribe"
         ).start()
@@ -135,6 +137,30 @@ class Daemon:
             # marked done while the app stayed unusable -- and this way it is
             # also the repair path when a model is deleted.
             GLib.idle_add(self._show_wizard)
+
+    def _bind_portal_shortcuts(self) -> None:
+        """Ask the desktop to own our hotkeys, if it is willing.
+
+        Purely additive. The socket and any hand-bound key work exactly as
+        before whether this succeeds, fails, or is never attempted -- so every
+        failure here is a log line and nothing more. A daemon that refused to
+        start because a portal was unhappy would be a far worse tool than one
+        whose shortcut has to be bound by hand.
+        """
+        from . import portal
+
+        if not portal.enabled():
+            return
+        try:
+            self.shortcuts = portal.GlobalShortcuts(self._portal_activated, self.log)
+            self.shortcuts.start()
+        except Exception as exc:  # noqa: BLE001
+            self.log(f"could not set up portal shortcuts: {exc}")
+
+    def _portal_activated(self, shortcut_id: str) -> None:
+        # Same entry point as the socket, so a portal key and a hand-bound key
+        # are indistinguishable from here down.
+        self.dispatch(shortcut_id)
 
     def _prewarm(self) -> None:
         try:
@@ -269,6 +295,10 @@ class Daemon:
         self.whisper.stop()
 
     def _quit(self) -> bool:
+        if self.shortcuts is not None:
+            # Closing the portal session drops its bindings, so a restarted
+            # daemon does not accumulate duplicates of them.
+            self.shortcuts.stop()
         self.whisper.stop()
         self.application.quit()
         return GLib.SOURCE_REMOVE
