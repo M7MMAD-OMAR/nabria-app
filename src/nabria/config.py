@@ -43,12 +43,16 @@ DEFAULTS: dict[str, Any] = {
     # transcript.
     "vocabulary": "",
     "threads": 8,
-    # MESA_VK_DEVICE_SELECT for the whisper subprocess only -- exporting it
-    # process-wide would drag the GTK UI onto the discrete card too. "auto"
-    # detects a discrete GPU from sysfs and prefers it; Vulkan otherwise
-    # enumerates the integrated one first, which on a hybrid laptop is 2.5x
-    # slower than realtime. "" disables the override, or set a
-    # `vendor:device` by hand.
+    # Which device the engine computes on.
+    #   auto  a discrete GPU if there is one, otherwise the CPU
+    #   cpu   never use a GPU
+    #   any   let the engine choose, integrated cards included
+    #   10de:2860  a specific `vendor:device` reported by Vulkan
+    #
+    # "auto" refuses integrated GPUs rather than merely deprioritising them.
+    # Measured on 11s of audio with large-v3-turbo: discrete 0.32s, CPU 21.4s,
+    # integrated 63.5s followed by a driver crash. An integrated GPU is not a
+    # slower accelerator here, it is a worse answer than no accelerator.
     "gpu_select": "auto",
     "server_port": 0,  # 0 = pick a free port
     # Seconds the loaded model may sit idle before the server is stopped and

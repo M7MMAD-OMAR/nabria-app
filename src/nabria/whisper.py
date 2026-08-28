@@ -83,6 +83,7 @@ class WhisperServer:
         self.port = 0
         self.lock = threading.RLock()
         self.last_used = 0.0
+        self.device: gpu.Plan | None = None
         self._reaper: threading.Thread | None = None
 
     # -- lifecycle ---------------------------------------------------------
@@ -107,16 +108,6 @@ class WhisperServer:
             raise FileNotFoundError(f"model missing: {model}")
 
         self.port = int(self.settings.get("server_port") or 0) or _free_port()
-        # The GPU override belongs to this subprocess only. Exporting it into
-        # the daemon would drag the GTK UI onto the discrete card as well.
-        env = dict(os.environ)
-        gpu_select = str(self.settings.get("gpu_select") or "")
-        if gpu_select == "auto":
-            gpu_select = gpu.preferred()
-            if gpu_select:
-                self.log(f"selecting GPU {gpu_select}")
-        if gpu_select:
-            env["MESA_VK_DEVICE_SELECT"] = gpu_select
 
         command = [
             str(binary),
@@ -126,6 +117,24 @@ class WhisperServer:
             "-t", str(self.settings.get("threads", 8)),
             "-l", str(self.settings.get("language", "auto")),
         ]
+
+        # Which device to compute on. Asked once and remembered: the answer
+        # cannot change while the machine is running, and it costs a
+        # subprocess. The environment override belongs to this subprocess only
+        # -- exporting it would drag the GTK UI onto the discrete card too.
+        env = dict(os.environ)
+        if self.device is None:
+            self.device = gpu.plan(str(self.settings.get("gpu_select") or "auto"))
+            self.log(f"engine device: {self.device.reason}")
+        if self.device.use_gpu:
+            if self.device.visible is not None:
+                # Leaves ggml holding a list of exactly one device, so its own
+                # "use every GPU" default cannot reach the integrated one.
+                env["GGML_VK_VISIBLE_DEVICES"] = str(self.device.visible)
+        else:
+            # Without this ggml would happily pick an integrated GPU, which is
+            # slower than the CPU it is standing in for and crashes besides.
+            command.append("-ng")
         vocabulary = str(self.settings.get("vocabulary") or "").strip()
         if vocabulary:
             # carry-initial-prompt re-applies the bias to every 30s window, so
