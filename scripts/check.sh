@@ -250,6 +250,11 @@ if [ "$want_packages" = yes ]; then
              # for it -- the packaged layout is not the checkout layout, and
              # this is the line that proves run.sh got that right.
              /usr/bin/nabria --nonsense 2>&1 | grep -q 'usage: python3 -m nabria'
+             # The string table ships, and imports without GTK -- which is
+             # what makes a control command a socket write rather than a
+             # toolkit load. A package carrying the code but not the
+             # translations would run, in English, with no error anywhere.
+             PYTHONPATH=/usr/lib/nabria python3 -c 'from nabria import i18n; assert i18n.use(\"ar\") == \"ar\"; assert i18n.t(\"wizard.done\") != \"wizard.done\"'
              # And the bundled engine has to start, which is a question about
              # this distribution's libraries, not about the build.
              /usr/libexec/nabria/whisper-server --help >/dev/null
