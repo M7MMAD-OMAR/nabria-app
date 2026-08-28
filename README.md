@@ -9,8 +9,8 @@ text is typed into whatever window has focus. Nothing leaves the machine.
 CTRL+ALT+Q          toggle
 CTRL+ALT+SHIFT+Q    cancel the current take
 CTRL+ALT+W          settings: model, microphone, history
-dictate status      idle | recording | working
-dictate last        the last transcript, even if typing it failed
+nabria status      idle | recording | working
+nabria last        the last transcript, even if typing it failed
 ```
 
 ## The indicator
@@ -45,7 +45,7 @@ qdrant vector database that OpenWhispr now starts on every launch.
 
 ```sh
 scripts/install.sh
-systemctl --user enable --now dictate
+systemctl --user enable --now nabria
 ```
 
 `install.sh` hard-links a whisper.cpp server binary and a ggml model into
@@ -92,7 +92,7 @@ discrete card too, so it is passed to that one subprocess.
 
 Every transcript is appended to `~/.local/share/nabria/history.jsonl` *before*
 it is typed. If injection fails the text goes to the clipboard and a
-notification says so. `dictate last` prints the most recent one.
+notification says so. `nabria last` prints the most recent one.
 
 If transcription itself fails, the recording is kept in
 `~/.local/share/nabria/failed/` rather than deleted -- the audio is the one

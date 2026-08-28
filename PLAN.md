@@ -1,4 +1,4 @@
-# Plan: dictate → a public "just talk" app
+# Plan: Nabria — a public "just talk" app
 
 Working document. Spans sessions. Update the checkboxes and the log at the
 bottom as things land.
@@ -125,11 +125,9 @@ user edits a Hyprland config by hand.
 
 ## Open decisions — need your answer
 
-1. **Name.** `dictate` is taken on PyPI/Flathub-adjacent namespaces and is very
-   generic. "Just talk" suggests something like `justtalk` / `Just Talk`.
-   Also decides `APP_ID` and the Flatpak id.
-2. **Git history.** Rewrite the author email, squash to a fresh start, or leave
-   it. Cannot be undone once public.
+1. ~~**Name.**~~ **Nabria** (نَبْرة). `com.sbarah.Nabria`, `nabria` on the
+   command line, `nabria.sbarah.com`.
+2. ~~**Git history.**~~ Email stays public, by decision.
 3. **Licence.** MIT or Apache-2.0.
 4. **Default model.** `large-v3-turbo` (1.6 GB, best Arabic) or a smaller
    default with turbo offered as an upgrade. Affects first-run download time,
