@@ -23,6 +23,7 @@ scripts/install.sh --uninstall          # remove it; config, models and history 
 scripts/bootstrap.sh                    # what `curl … | sh` runs: fetch a release, install it
 scripts/package.sh                      # build nabria.rpm and nabria.deb in containers
 scripts/check.sh --packages             # install those packages in clean Fedora/Debian/Ubuntu
+scripts/screenshots.py                  # README pictures, both languages, clean profile
 scripts/release.sh v0.3.1               # publish: tarball, installer, rpm, deb
 scripts/release-engine.sh               # build the published engine (local, not CI)
 systemctl --user enable --now nabria    # autostart (Hyprland ignores XDG autostart)
@@ -110,6 +111,7 @@ models.py     the three-model catalogue, and a resumable checksummed download
 wizard.py     first run: model, download, microphone test, shortcut
 shortcut.py   compositor detection + the exact line to paste
 portal.py     org.freedesktop.portal.GlobalShortcuts (optional, additive)
+i18n.py       every user-facing string, in English and Arabic
 history.py    transcript log (JSONL)
 notify.py     desktop notifications
 ```
@@ -247,6 +249,11 @@ sandbox: 123 globals against the host's 154.
 
 ### Arabic
 
+**Two languages, and they are not one setting.** `language` is what the user
+*speaks* and goes to the engine; `ui_language` is what the windows are
+*worded* in. Dictating Arabic on an English desktop is ordinary and so is the
+reverse, so neither may be derived from the other.
+
 `language` is `ar`, not `auto`: per-window auto-detect turns room noise into
 confident English gibberish.
 
@@ -267,6 +274,36 @@ type and restored 1.5 s later, typed — reading a copied image back as text
 would replace it with mojibake. The restore stands down if anything was copied
 in the meantime, so a newer copy is never destroyed to return an older one.
 
+### Interface strings and bidi
+
+Every user-facing string lives in `i18n.py`, in both languages, and is fetched
+with `i18n.t(key)` as the widget is built. Nothing else holds text: the model
+catalogue and the language presets store *keys*, so a summary is written once
+per language rather than once per catalogue.
+
+Three rules that are invisible until Arabic is selected:
+
+- **Isolate embedded Latin** — `i18n.ltr()` around anything from outside the
+  string table: paths, device names, engine errors, key names, and any number
+  carrying a sign or a unit. Without it the bidirectional algorithm reorders it
+  against the Arabic around it and "-42" renders as "42-". Setting the
+  paragraph direction does not fix this.
+- **Do not isolate bare digits.** They take their direction from the text
+  around them already; an isolate makes the number a neutral object and moves
+  it to the far side of its unit.
+- **`xalign=i18n.start_align()`, never `xalign=0`.** GTK's `xalign` is
+  absolute, so a hardcoded 0 pins Arabic to the left of its own window.
+
+`Gtk.Widget.set_default_direction` is set once, in `Daemon.__init__`, before
+any window exists — and again in `_apply_setting` when the setting changes, so
+the next window opens in the new language.
+
+`scripts/screenshots.py` captures the README's pictures in both languages from
+a profile created seconds earlier. Run it rather than staging shots by hand: a
+screenshot of the running daemon would put the author's microphone names,
+transcripts and vocabulary prompt in a public repository, and `git archive`
+would carry them into every release tarball.
+
 ## Style
 
 Comments explain *why*, and usually cite the measurement or the failure that
@@ -275,4 +312,5 @@ does is noise here, but the reason a threshold is -42 and not -40 is the most
 valuable thing on the page. Several of the invariants above exist only because
 a comment recorded the bug that produced them.
 
-User-facing strings in the daemon are Arabic; log lines are English.
+User-facing strings go through `i18n.py` in both languages; log lines are
+English only, and are never translated -- they are read alongside the source.

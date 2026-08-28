@@ -27,6 +27,10 @@ class Model(NamedTuple):
     filename: str
     size: int
     sha256: str
+    # An i18n key, not a sentence -- render it with `i18n.t(model.summary)`.
+    # The catalogue is imported by the installer's checks and by the packaging
+    # tests, neither of which has a language selected, so holding the words
+    # here would mean choosing one before anyone had.
     summary: str
     needs_gpu: bool
 
@@ -45,7 +49,7 @@ CATALOG: dict[str, Model] = {
         filename="ggml-base.bin",
         size=147_951_465,
         sha256="60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
-        summary="Fast on any machine. Good enough for clear speech.",
+        summary="model.base.summary",
         needs_gpu=False,
     ),
     "small": Model(
@@ -53,7 +57,7 @@ CATALOG: dict[str, Model] = {
         filename="ggml-small.bin",
         size=487_601_967,
         sha256="1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
-        summary="Noticeably better, still comfortable without a GPU.",
+        summary="model.small.summary",
         needs_gpu=False,
     ),
     "large-v3-turbo": Model(
@@ -61,7 +65,7 @@ CATALOG: dict[str, Model] = {
         filename="ggml-large-v3-turbo.bin",
         size=1_624_555_275,
         sha256="1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
-        summary="The best, and the one to use for Arabic. Wants a discrete GPU.",
+        summary="model.large-v3-turbo.summary",
         needs_gpu=True,
     ),
 }

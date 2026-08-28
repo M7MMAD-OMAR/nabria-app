@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import os
 
+from . import i18n
+
 TOGGLE = "toggle"
 CANCEL = "cancel"
 SETTINGS = "settings"
@@ -39,38 +41,35 @@ def detect() -> str:
 
 
 def instructions() -> list[str]:
-    """Lines to show the user, the first of which is the one to copy."""
+    """Lines to show the user, the first of which is the sentence.
+
+    Only that first line is translated. Everything after it is configuration
+    to be pasted verbatim -- translating `bindsym` would be a bug that looks
+    like a translation -- so those lines are literal in every language, and
+    the wizard isolates them so a right-to-left page cannot reorder them.
+    """
     where = detect()
     if where == "hyprland":
         return [
-            "Add to ~/.config/hypr/hyprland.conf:",
+            i18n.t("shortcut.hyprland"),
             f"bind = CTRL ALT, Q, exec, {command(TOGGLE)}",
             f"bind = CTRL ALT SHIFT, Q, exec, {command(CANCEL)}",
             f"bind = CTRL ALT, W, exec, {command(SETTINGS)}",
         ]
     if where == "sway":
         return [
-            "Add to ~/.config/sway/config:",
+            i18n.t("shortcut.sway"),
             f"bindsym Ctrl+Alt+q exec {command(TOGGLE)}",
             f"bindsym Ctrl+Alt+Shift+q exec {command(CANCEL)}",
         ]
     if where == "niri":
         return [
-            "Add to ~/.config/niri/config.kdl, inside binds {}:",
+            i18n.t("shortcut.niri"),
             f'Ctrl+Alt+Q {{ spawn "nabria" "{TOGGLE}"; }}',
             f'Ctrl+Alt+Shift+Q {{ spawn "nabria" "{CANCEL}"; }}',
         ]
     if where == "kde":
-        return [
-            "System Settings → Keyboard → Shortcuts → Add → Command",
-            command(TOGGLE),
-        ]
+        return [i18n.t("shortcut.kde"), command(TOGGLE)]
     if where == "gnome":
-        return [
-            "Settings → Keyboard → View and Customise Shortcuts → Custom",
-            command(TOGGLE),
-        ]
-    return [
-        "Bind a key to this command, however your desktop does that:",
-        command(TOGGLE),
-    ]
+        return [i18n.t("shortcut.gnome"), command(TOGGLE)]
+    return [i18n.t("shortcut.generic"), command(TOGGLE)]

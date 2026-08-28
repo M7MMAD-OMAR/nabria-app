@@ -1,9 +1,10 @@
 """First run.
 
-The wizard exists because the AppImage has no install script to lean on, so
-this is the only path some users will ever see. What is checked here is that
-it makes the right recommendation and, above all, that it never recommends a
-model the machine cannot run at a useful speed.
+Every install path ends here -- the script, the one-line installer and the
+distribution packages all leave the model choice to the wizard -- so this is
+the screen every user sees. What is checked here is that it makes the right
+recommendation and, above all, that it never recommends a model the machine
+cannot run at a useful speed.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from conftest import display_available  # noqa: E402
 if not display_available():  # pragma: no cover - environment dependent
     pytest.skip("no display", allow_module_level=True)
 
-from nabria import gpu, models, wizard  # noqa: E402
+from nabria import gpu, i18n, models, wizard  # noqa: E402
 
 @pytest.fixture
 def cpu_only(monkeypatch):
@@ -107,11 +108,33 @@ def test_english_does_not_ship_an_arabic_prompt(application, fresh_config):
     assert settings["vocabulary"] == ""
 
 
+def _preselected(application, settings):
+    setup = wizard.Wizard(application, settings, lambda: None)
+    return [code for code, radio in setup.languages if radio.get_active()]
+
+
 def test_the_locale_preselects_arabic(application, fresh_config, monkeypatch):
+    """An Arabic desktop should not have to say so twice.
+
+    The daemon selects the interface language before it builds any window, so
+    that is the order this reproduces. The wizard reads the choice rather than
+    parsing the locale itself -- one place decides, and an explicit
+    `ui_language` is honoured here too, which the locale alone could not do.
+    """
     monkeypatch.setenv("LANG", "ar_JO.UTF-8")
-    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
-    chosen = [code for code, radio in setup.languages if radio.get_active()]
-    assert chosen == ["ar"]
+    monkeypatch.delenv("LC_ALL", raising=False)
+    monkeypatch.delenv("LC_MESSAGES", raising=False)
+    try:
+        i18n.use("auto")
+        assert _preselected(application, fresh_config.load()) == ["ar"]
+
+        # An interface deliberately set to English preselects English, on the
+        # same Arabic desktop. Someone who asked for an English app is more
+        # likely to be dictating English than the locale is to be right.
+        i18n.use("en")
+        assert _preselected(application, fresh_config.load()) == ["en"]
+    finally:
+        i18n.use("en")
 
 
 def test_every_preset_is_offered(application, fresh_config):

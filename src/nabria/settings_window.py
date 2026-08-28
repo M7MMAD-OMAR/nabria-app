@@ -27,7 +27,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
-from . import audio, config, history, models
+from . import audio, config, history, i18n, models
 
 # Both lists come from the modules that own them rather than being restated
 # here. They used to be restated, and both copies had gone stale: the model
@@ -37,12 +37,29 @@ from . import audio, config, history, models
 # the wizard shipped the Levantine prompt and choosing it here did not.
 LANGUAGES = [(code, preset["label"]) for code, preset in config.LANGUAGE_PRESETS.items()]
 
+# What the app itself is written in, which is not what you dictate in. `auto`
+# first, because following the desktop is the right answer for most people and
+# the only one that stays right when they change their desktop's language.
+UI_LANGUAGES = [
+    ("auto", "settings.ui_language.auto"),
+    ("en", "language.en.label"),
+    ("ar", "language.ar.label"),
+]
+
 _BY_FILENAME = {model.filename: model for model in models.CATALOG.values()}
 
 
 def _model_label(name: str) -> str:
+    """`base — Fast on any machine.`, or the bare filename for a stranger.
+
+    Both halves are isolated: the model name is Latin, and so is a filename
+    dropped into the model directory by hand, which is the case this falls
+    back to.
+    """
     model = _BY_FILENAME.get(name)
-    return f"{model.key} — {model.summary}" if model else name
+    if not model:
+        return i18n.ltr(name)
+    return f"{i18n.ltr(model.key)} — {i18n.t(model.summary)}"
 
 
 class SettingsWindow(Gtk.ApplicationWindow):
@@ -52,7 +69,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         settings: dict,
         on_change: Callable[[str, object], None],
     ):
-        super().__init__(application=application, title="Dictation")
+        super().__init__(application=application, title=i18n.t("settings.title"))
         self.settings = settings
         self.on_change = on_change
         self.set_default_size(560, 640)
@@ -62,9 +79,11 @@ class SettingsWindow(Gtk.ApplicationWindow):
         notebook.set_margin_bottom(12)
         notebook.set_margin_start(12)
         notebook.set_margin_end(12)
-        notebook.append_page(self._engine_page(), Gtk.Label(label="Engine"))
-        notebook.append_page(self._microphone_page(), Gtk.Label(label="Microphone"))
-        notebook.append_page(self._history_page(), Gtk.Label(label="History"))
+        notebook.append_page(self._engine_page(), Gtk.Label(label=i18n.t("settings.tab.engine")))
+        notebook.append_page(self._microphone_page(),
+                             Gtk.Label(label=i18n.t("settings.tab.microphone")))
+        notebook.append_page(self._history_page(),
+                             Gtk.Label(label=i18n.t("settings.tab.history")))
         self.set_child(notebook)
 
     # -- engine ------------------------------------------------------------
@@ -81,24 +100,35 @@ class SettingsWindow(Gtk.ApplicationWindow):
         if current in self.model_paths:
             self.model_combo.set_active(self.model_paths.index(current))
         self.model_combo.connect("changed", self._on_model_changed)
-        box.append(_row("Model", self.model_combo))
-        box.append(
-            _hint(
-                "Switching unloads the running server; the next dictation "
-                "loads the new model while you speak."
-            )
-        )
+        box.append(_row(i18n.t("settings.model"), self.model_combo))
+        box.append(_hint(i18n.t("settings.model.hint")))
 
         self.language_combo = Gtk.ComboBoxText()
         for _, label in LANGUAGES:
-            self.language_combo.append_text(label)
+            self.language_combo.append_text(i18n.t(label))
         codes = [code for code, _ in LANGUAGES]
         current_language = str(self.settings.get("language", "ar"))
         self.language_combo.set_active(
             codes.index(current_language) if current_language in codes else 0
         )
         self.language_combo.connect("changed", self._on_language_changed)
-        box.append(_row("Language", self.language_combo))
+        box.append(_row(i18n.t("settings.language"), self.language_combo))
+
+        # The interface's own language. It sits next to the dictation language
+        # on purpose -- the two are next to each other in the config file and
+        # in everyone's head, and the only way to show they are different
+        # settings is to show them together and label them apart.
+        self.ui_language_combo = Gtk.ComboBoxText()
+        for _, label in UI_LANGUAGES:
+            self.ui_language_combo.append_text(i18n.t(label))
+        ui_codes = [code for code, _ in UI_LANGUAGES]
+        current_ui = str(self.settings.get("ui_language", "auto"))
+        self.ui_language_combo.set_active(
+            ui_codes.index(current_ui) if current_ui in ui_codes else 0
+        )
+        self.ui_language_combo.connect("changed", self._on_ui_language_changed)
+        box.append(_row(i18n.t("settings.ui_language"), self.ui_language_combo))
+        box.append(_hint(i18n.t("settings.ui_language.hint")))
 
         vocabulary = Gtk.Entry()
         vocabulary.set_hexpand(True)
@@ -111,15 +141,8 @@ class SettingsWindow(Gtk.ApplicationWindow):
         focus = Gtk.EventControllerFocus()
         focus.connect("leave", lambda _c, entry=vocabulary: self._on_vocabulary_changed(entry))
         vocabulary.add_controller(focus)
-        box.append(_row("Vocabulary", vocabulary))
-        box.append(
-            _hint(
-                "Fed to whisper as its initial prompt. Mixing Arabic and Latin "
-                "here is what keeps spoken tech terms spelled rather than "
-                "transliterated. Keep it short — a long prompt leaks into the "
-                "transcript."
-            )
-        )
+        box.append(_row(i18n.t("settings.vocabulary"), vocabulary))
+        box.append(_hint(i18n.t("settings.vocabulary.hint")))
         return box
 
     def _on_model_changed(self, combo: Gtk.ComboBoxText) -> None:
@@ -131,6 +154,11 @@ class SettingsWindow(Gtk.ApplicationWindow):
         index = combo.get_active()
         if 0 <= index < len(LANGUAGES):
             self.on_change("language", LANGUAGES[index][0])
+
+    def _on_ui_language_changed(self, combo: Gtk.ComboBoxText) -> None:
+        index = combo.get_active()
+        if 0 <= index < len(UI_LANGUAGES):
+            self.on_change("ui_language", UI_LANGUAGES[index][0])
 
     def _on_vocabulary_changed(self, entry: Gtk.Entry) -> None:
         self.on_change("vocabulary", entry.get_text())
@@ -144,39 +172,27 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.source_ids: list[int] = []
         self._reload_sources()
         self.source_combo.connect("changed", self._on_source_changed)
-        box.append(_row("Input", self.source_combo))
+        box.append(_row(i18n.t("settings.input"), self.source_combo))
 
-        self.level_label = Gtk.Label(xalign=0.0)
+        self.level_label = Gtk.Label(xalign=i18n.start_align())
         self.level_label.set_wrap(True)
-        self.level_label.set_text("Not measured yet.")
+        self.level_label.set_text(i18n.t("settings.not_measured"))
         box.append(self.level_label)
 
-        button = Gtk.Button(label="Test microphone (4s)")
+        button = Gtk.Button(label=i18n.t("settings.test"))
         button.set_halign(Gtk.Align.START)
         button.connect("clicked", self._on_test_clicked)
         box.append(button)
-        keep = Gtk.CheckButton(label="Keep the recording of every dictation")
+        keep = Gtk.CheckButton(label=i18n.t("settings.keep_audio"))
         keep.set_active(bool(self.settings.get("keep_audio")))
         keep.connect("toggled", self._on_keep_toggled)
         box.append(keep)
-        box.append(
-            _hint(
-                "Kept takes appear with a play button in History, which is the "
-                "only way to tell a misheard word from a badly spoken one. They "
-                "are never deleted automatically — a day of dictation is a lot "
-                "of audio."
-            )
-        )
+        box.append(_hint(i18n.t("settings.keep_audio.hint")))
 
         threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
-        box.append(
-            _hint(
-                f"Speak while it records. Anything at or below {threshold:.0f} "
-                "dBFS is discarded as silence rather than transcribed, so a "
-                "reading below that while you are speaking means the level is "
-                "too low — not that dictation is broken."
-            )
-        )
+        box.append(_hint(i18n.t(
+            "settings.gate.hint", threshold=i18n.ltr(f"{threshold:.0f}")
+        )))
         return box
 
     def _reload_sources(self) -> None:
@@ -188,8 +204,13 @@ class SettingsWindow(Gtk.ApplicationWindow):
             found = []
         active = 0
         for index, source in enumerate(found):
-            suffix = " (muted)" if source["muted"] else ""
-            self.source_combo.append_text(f"{source['name']}{suffix}")
+            # The device name comes from PipeWire and is nearly always Latin,
+            # so it is isolated rather than left to be reordered by an Arabic
+            # window around it.
+            name = i18n.ltr(source["name"])
+            self.source_combo.append_text(
+                i18n.t("settings.input.muted", name=name) if source["muted"] else name
+            )
             self.source_ids.append(source["id"])
             if source["default"]:
                 active = index
@@ -208,7 +229,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         if not (0 <= index < len(self.source_ids)):
             return
         node_id = self.source_ids[index]
-        self.level_label.set_text("Switching input…")
+        self.level_label.set_text(i18n.t("settings.switching"))
 
         # Off the main thread: set_default shells out to wpctl with a five
         # second timeout, and a wedged PipeWire is exactly the fault this
@@ -217,9 +238,9 @@ class SettingsWindow(Gtk.ApplicationWindow):
         def work() -> None:
             try:
                 audio.set_default(node_id)
-                text = "Input switched. Test it to see the level."
+                text = i18n.t("settings.switched")
             except audio.AudioError as exc:
-                text = f"Could not switch input: {exc}"
+                text = i18n.t("settings.switch_failed", error=i18n.ltr(exc))
             GLib.idle_add(self._set_level_text, text)
 
         threading.Thread(target=work, daemon=True, name="nabria-set-source").start()
@@ -233,22 +254,23 @@ class SettingsWindow(Gtk.ApplicationWindow):
 
     def _on_test_clicked(self, button: Gtk.Button) -> None:
         button.set_sensitive(False)
-        self.level_label.set_text("Recording…")
+        self.level_label.set_text(i18n.t("settings.recording"))
 
         def work() -> None:
             try:
                 level = audio.measure(4.0)
-                name = (audio.default_source() or {}).get("name", "the default input")
-                text = f"{name}: {level:.1f} dBFS"
+                source = audio.default_source() or {}
+                name = source.get("name") or i18n.t("settings.input")
+                text = i18n.t("settings.level", name=i18n.ltr(name),
+                              level=i18n.ltr(f"{level:.1f}"))
                 threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
                 text += (
-                    "  — above the gate, speech will be transcribed."
-                    if level > threshold
-                    else f"  — at or below the {threshold:.0f} dBFS gate, "
-                    "this would be discarded as silence."
+                    i18n.t("settings.above_gate") if level > threshold
+                    else i18n.t("settings.below_gate",
+                                threshold=i18n.ltr(f"{threshold:.0f}"))
                 )
             except audio.AudioError as exc:
-                text = f"Test failed: {exc}"
+                text = i18n.t("settings.test_failed", error=i18n.ltr(exc))
             GLib.idle_add(self._test_done, button, text)
 
         threading.Thread(target=work, daemon=True, name="nabria-mic-test").start()
@@ -267,7 +289,9 @@ class SettingsWindow(Gtk.ApplicationWindow):
 
         records = history.recent(200)
         if not records:
-            listbox.append(Gtk.Label(label="No transcripts yet.", margin_top=12))
+            listbox.append(
+                Gtk.Label(label=i18n.t("settings.no_transcripts"), margin_top=12)
+            )
         for record in records:
             listbox.append(_history_row(record))
 
@@ -286,11 +310,13 @@ def _history_row(record: dict) -> Gtk.Widget:
     row.set_margin_end(6)
 
     header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    meta = Gtk.Label(xalign=0.0)
-    meta.set_markup(
-        f"<small>{GLib.markup_escape_text(str(record.get('at', '')))}"
-        f"  ·  {record.get('seconds', 0)}s</small>"
-    )
+    meta = Gtk.Label(xalign=i18n.start_align())
+    # The timestamp is isolated: it is a run of digits and punctuation, which
+    # the bidirectional algorithm is free to rearrange against Arabic around
+    # it, and a date that reads back wrong is worse than no date.
+    stamp = GLib.markup_escape_text(i18n.ltr(record.get("at", "")))
+    seconds = i18n.t("settings.seconds", seconds=record.get("seconds", 0))
+    meta.set_markup(f"<small>{stamp}  ·  {seconds}</small>")
     meta.add_css_class("dim-label")
     header.append(meta)
 
@@ -301,7 +327,7 @@ def _history_row(record: dict) -> Gtk.Widget:
     if audio and Path(audio).exists():
         play = Gtk.Button(label="▶")
         play.add_css_class("flat")
-        play.set_tooltip_text(audio)
+        play.set_tooltip_text(i18n.ltr(audio))
         play.connect("clicked", lambda _b, path=audio: _play(path))
         header.append(play)
     row.append(header)
@@ -309,7 +335,7 @@ def _history_row(record: dict) -> Gtk.Widget:
     # No explicit direction: Pango resolves it from the text itself, which is
     # what makes an Arabic transcript read right-to-left and a Latin one
     # left-to-right in the same list without either being forced.
-    text = Gtk.Label(xalign=0.0, label=str(record.get("text", "")))
+    text = Gtk.Label(xalign=i18n.start_align(), label=str(record.get("text", "")))
     text.set_wrap(True)
     text.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
     text.set_selectable(True)
@@ -343,7 +369,7 @@ def _page() -> Gtk.Box:
 
 def _row(label: str, widget: Gtk.Widget) -> Gtk.Widget:
     box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-    caption = Gtk.Label(label=label, xalign=0.0)
+    caption = Gtk.Label(label=label, xalign=i18n.start_align())
     caption.set_size_request(90, -1)
     box.append(caption)
     widget.set_hexpand(True)
@@ -352,7 +378,7 @@ def _row(label: str, widget: Gtk.Widget) -> Gtk.Widget:
 
 
 def _hint(text: str) -> Gtk.Widget:
-    label = Gtk.Label(label=text, xalign=0.0)
+    label = Gtk.Label(label=text, xalign=i18n.start_align())
     label.set_wrap(True)
     label.add_css_class("dim-label")
     return label

@@ -45,21 +45,24 @@ LEVANTINE_PROMPT = "هلأ، بحكي، شوف، هيك، كتير، منيح، 
 # What the wizard offers. Deliberately three, not ninety: whisper knows a great
 # many languages, and a list of them is a worse first experience than a choice
 # between "the one I speak" and "work it out".
+#
+# `label` and `summary` are i18n keys, not text -- the words live in i18n.py
+# with every other string. `vocabulary` is not a key: it is a prompt fed to a
+# speech model, so it is the same text whatever language the interface is in.
 LANGUAGE_PRESETS: dict[str, dict[str, str]] = {
     "ar": {
-        "label": "العربية",
-        "summary": "Arabic, including spoken dialect. Ships a Levantine prompt.",
+        "label": "language.ar.label",
+        "summary": "language.ar.summary",
         "vocabulary": LEVANTINE_PROMPT,
     },
     "en": {
-        "label": "English",
+        "label": "language.en.label",
         "summary": "",
         "vocabulary": "",
     },
     "auto": {
-        "label": "Work it out",
-        "summary": "Detected per phrase. Least accurate, and it can turn room "
-                   "noise into confident nonsense in another language.",
+        "label": "language.auto.label",
+        "summary": "language.auto.summary",
         "vocabulary": "",
     },
 }
@@ -69,6 +72,13 @@ DEFAULTS: dict[str, Any] = {
     "server_binary": str(LIBEXEC_DIR / "whisper-server"),
     "model": str(MODEL_DIR / "ggml-large-v3-turbo.bin"),
     "language": "auto",
+    # The language the *interface* is written in -- en | ar | auto -- which is
+    # not the one above. `language` is what you speak and goes to the engine;
+    # this is what the windows are worded in. Dictating Arabic on an
+    # English-language desktop is ordinary, and so is the reverse, so binding
+    # one to the other would be wrong for half the people who do it.
+    # `auto` reads the desktop's own locale.
+    "ui_language": "auto",
     # Fed to whisper as its initial prompt: names and terms it should spell
     # rather than guess at, plus -- for a dialect -- a few of its own function
     # words. Empty by default, because a prompt is not free. Measured over one

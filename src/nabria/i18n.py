@@ -1,0 +1,398 @@
+"""Every user-facing string, in English and Arabic.
+
+A plain dict rather than gettext. gettext would mean compiled `.mo` files,
+which means new lines in `packaging/layout.sh`, a new assertion in the package
+matrix and a new packaging test -- reopening a layout that is proved on three
+distributions -- to hold sixty strings in two languages. The dict is already
+covered by the `install -m 644 src/nabria/*.py` that ships every other module.
+
+Two languages that are not the same setting:
+
+  `language`     what you *speak*. Passed to whisper.
+  `ui_language`  what the app is *written in*. Nothing to do with the engine.
+
+Someone dictating Arabic into an English-language desktop is ordinary, and so
+is the reverse, so tying one to the other would be wrong for both of them.
+
+**Embedded Latin in an Arabic sentence must be isolated** -- `ltr()`. Without
+it, a device name, a file path or a figure like "-42 dBFS" is reordered by the
+bidirectional algorithm against the surrounding right-to-left run, and comes
+out scrambled: the minus sign migrates, and "Ctrl+V" can render as "V+Ctrl".
+Setting the paragraph direction does not fix this and never did; the isolate
+characters are the fix.
+"""
+
+from __future__ import annotations
+
+import os
+
+# First-strong isolate, and its terminator. Everything between them is laid out
+# on its own, then placed into the surrounding text as a single neutral object.
+_FSI = "⁨"
+_PDI = "⁩"
+
+LANGUAGES = ("en", "ar")
+RTL = {"ar"}
+
+_current = "en"
+
+
+def ltr(text: object) -> str:
+    """Isolate a run of Latin text so the surrounding Arabic does not reorder it.
+
+    Applied to anything that comes from outside the string table -- paths,
+    device names, engine errors, numbers with units, key names. Harmless in
+    English: the isolate characters are zero-width and the layout is unchanged.
+    """
+    return f"{_FSI}{text}{_PDI}"
+
+
+def resolve(setting: str) -> str:
+    """`auto` means the desktop's language; anything else is taken as asked.
+
+    Only the two-letter prefix is read, so `ar_SY.UTF-8` and `ar` are the same
+    answer, and an unknown locale falls back to English rather than to a
+    half-translated screen.
+    """
+    if setting in LANGUAGES:
+        return setting
+    locale = (
+        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG") or ""
+    ).lower()
+    return next((code for code in LANGUAGES if locale.startswith(code)), "en")
+
+
+def use(setting: str) -> str:
+    """Select the language for everything that follows. Returns what was chosen."""
+    global _current
+    _current = resolve(setting)
+    return _current
+
+
+def current() -> str:
+    return _current
+
+
+def is_rtl() -> bool:
+    return _current in RTL
+
+
+def start_align() -> float:
+    """`xalign` for text that should hug the side the reader starts from.
+
+    GTK's `xalign` is absolute -- 0.0 is the left edge whatever the paragraph
+    direction -- so a hardcoded 0.0 pins Arabic to the left of its own window.
+    `Gtk.Align.START` is direction-aware and is used where the widget is being
+    aligned; this is for the label's text inside its own allocation, which is a
+    different thing and has no direction-aware form.
+    """
+    return 1.0 if is_rtl() else 0.0
+
+
+def t(key: str, **fields: object) -> str:
+    """Look up a string and fill in its fields.
+
+    An unknown key returns the key. That is deliberately not an exception: a
+    missing translation must degrade to something legible in the interface, not
+    take down the window that was being built. It is also what lets a caller
+    pass a literal through -- `tests/test_models.py` builds a Model with an
+    empty summary, and `t("")` has to be harmless.
+    """
+    entry = STRINGS.get(key)
+    if entry is None:
+        return key
+    text = entry.get(_current) or entry["en"]
+    return text.format(**fields) if fields else text
+
+
+# --------------------------------------------------------------------------
+# The strings.
+#
+# Keys are `surface.thing`. Arabic here is Modern Standard, not dialect: this
+# is interface text read by everyone, unlike the dictation prompt in config.py
+# which is deliberately Levantine because it is steering a speech model.
+#
+# `{}` fields carrying Latin text, a path, or a number with a sign or a unit
+# attached are `ltr()`-wrapped by the caller. A field that is only digits is
+# not, and must not be: digits already take their direction from the text
+# around them, so "148 م.ب" comes out in that order, while an isolate would
+# make the number a neutral object and move it to the far side of the unit.
+# --------------------------------------------------------------------------
+
+STRINGS: dict[str, dict[str, str]] = {
+    # -- notifications from the daemon -------------------------------------
+    "app.cannot_record": {
+        "en": "Cannot record",
+        "ar": "تعذّر التسجيل",
+    },
+    "app.dictation_error": {
+        "en": "Dictation error",
+        "ar": "خطأ في الإملاء",
+    },
+    "app.transcribe_failed": {
+        "en": "Transcription failed",
+        "ar": "فشل التفريغ",
+    },
+    "app.type_failed": {
+        "en": "Could not type the text",
+        "ar": "تعذّرت كتابة النص",
+    },
+    "app.type_failed_body": {
+        "en": "The text is on the clipboard — paste it with {key}",
+        "ar": "النص في الحافظة — الصقه بـ {key}",
+    },
+    "app.not_hearing": {
+        "en": "Dictation is not hearing the microphone",
+        "ar": "الإملاء لا يسمع الميكروفون",
+    },
+    "app.not_hearing_body": {
+        "en": "{takes} takes in a row with nothing above {threshold} dBFS — "
+              "the last was {level} dBFS from {source}. Check the input device.",
+        "ar": "{takes} تسجيلات متتالية لم يتجاوز أيٌّ منها {threshold} ديسيبل — "
+              "آخرها {level} ديسيبل من {source}. تحقّق من جهاز الإدخال.",
+    },
+
+    # -- the model catalogue -----------------------------------------------
+    "model.base.summary": {
+        "en": "Fast on any machine. Good enough for clear speech.",
+        "ar": "سريع على أي جهاز. يكفي للكلام الواضح.",
+    },
+    "model.small.summary": {
+        "en": "Noticeably better, still comfortable without a GPU.",
+        "ar": "أدقّ بوضوح، ولا يزال مريحاً دون بطاقة رسوميات.",
+    },
+    "model.large-v3-turbo.summary": {
+        "en": "The best, and the one to use for Arabic. Wants a discrete GPU.",
+        "ar": "الأفضل، وهو المناسب للعربية. يحتاج بطاقة رسوميات منفصلة.",
+    },
+
+    # -- the spoken-language presets ---------------------------------------
+    #
+    # A language names itself in its own script in both translations: someone
+    # looking for their language finds it by recognising it, and translating
+    # "Arabic" into Arabic hides it from the person who reads no English.
+    "language.ar.label": {"en": "العربية", "ar": "العربية"},
+    "language.en.label": {"en": "English", "ar": "English"},
+    "language.auto.label": {
+        "en": "Work it out",
+        "ar": "اكتشفها تلقائياً",
+    },
+    "language.ar.summary": {
+        "en": "Arabic, including spoken dialect. Ships a Levantine prompt.",
+        "ar": "العربية، بما فيها المحكية. مع تلميح شامي جاهز.",
+    },
+    "language.auto.summary": {
+        "en": "Detected per phrase. Least accurate, and it can turn room "
+              "noise into confident nonsense in another language.",
+        "ar": "يُكتشف لكل عبارة. الأقل دقة، وقد يحوّل ضجيج الغرفة إلى كلام "
+              "واثق لا معنى له بلغة أخرى.",
+    },
+
+    # -- the setup wizard ---------------------------------------------------
+    "wizard.welcome.title": {
+        "en": "Just talk.",
+        "ar": "تكلّم فحسب.",
+    },
+    "wizard.welcome.lede": {
+        "en": "Press a key, say what you mean, press it again. The words "
+              "appear in whatever you were typing into.\n\n"
+              "Everything happens on this machine. No account, nothing uploaded.",
+        "ar": "اضغط مفتاحاً، قل ما تريد، ثم اضغطه ثانية. تظهر الكلمات في "
+              "المكان الذي كنت تكتب فيه.\n\n"
+              "كل شيء يجري على هذا الجهاز. بلا حساب، وبلا رفع أي شيء.",
+    },
+    "wizard.welcome.button": {"en": "Set up", "ar": "لنبدأ"},
+    "wizard.language.title": {
+        "en": "What will you speak?",
+        "ar": "بأي لغة ستتكلم؟",
+    },
+    "wizard.language.lede": {
+        "en": "Telling it beats letting it guess. Detection runs per phrase, "
+              "and a phrase of near-silence is what it most often gets wrong "
+              "— confidently, and in the wrong language.",
+        "ar": "إخباره أفضل من تركه يخمّن. الاكتشاف يجري لكل عبارة، وأكثر ما "
+              "يخطئ فيه عبارة تكاد تكون صامتة — بثقة، وبلغة خاطئة.",
+    },
+    "wizard.model.title": {
+        "en": "Choose how good it should be",
+        "ar": "اختر مستوى الدقة",
+    },
+    "wizard.model.lede_gpu": {
+        "en": "Bigger is more accurate and slower to download. A discrete GPU "
+              "was found, so the best one is worth it.",
+        "ar": "الأكبر أدقّ وأبطأ في التنزيل. تم العثور على بطاقة رسوميات "
+              "منفصلة، لذا يستحق الأفضل العناء.",
+    },
+    "wizard.model.lede_nogpu": {
+        "en": "Bigger is more accurate and slower to download. No discrete GPU "
+              "here, so the smaller ones are the practical choice.",
+        "ar": "الأكبر أدقّ وأبطأ في التنزيل. لا توجد بطاقة رسوميات منفصلة هنا، "
+              "لذا الأصغر هو الخيار العملي.",
+    },
+    "wizard.model.recommended": {
+        "en": "recommended for this machine",
+        "ar": "الأنسب لهذا الجهاز",
+    },
+    "wizard.model.needs_gpu": {
+        "en": "No discrete GPU found — this would run slower than you speak.",
+        "ar": "لا توجد بطاقة رسوميات منفصلة — سيكون أبطأ من كلامك.",
+    },
+    "wizard.model.size": {"en": "{megabytes} MB", "ar": "{megabytes} م.ب"},
+    "wizard.download": {"en": "Download", "ar": "تنزيل"},
+    "wizard.downloading": {"en": "Downloading", "ar": "جارٍ التنزيل"},
+    "wizard.progress": {
+        "en": "{model} · {done} / {total} MB",
+        "ar": "{model} · {done} / {total} م.ب",
+    },
+    "wizard.verified": {"en": "verified", "ar": "تم التحقق"},
+    "wizard.failed": {"en": "failed", "ar": "فشل"},
+    "wizard.try_again": {"en": "Try again", "ar": "أعد المحاولة"},
+    "wizard.next": {"en": "Next", "ar": "التالي"},
+    "wizard.mic.title": {
+        "en": "Can it hear you?",
+        "ar": "هل يسمعك؟",
+    },
+    "wizard.mic.lede": {
+        "en": "Press Test and say something for four seconds. This measures "
+              "the same level the silence guard uses, so if it passes here, "
+              "takes will not be thrown away as silent.",
+        "ar": "اضغط «اختبار» وتكلّم أربع ثوانٍ. يقيس هذا المستوى نفسه الذي "
+              "يستخدمه حارس الصمت، فإن نجح هنا فلن تُهمل تسجيلاتك بوصفها صامتة.",
+    },
+    "wizard.mic.test": {"en": "Test", "ar": "اختبار"},
+    "wizard.mic.skip": {"en": "Skip", "ar": "تخطٍّ"},
+    "wizard.mic.listening": {"en": "listening…", "ar": "ينصت…"},
+    "wizard.mic.heard": {
+        "en": "Heard you clearly ({level} dBFS).",
+        "ar": "سمعك بوضوح ({level} ديسيبل).",
+    },
+    "wizard.mic.barely": {
+        "en": "Barely anything ({level} dBFS). Check that the right input is "
+              "selected and unmuted, then test again.",
+        "ar": "لا شيء تقريباً ({level} ديسيبل). تأكّد من اختيار الإدخال الصحيح "
+              "وأنه غير مكتوم، ثم أعد الاختبار.",
+    },
+    "wizard.shortcut.title": {
+        "en": "One last thing: the key",
+        "ar": "شيء أخير: المفتاح",
+    },
+    "wizard.shortcut.lede": {
+        "en": "Wayland gives no way for an application to claim a shortcut "
+              "for itself, so this part is yours.",
+        "ar": "لا يتيح Wayland لأي تطبيق أن يحجز اختصاراً لنفسه، لذا هذا "
+              "الجزء متروك لك.",
+    },
+    "wizard.done": {"en": "Done", "ar": "تم"},
+
+    # -- how to bind the key, per compositor -------------------------------
+    #
+    # Only the sentence is translated. The lines under it are configuration
+    # to be pasted verbatim, and translating a config key would be a bug that
+    # looks like a translation.
+    "shortcut.hyprland": {
+        "en": "Add to ~/.config/hypr/hyprland.conf:",
+        "ar": "أضِف إلى ~/.config/hypr/hyprland.conf:",
+    },
+    "shortcut.sway": {
+        "en": "Add to ~/.config/sway/config:",
+        "ar": "أضِف إلى ~/.config/sway/config:",
+    },
+    "shortcut.niri": {
+        "en": "Add to ~/.config/niri/config.kdl, inside binds {{}}:",
+        "ar": "أضِف إلى ~/.config/niri/config.kdl، داخل binds {{}}:",
+    },
+    "shortcut.kde": {
+        "en": "System Settings → Keyboard → Shortcuts → Add → Command",
+        "ar": "إعدادات النظام ← لوحة المفاتيح ← الاختصارات ← إضافة ← أمر",
+    },
+    "shortcut.gnome": {
+        "en": "Settings → Keyboard → View and Customise Shortcuts → Custom",
+        "ar": "الإعدادات ← لوحة المفاتيح ← عرض الاختصارات وتخصيصها ← مخصّص",
+    },
+    "shortcut.generic": {
+        "en": "Bind a key to this command, however your desktop does that:",
+        "ar": "اربط مفتاحاً بهذا الأمر، بالطريقة التي يتيحها سطح مكتبك:",
+    },
+
+    # -- the settings window ------------------------------------------------
+    "settings.title": {"en": "Dictation", "ar": "الإملاء"},
+    "settings.tab.engine": {"en": "Engine", "ar": "المحرّك"},
+    "settings.tab.microphone": {"en": "Microphone", "ar": "الميكروفون"},
+    "settings.tab.history": {"en": "History", "ar": "السجل"},
+    "settings.language": {"en": "Language", "ar": "اللغة"},
+    "settings.ui_language": {"en": "App language", "ar": "لغة التطبيق"},
+    "settings.ui_language.auto": {"en": "Follow the system", "ar": "تبعاً للنظام"},
+    "settings.ui_language.hint": {
+        "en": "Close and reopen this window to see the change. Separate from "
+              "the language above, which is the one you speak.",
+        "ar": "أغلق هذه النافذة وافتحها لترى التغيير. منفصلة عن اللغة أعلاه، "
+              "وهي اللغة التي تتكلمها.",
+    },
+    "settings.model": {"en": "Model", "ar": "النموذج"},
+    "settings.model.hint": {
+        "en": "Switching unloads the running server; the next dictation loads "
+              "the new model while you speak.",
+        "ar": "التبديل يفرغ الخادم العامل؛ والإملاء التالي يحمّل النموذج "
+              "الجديد بينما تتكلم.",
+    },
+    "settings.vocabulary": {"en": "Vocabulary", "ar": "المفردات"},
+    "settings.vocabulary.hint": {
+        "en": "Fed to whisper as its initial prompt. Mixing Arabic and Latin "
+              "here is what keeps spoken tech terms spelled rather than "
+              "transliterated. Keep it short — a long prompt leaks into the "
+              "transcript.",
+        "ar": "تُمرَّر إلى المحرّك تلميحاً أولياً. خلط العربية باللاتينية هنا "
+              "هو ما يبقي المصطلحات التقنية المنطوقة مكتوبة بحروفها بدل "
+              "تحويلها. أبقِها قصيرة — التلميح الطويل يتسرّب إلى النص.",
+    },
+    "settings.input": {"en": "Input", "ar": "الإدخال"},
+    "settings.input.muted": {"en": "{name} (muted)", "ar": "{name} (مكتوم)"},
+    "settings.not_measured": {"en": "Not measured yet.", "ar": "لم يُقَس بعد."},
+    "settings.switching": {"en": "Switching input…", "ar": "يبدّل الإدخال…"},
+    "settings.switched": {
+        "en": "Input switched. Test it to see the level.",
+        "ar": "تم تبديل الإدخال. اختبره لترى المستوى.",
+    },
+    "settings.switch_failed": {
+        "en": "Could not switch input: {error}",
+        "ar": "تعذّر تبديل الإدخال: {error}",
+    },
+    "settings.test": {"en": "Test microphone (4s)", "ar": "اختبر الميكروفون (٤ ثوانٍ)"},
+    "settings.recording": {"en": "Recording…", "ar": "يسجّل…"},
+    "settings.level": {"en": "{name}: {level} dBFS", "ar": "{name}: {level} ديسيبل"},
+    "settings.above_gate": {
+        "en": "  — above the gate, speech will be transcribed.",
+        "ar": "  — فوق العتبة، سيُفرَّغ الكلام.",
+    },
+    "settings.below_gate": {
+        "en": "  — at or below the {threshold} dBFS gate, this would be "
+              "discarded as silence.",
+        "ar": "  — عند عتبة {threshold} ديسيبل أو دونها، سيُهمل بوصفه صمتاً.",
+    },
+    "settings.test_failed": {"en": "Test failed: {error}", "ar": "فشل الاختبار: {error}"},
+    "settings.keep_audio": {
+        "en": "Keep the recording of every dictation",
+        "ar": "احتفظ بتسجيل كل إملاء",
+    },
+    "settings.keep_audio.hint": {
+        "en": "Kept takes appear with a play button in History, which is the "
+              "only way to tell a misheard word from a badly spoken one. They "
+              "are never deleted automatically — a day of dictation is a lot "
+              "of audio.",
+        "ar": "تظهر التسجيلات المحفوظة مع زر تشغيل في السجل، وهي الطريقة "
+              "الوحيدة للتمييز بين كلمة أُسيء سماعها وأخرى أُسيء نطقها. لا "
+              "تُحذف تلقائياً أبداً — يوم من الإملاء صوت كثير.",
+    },
+    "settings.gate.hint": {
+        "en": "Speak while it records. Anything at or below {threshold} dBFS "
+              "is discarded as silence rather than transcribed, so a reading "
+              "below that while you are speaking means the level is too low — "
+              "not that dictation is broken.",
+        "ar": "تكلّم أثناء التسجيل. كل ما كان عند {threshold} ديسيبل أو دونه "
+              "يُهمل بوصفه صمتاً بدل تفريغه، فقراءة أدنى من ذلك وأنت تتكلم "
+              "تعني أن المستوى منخفض — لا أن الإملاء معطّل.",
+    },
+    "settings.no_transcripts": {"en": "No transcripts yet.", "ar": "لا نصوص بعد."},
+    "settings.seconds": {"en": "{seconds}s", "ar": "{seconds} ث"},
+}

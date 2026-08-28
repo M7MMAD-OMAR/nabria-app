@@ -30,7 +30,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from . import config, history, inject, notify
+from . import config, history, i18n, inject, notify
 from .orb import Orb
 from .recorder import MissingRecorder, Recorder
 
@@ -62,6 +62,13 @@ def _default_source_name() -> str:
 class Daemon:
     def __init__(self) -> None:
         self.settings = config.load()
+        # Before any window exists: every string in the wizard, the settings
+        # window and the notifications is looked up at the moment the widget is
+        # built, so the language has to be chosen first. GTK's default
+        # direction is set with it -- an Arabic interface laid out
+        # left-to-right is a half-translated one.
+        if i18n.use(str(self.settings.get("ui_language", "auto"))) in i18n.RTL:
+            Gtk.Widget.set_default_direction(Gtk.TextDirection.RTL)
         config.STATE_DIR.mkdir(parents=True, exist_ok=True)
         self.log_file = config.LOG_PATH.open("a", encoding="utf-8", buffering=1)
 
@@ -265,6 +272,16 @@ class Daemon:
         except OSError as exc:
             self.log(f"could not save config: {exc}")
         self.log(f"setting {key} = {value!r}")
+        # Strings are looked up as each widget is built, so re-selecting here is
+        # what makes the next window come up in the new language. The one that
+        # is open keeps the language it was built in -- rebuilding a window
+        # underneath the combo box that is still handling its own signal is a
+        # crash waiting to happen, and the hint next to the picker says so.
+        if key == "ui_language":
+            if i18n.use(str(value)) in i18n.RTL:
+                Gtk.Widget.set_default_direction(Gtk.TextDirection.RTL)
+            else:
+                Gtk.Widget.set_default_direction(Gtk.TextDirection.LTR)
         # model, language and vocabulary are all baked into the whisper server
         # command line at startup, so the loaded server is now stale. Stopping
         # it is enough -- the next take starts a fresh one, which is the same
@@ -323,10 +340,10 @@ class Daemon:
             # Not a bug and not recoverable by retrying: the machine has no
             # PipeWire. Say what to install instead of filing a stack trace.
             self.log(str(exc))
-            self._fail("لا يمكن التسجيل", str(exc))
+            self._fail(i18n.t("app.cannot_record"), i18n.ltr(exc))
         except Exception:  # noqa: BLE001 - never let a bad take kill the daemon
             self.log(traceback.format_exc())
-            self._fail("خطأ في الإملاء", str(config.LOG_PATH))
+            self._fail(i18n.t("app.dictation_error"), i18n.ltr(config.LOG_PATH))
         return GLib.SOURCE_REMOVE
 
     # -- dictation ---------------------------------------------------------
@@ -407,7 +424,10 @@ class Daemon:
                 self._transcribe(recorder)
             except Exception:  # noqa: BLE001
                 self.log(traceback.format_exc())
-                GLib.idle_add(self._fail, "فشل التفريغ", str(config.LOG_PATH))
+                GLib.idle_add(
+                    self._fail,
+                    i18n.t("app.transcribe_failed"), i18n.ltr(config.LOG_PATH),
+                )
             finally:
                 with self.jobs_lock:
                     self.jobs -= 1
@@ -472,7 +492,9 @@ class Daemon:
                 except inject.InjectionError as exc:
                     self.log(f"injection failed: {exc}")
                     GLib.idle_add(
-                        self._fail, "تعذّرت الكتابة", "النص في الحافظة — الصقه بـ Ctrl+V"
+                        self._fail,
+                        i18n.t("app.type_failed"),
+                        i18n.t("app.type_failed_body", key=i18n.ltr("Ctrl+V")),
                     )
                     return
             self.log(
@@ -522,10 +544,14 @@ class Daemon:
             return
         self.log(f"{self.silent_run} silent takes in a row, notifying")
         notify.send(
-            "Dictation is not hearing the microphone",
-            f"{self.silent_run} takes in a row with nothing above "
-            f"{threshold:.0f} dBFS — the last was {level:.0f} dBFS from "
-            f"{_default_source_name()}. Check the input device.",
+            i18n.t("app.not_hearing"),
+            i18n.t(
+                "app.not_hearing_body",
+                takes=self.silent_run,
+                threshold=i18n.ltr(f"{threshold:.0f}"),
+                level=i18n.ltr(f"{level:.0f}"),
+                source=i18n.ltr(_default_source_name()),
+            ),
         )
 
     def _retain(self, wav_path) -> str:

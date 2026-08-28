@@ -17,7 +17,6 @@ Sway session, not only on a fully themed desktop.
 
 from __future__ import annotations
 
-import os
 import threading
 
 import gi
@@ -25,7 +24,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from . import audio, config, gpu, models, shortcut, theme  # noqa: E402
+from . import audio, config, gpu, i18n, models, shortcut, theme  # noqa: E402
 
 # Below this the microphone is under the silence gate and every take would be
 # thrown away, so the test has to fail rather than politely report a number.
@@ -122,26 +121,26 @@ class Choice(Gtk.Box):
         column.set_hexpand(True)
 
         heading = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        title = Gtk.Label(label=name, xalign=0)
+        title = Gtk.Label(label=name, xalign=i18n.start_align())
         title.add_css_class("nabria-choice-name")
         heading.append(title)
         for text, style in ((trailing, "nabria-hint"), (badge, "nabria-good")):
             if not text:
                 continue
-            label = Gtk.Label(label=text, xalign=0)
+            label = Gtk.Label(label=text, xalign=i18n.start_align())
             label.add_css_class(style)
             label.add_css_class("nabria-hint")
             heading.append(label)
         column.append(heading)
 
         if summary:
-            body = Gtk.Label(label=summary, xalign=0, wrap=True)
+            body = Gtk.Label(label=summary, xalign=i18n.start_align(), wrap=True)
             body.add_css_class("nabria-lede")
             column.append(body)
 
         # Reserved for the thing that turns a preference into a mistake.
         if note:
-            warning = Gtk.Label(label=note, xalign=0, wrap=True)
+            warning = Gtk.Label(label=note, xalign=i18n.start_align(), wrap=True)
             warning.add_css_class("nabria-bad")
             warning.add_css_class("nabria-hint")
             column.append(warning)
@@ -191,11 +190,11 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _page(self, title: str, lede: str) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
-        heading = Gtk.Label(label=title, xalign=0)
+        heading = Gtk.Label(label=title, xalign=i18n.start_align())
         heading.add_css_class("nabria-title")
         page.append(heading)
         if lede:
-            subtitle = Gtk.Label(label=lede, xalign=0, wrap=True)
+            subtitle = Gtk.Label(label=lede, xalign=i18n.start_align(), wrap=True)
             subtitle.add_css_class("nabria-lede")
             page.append(subtitle)
         return page
@@ -212,12 +211,9 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _welcome_page(self) -> Gtk.Box:
         page = self._page(
-            "Just talk.",
-            "Press a key, say what you mean, press it again. The words appear "
-            "in whatever you were typing into.\n\n"
-            "Everything happens on this machine. No account, nothing uploaded.",
+            i18n.t("wizard.welcome.title"), i18n.t("wizard.welcome.lede")
         )
-        start = Gtk.Button(label="Set up")
+        start = Gtk.Button(label=i18n.t("wizard.welcome.button"))
         start.add_css_class("suggested-action")
         start.connect("clicked", lambda _b: self.stack.set_visible_child_name("language"))
         self._buttons(page, start)
@@ -225,21 +221,19 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _language_page(self) -> Gtk.Box:
         page = self._page(
-            "What will you speak?",
-            "Telling it beats letting it guess. Detection runs per phrase, and "
-            "a phrase of near-silence is what it most often gets wrong — "
-            "confidently, and in the wrong language.",
+            i18n.t("wizard.language.title"), i18n.t("wizard.language.lede")
         )
 
-        # Preselect from the locale. Someone whose system is already in Arabic
-        # should not have to tell us that too.
-        locale = (os.environ.get("LC_ALL") or os.environ.get("LANG") or "").lower()
-        preferred = "ar" if locale.startswith("ar") else "en" if locale else "auto"
+        # Preselect the language the interface itself came up in. That was
+        # resolved from the desktop's locale, so this is the same guess the
+        # locale used to be parsed for here -- and someone whose system is
+        # already in Arabic should not have to say so twice.
+        preferred = i18n.current()
 
         cards = []
         self.languages: list[tuple[str, Gtk.CheckButton]] = []
         for code, preset in config.LANGUAGE_PRESETS.items():
-            card = Choice(preset["label"], preset["summary"])
+            card = Choice(i18n.t(preset["label"]), i18n.t(preset["summary"]))
             cards.append(card)
             self.languages.append((code, card.radio))
             page.append(card)
@@ -247,7 +241,7 @@ class Wizard(Gtk.ApplicationWindow):
         for code, radio in self.languages:
             radio.set_active(code == preferred)
 
-        onward = Gtk.Button(label="Next")
+        onward = Gtk.Button(label=i18n.t("wizard.next"))
         onward.add_css_class("suggested-action")
         onward.connect("clicked", lambda _b: self._choose_language())
         self._buttons(page, onward)
@@ -270,18 +264,21 @@ class Wizard(Gtk.ApplicationWindow):
     def _model_page(self) -> Gtk.Box:
         recommended = models.recommended(self.has_gpu)
         page = self._page(
-            "Choose how good it should be",
-            f"Bigger is more accurate and slower to download. "
-            f"{'A discrete GPU was found, so the best one is worth it.' if self.has_gpu else 'No discrete GPU here, so the smaller ones are the practical choice.'}",
+            i18n.t("wizard.model.title"),
+            i18n.t("wizard.model.lede_gpu" if self.has_gpu else "wizard.model.lede_nogpu"),
         )
 
         self.choices = []
         for model in models.CATALOG.values():
             card = Choice(
-                model.key, model.summary,
-                trailing=f"{model.megabytes} MB",
-                badge="recommended for this machine" if model.key == recommended.key else "",
-                note="No discrete GPU found — this would run slower than you speak."
+                # The model's own name is never translated: it is what the
+                # file is called and what every whisper.cpp page calls it, so
+                # a translated one could not be looked up anywhere.
+                i18n.ltr(model.key), i18n.t(model.summary),
+                trailing=i18n.t("wizard.model.size", megabytes=model.megabytes),
+                badge=i18n.t("wizard.model.recommended")
+                      if model.key == recommended.key else "",
+                note=i18n.t("wizard.model.needs_gpu")
                      if model.needs_gpu and not self.has_gpu else "",
             )
             card.model = model
@@ -291,45 +288,40 @@ class Wizard(Gtk.ApplicationWindow):
         for card in self.choices:
             card.radio.set_active(card.model.key == recommended.key)
 
-        fetch = Gtk.Button(label="Download")
+        fetch = Gtk.Button(label=i18n.t("wizard.download"))
         fetch.add_css_class("suggested-action")
         fetch.connect("clicked", lambda _b: self._begin_download())
         self._buttons(page, fetch)
         return page
 
     def _download_page(self) -> Gtk.Box:
-        page = self._page("Downloading", "")
+        page = self._page(i18n.t("wizard.downloading"), "")
         self.progress = Gtk.ProgressBar(show_text=True)
         page.append(self.progress)
-        self.download_note = Gtk.Label(label="", xalign=0, wrap=True)
+        self.download_note = Gtk.Label(label="", xalign=i18n.start_align(), wrap=True)
         self.download_note.add_css_class("nabria-hint")
         page.append(self.download_note)
 
-        self.download_next = Gtk.Button(label="Next")
+        self.download_next = Gtk.Button(label=i18n.t("wizard.next"))
         self.download_next.add_css_class("suggested-action")
         self.download_next.set_sensitive(False)
         self.download_next.connect(
             "clicked", lambda _b: self.stack.set_visible_child_name("microphone")
         )
-        self.download_retry = Gtk.Button(label="Try again")
+        self.download_retry = Gtk.Button(label=i18n.t("wizard.try_again"))
         self.download_retry.set_visible(False)
         self.download_retry.connect("clicked", lambda _b: self._begin_download())
         self._buttons(page, self.download_retry, self.download_next)
         return page
 
     def _microphone_page(self) -> Gtk.Box:
-        page = self._page(
-            "Can it hear you?",
-            "Press Test and say something for four seconds. This measures the "
-            "same level the silence guard uses, so if it passes here, takes "
-            "will not be thrown away as silent.",
-        )
-        self.mic_result = Gtk.Label(label="", xalign=0, wrap=True)
+        page = self._page(i18n.t("wizard.mic.title"), i18n.t("wizard.mic.lede"))
+        self.mic_result = Gtk.Label(label="", xalign=i18n.start_align(), wrap=True)
         page.append(self.mic_result)
 
-        test = Gtk.Button(label="Test")
+        test = Gtk.Button(label=i18n.t("wizard.mic.test"))
         test.connect("clicked", lambda _b: self._test_microphone())
-        skip = Gtk.Button(label="Skip")
+        skip = Gtk.Button(label=i18n.t("wizard.mic.skip"))
         skip.connect(
             "clicked", lambda _b: self.stack.set_visible_child_name("shortcut")
         )
@@ -338,16 +330,22 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _shortcut_page(self) -> Gtk.Box:
         page = self._page(
-            "One last thing: the key",
-            "Wayland gives no way for an application to claim a shortcut for "
-            "itself, so this part is yours.",
+            i18n.t("wizard.shortcut.title"), i18n.t("wizard.shortcut.lede")
         )
-        for line in shortcut.instructions():
-            label = Gtk.Label(label=line, xalign=0, wrap=True, selectable=True)
+        # Every line but the first is configuration to paste. Isolated, or an
+        # Arabic page reorders "bind = CTRL ALT, Q" into something that looks
+        # right and does not work when copied.
+        for index, line in enumerate(shortcut.instructions()):
+            # Only the lines to be copied are selectable. Making the sentence
+            # selectable too meant keyboard focus landed on it, so the page
+            # opened with its first line highlighted as if it had been chosen.
+            label = Gtk.Label(label=line if index == 0 else i18n.ltr(line),
+                              xalign=i18n.start_align(), wrap=True,
+                              selectable=index > 0)
             label.add_css_class("nabria-key")
             page.append(label)
 
-        done = Gtk.Button(label="Done")
+        done = Gtk.Button(label=i18n.t("wizard.done"))
         done.add_css_class("suggested-action")
         done.connect("clicked", lambda _b: self._finish())
         self._buttons(page, done)
@@ -374,7 +372,10 @@ class Wizard(Gtk.ApplicationWindow):
         self.download_next.set_sensitive(False)
         self.download_retry.set_visible(False)
         self.progress.set_fraction(0.0)
-        self.progress.set_text(f"{model.key} · 0 / {model.megabytes} MB")
+        self.progress.set_text(
+            i18n.t("wizard.progress", model=i18n.ltr(model.key),
+                   done=0, total=model.megabytes)
+        )
         self.download_note.set_text("")
 
         def report(done: int, total: int) -> None:
@@ -392,28 +393,29 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _show_progress(self, model, done: int, total: int) -> bool:
         self.progress.set_fraction(done / max(total, 1))
-        self.progress.set_text(
-            f"{model.key} · {done // 1_000_000} / {total // 1_000_000} MB"
-        )
+        self.progress.set_text(i18n.t(
+            "wizard.progress", model=i18n.ltr(model.key),
+            done=done // 1_000_000, total=total // 1_000_000,
+        ))
         return GLib.SOURCE_REMOVE
 
     def _download_done(self, model, path) -> bool:
         self.progress.set_fraction(1.0)
-        self.progress.set_text("verified")
-        self.download_note.set_text(str(path))
+        self.progress.set_text(i18n.t("wizard.verified"))
+        self.download_note.set_text(i18n.ltr(path))
         self.settings["model"] = str(path)
         config.save(self.settings)
         self.download_next.set_sensitive(True)
         return GLib.SOURCE_REMOVE
 
     def _download_failed(self, message: str) -> bool:
-        self.progress.set_text("failed")
+        self.progress.set_text(i18n.t("wizard.failed"))
         self.download_note.set_text(message)
         self.download_retry.set_visible(True)
         return GLib.SOURCE_REMOVE
 
     def _test_microphone(self) -> None:
-        self.mic_result.set_text("listening…")
+        self.mic_result.set_text(i18n.t("wizard.mic.listening"))
 
         def work() -> None:
             try:
@@ -433,13 +435,14 @@ class Wizard(Gtk.ApplicationWindow):
             self.mic_result.set_text(error)
         elif level is not None and level > GOOD_ENOUGH_DBFS:
             self.mic_result.add_css_class("nabria-good")
-            self.mic_result.set_text(f"Heard you clearly ({level:.0f} dBFS).")
+            self.mic_result.set_text(
+                i18n.t("wizard.mic.heard", level=i18n.ltr(f"{level:.0f}"))
+            )
             self.stack.set_visible_child_name("shortcut")
         else:
             self.mic_result.add_css_class("nabria-bad")
             self.mic_result.set_text(
-                f"Barely anything ({level:.0f} dBFS). Check that the right input "
-                "is selected and unmuted, then test again."
+                i18n.t("wizard.mic.barely", level=i18n.ltr(f"{level:.0f}"))
             )
         return GLib.SOURCE_REMOVE
 
