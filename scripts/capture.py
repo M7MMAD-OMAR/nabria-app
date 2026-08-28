@@ -82,38 +82,38 @@ def looks_like_a_window(path):
 
     grim copies the output, not the window, so anything drawn on top is what
     lands in the file -- and the geometry, the size and `hyprctl clients` all
-    stay perfectly correct while it happens. A session lock produced twelve
-    photographs of a lock screen this way, at the right sizes, with no error
-    anywhere; the same would happen behind a full-screen window or a break
-    reminder. Silence is the whole problem: these files are published.
+    stay correct while it happens. A session lock produced twelve photographs
+    of a lock screen this way, with no error anywhere; a full-screen window or
+    a break reminder would do the same. Silence is the whole problem: these
+    files are published.
 
-    The test is that a window has large flat areas and a photograph does not.
-    Four corner patches, of which at least two must be near-uniform. Not one:
-    the lock screen that prompted this has a dark figure across it and passed
-    a one-patch test on the welcome page. Not three either -- a corner can
-    legitimately land on a heading or a notebook tab. It asks about flatness
-    rather than about a colour, so the dark wizard and the light settings
-    window are judged the same way.
+    The test is for hard edges. Text, borders and widget outlines put adjacent
+    pixels tens of levels apart; a wallpaper, blurred or not, is smooth almost
+    everywhere. An earlier version asked whether the corners were flat instead,
+    and a dark gradient wallpaper passed it -- flatness is what the two have in
+    common, not what separates them.
+
+    Deliberately not "is it dark" or "is it the theme colour": the wizard is
+    dark, the settings window follows the desktop, and the lock screen is
+    whichever wallpaper is up. Only the edges tell them apart.
     """
     image = GdkPixbuf.Pixbuf.new_from_file(path)
     width, height = image.get_width(), image.get_height()
     stride, channels = image.get_rowstride(), image.get_n_channels()
     pixels = image.get_pixels()
-    patch = 40
-    if width < patch * 3 or height < patch * 3:
-        return True  # too small to judge; do not fail a run over it
 
-    flat = 0
-    for left in (patch, width - 2 * patch):
-        for top in (patch, height - 2 * patch):
-            values = [
-                pixels[(top + y) * stride + (left + x) * channels + band]
-                for y in range(0, patch, 4)
-                for x in range(0, patch, 4)
-                for band in range(3)
-            ]
-            flat += max(values) - min(values) <= 16
-    return flat >= 2
+    sampled = edges = 0
+    for y in range(0, height, 3):
+        row = y * stride
+        for x in range(0, width - 2, 3):
+            here, right = row + x * channels, row + (x + 2) * channels
+            sampled += 1
+            if abs(pixels[here] - pixels[right]) > 60:
+                edges += 1
+    # 0.2%: measured at 1.5-6% across the twelve screenshots this produces,
+    # and at 0.00% on the lock screen that prompted the check. Two orders of
+    # magnitude of margin either way, so the threshold is not delicate.
+    return sampled > 0 and edges / sampled > 0.002
 
 
 def crop_below(path, wanted, window_height):
