@@ -4,28 +4,250 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17110f">
-  <meta name="description" content="Nabria is local voice dictation for Linux. Press a key, speak, press it again. Your words appear where you were typing.">
+  <meta name="description" content="Nabria is local voice dictation for Linux. Press once, speak, press again. Your words appear where you were typing.">
+  <meta property="og:title" content="Nabria | Just talk">
+  <meta property="og:description" content="Local voice dictation for Linux. No account, no cloud.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/nabria-social.png">
   <title>Nabria | Just talk</title>
-  <style>
-    :root{--bg:#17110f;--panel:#211916;--panel-2:#2b201c;--ink:#f4e6e0;--muted:#bca9a2;--line:#493832;--voice:#ff9d7d;--think:#f0c48a;--bad:#ff6f5e;--max:1180px;--serif:Georgia,"Times New Roman",serif;--sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Arabic",sans-serif}
-    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;overflow-x:hidden}body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.24;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:64px 64px;mask-image:linear-gradient(to bottom,#000,transparent 82%)}a{color:inherit}.wrap{width:min(calc(100% - 48px),var(--max));margin-inline:auto}.topbar{display:flex;align-items:center;justify-content:space-between;padding:28px 0;position:relative;z-index:2}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;font-weight:800;letter-spacing:.16em;font-size:13px}.brand-mark{width:30px;height:30px;border:2px solid var(--voice);border-radius:50%;display:grid;place-items:center;position:relative}.brand-mark:after{content:"";width:6px;height:6px;background:var(--voice);border-radius:50%;box-shadow:0 0 18px var(--voice)}.brand-mark i{position:absolute;inset:5px;border:1px solid var(--think);border-radius:50%;opacity:.72}.lang{color:var(--muted);font-size:13px;text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:3px}.lang:hover,.lang:focus-visible{color:var(--voice);border-color:var(--voice)}.hero{min-height:calc(100vh - 86px);display:grid;grid-template-columns:1.05fr .95fr;gap:72px;align-items:center;padding:42px 0 100px}.eyebrow{color:var(--voice);font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:800}.hero h1{font-size:clamp(64px,10vw,138px);line-height:.87;letter-spacing:-.09em;margin:22px 0 28px;max-width:680px}.hero h1 em{font-family:var(--serif);font-weight:400;color:var(--think);letter-spacing:-.08em}.hero-copy{font-size:clamp(18px,2vw,24px);color:var(--muted);max-width:500px;margin:0 0 36px}.actions{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.button{display:inline-flex;align-items:center;gap:12px;text-decoration:none;background:var(--voice);color:#1d1310;font-weight:800;padding:14px 19px;border-radius:6px;transition:transform .2s,background .2s}.button:hover,.button:focus-visible{background:#ffb092;transform:translateY(-2px)}.text-link{color:var(--ink);text-underline-offset:5px}.hero-art{position:relative;min-height:500px;display:grid;place-items:center}.hero-art:before{content:"";position:absolute;width:min(44vw,490px);height:min(44vw,490px);border-radius:50%;background:radial-gradient(circle,rgba(255,157,125,.15),transparent 64%);filter:blur(12px)}.orb-stage{position:relative;width:min(100%,520px);aspect-ratio:1;display:grid;place-items:center}.orb-ring{position:absolute;inset:7%;border:1px solid var(--line);border-radius:50%;animation:spin 28s linear infinite}.orb-ring:after,.orb-ring:before{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:var(--think);top:4%;left:20%;box-shadow:0 0 20px var(--think)}.orb-ring:after{top:auto;left:auto;right:12%;bottom:16%;background:var(--voice);box-shadow:0 0 20px var(--voice)}.orb-core{width:68%;aspect-ratio:1;border-radius:50%;border:8px solid var(--panel-2);outline:1px solid var(--line);background:radial-gradient(circle at 42% 35%,#38241f 0,#211916 52%,#17110f 72%);display:grid;place-items:center;box-shadow:0 0 80px rgba(255,157,125,.12)}.bars{height:150px;display:flex;gap:17px;align-items:center}.bars span{width:13px;height:var(--h);background:var(--voice);border-radius:9px;box-shadow:0 0 24px rgba(255,157,125,.42);animation:voice 1.15s ease-in-out infinite alternate}.bars span:nth-child(1){--h:44px;animation-delay:-.3s}.bars span:nth-child(2){--h:92px;animation-delay:-.1s}.bars span:nth-child(3){--h:142px}.bars span:nth-child(4){--h:92px;animation-delay:-.18s}.bars span:nth-child(5){--h:44px;animation-delay:-.42s}.art-label{position:absolute;color:var(--muted);font-size:11px;letter-spacing:.16em;text-transform:uppercase}.art-label.one{top:9%;right:1%}.art-label.two{bottom:14%;left:1%}.scroll-note{position:absolute;bottom:4%;font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;display:flex;gap:12px;align-items:center}.scroll-note:before{content:"";height:1px;width:42px;background:var(--voice)}section{padding:120px 0;border-top:1px solid var(--line)}.section-intro{display:grid;grid-template-columns:.7fr 1.3fr;gap:60px;margin-bottom:62px}.kicker{color:var(--think);font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:800}.section-intro h2{font-size:clamp(42px,6vw,88px);line-height:.92;letter-spacing:-.065em;margin:0;max-width:850px}.section-intro p{color:var(--muted);font-size:18px;max-width:470px;margin:20px 0 0}.beats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.beat,.state,.limit,.install-panel,.proof{background:var(--panel);border:1px solid var(--line);padding:26px;min-height:260px;position:relative;overflow:hidden}.beat-number{font-size:12px;color:var(--voice);font-weight:800}.beat h3{font-size:30px;margin:72px 0 7px;letter-spacing:-.04em}.beat p,.state p,.limit p{color:var(--muted);margin:0}.beat-art{height:56px;position:absolute;top:28px;right:25px}.key-shape{width:74px;height:38px;border:3px solid var(--voice);border-radius:7px;position:relative}.key-shape:after{content:"";position:absolute;left:13px;right:13px;bottom:7px;height:3px;background:var(--voice);box-shadow:0 -10px 0 var(--voice)}.wave-shape{display:flex;gap:7px;align-items:center;height:48px}.wave-shape i{width:5px;height:var(--h);background:var(--think);border-radius:4px}.wave-shape i:nth-child(1),.wave-shape i:nth-child(5){--h:13px}.wave-shape i:nth-child(2),.wave-shape i:nth-child(4){--h:31px}.wave-shape i:nth-child(3){--h:46px}.text-shape{border:2px solid var(--voice);width:92px;height:50px;padding:10px}.text-shape:after{content:"";display:block;height:5px;background:var(--voice);box-shadow:0 12px 0 var(--think),0 24px 0 var(--voice)}.local{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}.local-copy{max-width:520px}.local-copy h2{font-size:clamp(44px,6vw,86px);line-height:.9;letter-spacing:-.07em;margin:18px 0 24px}.local-copy p{color:var(--muted);font-size:19px}.machine{min-height:430px;border:1px solid var(--line);background:var(--panel);position:relative;padding:28px;display:grid;place-items:center}.machine-box{width:78%;height:270px;border:3px solid var(--voice);position:relative;padding:28px}.machine-box:before{content:"THIS MACHINE";position:absolute;top:-12px;left:24px;background:var(--panel);padding:0 9px;color:var(--voice);font-size:11px;letter-spacing:.16em}.machine-box .node{position:absolute;border:2px solid var(--think);background:var(--panel);padding:10px 12px;font-size:12px}.node.a{top:31px;left:28px}.node.b{right:28px;top:31px}.node.c{left:50%;bottom:25px;transform:translateX(-50%);border-color:var(--voice)}.arrow{position:absolute;color:var(--muted);font-size:24px}.arrow.a{top:42px;left:45%}.arrow.b{right:45%;top:42px}.arrow.c{left:49%;top:51%;transform:rotate(90deg)}.states{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.state{min-height:205px;padding:20px}.state strong{display:block;margin-bottom:36px;font-size:16px}.mini-pill{height:34px;width:105px;border-radius:20px;border:2px solid var(--line);background:#17110f;display:flex;gap:6px;align-items:center;justify-content:center;margin-bottom:32px}.mini-pill i{width:4px;height:4px;background:var(--voice);border-radius:3px}.mini-pill.voice i{height:18px}.mini-pill.thinking i{animation:travel .8s infinite alternate}.mini-pill.done i{height:3px;width:8px}.mini-pill.failed i:nth-child(3){background:var(--bad);height:17px}.state small{color:var(--muted);font-size:12px}.proof{display:grid;grid-template-columns:1.1fr .9fr;gap:32px;align-items:center;padding:0;overflow:hidden}.proof img{width:100%;height:100%;min-height:330px;object-fit:cover;object-position:left top;display:block;filter:saturate(.8)}.proof-copy{padding:35px}.proof-copy h3{font-size:40px;line-height:.95;letter-spacing:-.06em;margin:15px 0}.proof-copy p{color:var(--muted);font-size:17px}.install{background:var(--voice);color:#1d1310;border:0}.install .section-intro .kicker,.install .section-intro p{color:#5c3026}.install .section-intro h2{color:#1d1310}.install-panel{background:#1d1310;border-color:#6d4439;color:var(--ink)}pre{white-space:pre-wrap;overflow:auto;color:var(--voice);font:600 14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;margin:0}.install-meta{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin-top:20px}.limits{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.limit{min-height:180px}.limit-mark{color:var(--voice);font-size:28px;font-weight:800}.limit h3{font-size:19px;margin:22px 0 5px}.closing{padding:150px 0 80px;text-align:center}.closing h2{font-size:clamp(58px,12vw,160px);letter-spacing:-.1em;line-height:.82;margin:0 auto 42px;max-width:900px}.closing h2 em{font-family:var(--serif);font-weight:400;color:var(--think)}footer{border-top:1px solid var(--line);padding:28px 0;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}@keyframes voice{to{height:calc(var(--h) * .38)}}@keyframes travel{to{transform:translateX(24px)}}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:800px){.wrap{width:min(calc(100% - 32px),var(--max))}.hero{grid-template-columns:1fr;gap:30px;padding-top:24px}.hero-art{min-height:390px;order:-1}.orb-stage{width:min(100%,390px)}.orb-core{border-width:6px}.bars{height:110px;gap:11px}.bars span{width:9px}.section-intro,.local,.proof{grid-template-columns:1fr;gap:25px}.beats,.limits{grid-template-columns:1fr 1fr}.states{grid-template-columns:1fr 1fr}.state:last-child{grid-column:span 2}.proof img{min-height:220px}.proof-copy{padding:26px}.install{padding-top:85px}.closing{padding-top:100px}}@media(max-width:480px){.hero h1{font-size:68px}.hero-art{min-height:320px}.art-label{display:none}.beats,.limits{grid-template-columns:1fr}.state:last-child{grid-column:auto}.states{grid-template-columns:1fr 1fr}.state{min-height:180px}.section-intro h2{font-size:50px}section{padding:85px 0}}
-  </style>
+  <link rel="icon" href="assets/nabria-mark.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/site.css?v=5" as="style">
+  <link rel="stylesheet" href="assets/site.css?v=5">
+  <script src="assets/site.js?v=5" defer></script>
 </head>
 <body>
-  <header class="wrap topbar"><a class="brand" href="./" aria-label="Nabria home"><span class="brand-mark" aria-hidden="true"><i></i></span><span>NABRIA</span></a><a class="lang" href="ar/">العربية / AR</a></header>
-  <main>
-    <section class="wrap hero" aria-labelledby="hero-title">
-      <div><div class="eyebrow">Local voice dictation for Linux</div><h1 id="hero-title">Just<br><em>talk.</em></h1><p class="hero-copy">Press a key. Say what you mean. Press it again. Your words appear wherever you were typing.</p><div class="actions"><a class="button" href="https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh">Install Nabria <span aria-hidden="true">↗</span></a><a class="text-link" href="#how">See how it works</a></div></div>
-      <div class="hero-art" aria-label="Animated five-bar Nabria voice indicator"><div class="orb-stage"><div class="orb-ring"></div><div class="orb-core"><div class="bars" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div></div><span class="art-label one">voice / live</span><span class="art-label two">nothing uploaded</span></div><div class="scroll-note">one key, no noise</div></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header" data-menu-open="false">
+    <div class="wrap header-inner">
+      <a class="brand" href="./" aria-label="Nabria home">
+        <img src="assets/nabria-mark.svg" alt="" width="38" height="38">
+        <span class="brand-name"><strong>Nabria</strong><small lang="ar" dir="rtl">نَبْرة</small></span>
+      </a>
+
+      <nav class="primary-nav" aria-label="Main navigation">
+        <a href="#how">How it works</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#setup">Setup</a>
+        <a href="#install">Install</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="header-link" href="ar/" lang="ar" dir="rtl">العربية</a>
+        <a class="header-link" href="https://github.com/M7MMAD-OMAR/nabria-app">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-github-logo"></use></svg>
+          GitHub
+        </a>
+        <a class="header-download" href="#install">
+          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-download-simple"></use></svg>
+          Install
+        </a>
+      </div>
+
+      <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" data-open-label="Open menu" data-close-label="Close menu"><span></span></button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Voice dictation for Linux</p>
+          <h1 id="hero-title">Just<br><span>talk.</span></h1>
+          <p class="hero-lead">Press once, speak, press again. Nabria types into the app you are already using. Everything stays on your machine.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#install">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-download-simple"></use></svg>
+              Install for Linux
+            </a>
+            <a class="button button-secondary" href="https://github.com/M7MMAD-OMAR/nabria-app">
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-github-logo"></use></svg>
+              View source
+            </a>
+          </div>
+          <ul class="hero-facts" aria-label="Product facts">
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-shield-check"></use></svg>No account</li>
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-linux-logo"></use></svg>Wayland</li>
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-translate"></use></svg>Arabic and English</li>
+          </ul>
+        </div>
+
+        <div class="dictation-stage" aria-label="Nabria typing a spoken sentence into a document">
+          <div class="editor-window">
+            <div class="editor-toolbar">
+              <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="editor-title">Untitled note</span>
+            </div>
+            <div class="editor-body">
+              <p class="editor-label">Your cursor stays here</p>
+              <p class="typed-line">Send the updated notes before Friday.<span class="cursor" aria-hidden="true"></span></p>
+              <p class="editor-note">
+                <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-shield-check"></use></svg>
+                Typed locally by Nabria
+              </p>
+            </div>
+          </div>
+          <div class="nabria-orb" aria-label="Nabria is listening"><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
     </section>
-    <section id="how"><div class="wrap"><div class="section-intro"><div class="kicker">01 / The whole idea</div><div><h2>Three beats.<br>That is all.</h2><p>Nabria does one thing and stays out of the way. No dashboard to manage, no cloud to configure, no second place to write.</p></div></div><div class="beats"><article class="beat"><span class="beat-number">01</span><div class="beat-art key-shape" aria-hidden="true"></div><h3>Press</h3><p>One global shortcut starts a take.</p></article><article class="beat"><span class="beat-number">02</span><div class="beat-art wave-shape" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><h3>Speak</h3><p>The five marks follow your voice.</p></article><article class="beat"><span class="beat-number">03</span><div class="beat-art text-shape" aria-hidden="true"></div><h3>It lands</h3><p>Press again. The words arrive where you were typing.</p></article></div></div></section>
-    <section><div class="wrap local"><div class="local-copy"><div class="kicker">02 / Local by design</div><h2>It stays<br>here.</h2><p>Your audio, model, transcript and history live on your machine. Nabria works with the network off, because dictation should not need a destination.</p></div><div class="machine" aria-label="Diagram showing audio, model and text staying inside this machine"><div class="machine-box"><div class="node a">your voice</div><div class="node b">local model</div><div class="node c">your words</div><span class="arrow a" aria-hidden="true">→</span><span class="arrow b" aria-hidden="true">←</span><span class="arrow c" aria-hidden="true">↓</span></div></div></div></section>
-    <section><div class="wrap"><div class="section-intro"><div class="kicker">03 / The only interface</div><div><h2>Five states.<br>One small pill.</h2><p>The indicator does not steal focus. It simply tells you what is happening, using the same shape the app uses on your desktop.</p></div></div><div class="states"><article class="state"><div class="mini-pill" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><strong>Ready</strong><small>waiting for a key</small></article><article class="state"><div class="mini-pill voice" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><strong>Listening</strong><small>the marks follow you</small></article><article class="state"><div class="mini-pill thinking" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><strong>Thinking</strong><small>the words are becoming text</small></article><article class="state"><div class="mini-pill done" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><strong>Done</strong><small>back to your document</small></article><article class="state"><div class="mini-pill failed" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><strong>Kept</strong><small>audio stays if something fails</small></article></div></div></section>
-    <section><div class="wrap"><div class="proof"><img src="screenshots/en/welcome.png" alt="Nabria setup window showing the model selection step"><div class="proof-copy"><div class="kicker">04 / Real, not staged</div><h3>Small setup.<br>Then disappear.</h3><p>The first launch asks only what it needs: a model, a microphone and a shortcut. After that, Nabria becomes a quiet part of the way you write.</p><a class="text-link" href="https://github.com/M7MMAD-OMAR/nabria-app/tree/main/docs/screenshots">See the setup screens ↗</a></div></div></div></section>
-    <section class="install"><div class="wrap"><div class="section-intro"><div class="kicker">05 / Get it</div><div><h2>One command.<br>Nothing else.</h2><p>Native packages are coming. For now, this installs the same engine and app on a Linux Wayland system.</p></div></div><div class="install-panel"><pre><code>curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh</code></pre><div class="install-meta"><span>Linux · Wayland · x86_64</span><span>MIT licensed · open source</span></div></div></div></section>
-    <section><div class="wrap"><div class="section-intro"><div class="kicker">06 / Be clear</div><div><h2>Honest limits<br>are useful.</h2><p>Built for a focused job, on the system it can actually control.</p></div></div><div class="limits"><article class="limit"><div class="limit-mark">⌁</div><h3>Wayland</h3><p>Linux desktops using Wayland.</p></article><article class="limit"><div class="limit-mark">↗</div><h3>Your shortcut</h3><p>Bind one key in your compositor.</p></article><article class="limit"><div class="limit-mark">◉</div><h3>Your machine</h3><p>CPU by default, discrete Vulkan GPU for the largest model.</p></article><article class="limit"><div class="limit-mark">□</div><h3>No sandbox</h3><p>Native install, because privileged input stays outside a sandbox.</p></article></div></div></section>
-    <section class="wrap closing"><div class="eyebrow">Nabria / نَبْرة</div><h2>Say it.<br><em>Keep moving.</em></h2><a class="button" href="https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh">Start with Nabria <span aria-hidden="true">↗</span></a></section>
+
+    <section class="section section-light" id="how" aria-labelledby="how-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-index">01</span>
+          <div>
+            <h2 class="section-title" id="how-title">Press. Speak. Done.</h2>
+            <p class="section-intro">There is no new place to write. Nabria works wherever your cursor already is.</p>
+          </div>
+        </div>
+
+        <div class="steps">
+          <article class="step">
+            <div class="step-top"><span class="step-number">01</span><span class="step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-keyboard"></use></svg></span></div>
+            <h3>Press your key</h3>
+            <p>One shortcut starts recording.</p>
+          </article>
+          <article class="step">
+            <div class="step-top"><span class="step-number">02</span><span class="step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-microphone"></use></svg></span></div>
+            <h3>Say it normally</h3>
+            <p>The indicator follows your real microphone level.</p>
+          </article>
+          <article class="step">
+            <div class="step-top"><span class="step-number">03</span><span class="step-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-waveform"></use></svg></span></div>
+            <h3>Press again</h3>
+            <p>Your words appear at the cursor.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-dark" id="privacy" aria-labelledby="privacy-title">
+      <div class="wrap privacy-grid">
+        <div class="privacy-copy">
+          <span class="section-index">02</span>
+          <h2 class="section-title" id="privacy-title">Your voice stays yours.</h2>
+          <p>The transcription model runs on your computer. Once setup is finished, dictation works without an internet connection.</p>
+          <ul class="privacy-list">
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>No account</li>
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>No cloud processing</li>
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>Your history stays on disk</li>
+          </ul>
+        </div>
+
+        <div class="machine-panel" aria-label="Voice is transcribed inside your machine">
+          <div class="machine-label">
+            <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-shield-check"></use></svg>
+            Inside your machine
+          </div>
+          <div class="machine-flow">
+            <div class="machine-node"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-microphone"></use></svg><span>Your voice</span></div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="machine-node"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-waveform"></use></svg><span>Local model</span></div>
+            <span class="flow-arrow" aria-hidden="true">→</span>
+            <div class="machine-node"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-terminal-window"></use></svg><span>Your words</span></div>
+          </div>
+          <div class="machine-foot">Nothing in this path needs a server.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-coral" aria-labelledby="language-title">
+      <div class="wrap language-grid">
+        <div class="language-copy">
+          <span class="section-index">03</span>
+          <h2 class="section-title" id="language-title">Arabic is not an afterthought.</h2>
+          <p>The app is written in Arabic and English. The language you speak is separate from the language you see.</p>
+        </div>
+
+        <div class="language-demo">
+          <div class="language-demo-label"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-translate"></use></svg>One app, two interfaces</div>
+          <p class="arabic-sample" lang="ar" dir="rtl">بعتلي النسخة الجديدة قبل الجمعة.</p>
+          <p class="english-sample">Send me the new version before Friday.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-light" id="setup" aria-labelledby="setup-title">
+      <div class="wrap setup-grid">
+        <div class="setup-copy">
+          <span class="section-index">04</span>
+          <h2 class="section-title" id="setup-title">Set it up. Then forget it.</h2>
+          <p>Choose a model, test the microphone and bind your shortcut. After that, Nabria stays out of the way.</p>
+          <ul class="setup-notes">
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>Picks a model for your hardware</li>
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>Finds models already on your machine</li>
+            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>Tests the microphone before you finish</li>
+          </ul>
+        </div>
+
+        <figure class="screenshot-frame">
+          <img src="screenshots/en/welcome.png" alt="Nabria welcome screen explaining how local dictation works" width="746" height="341" loading="lazy">
+          <figcaption class="screenshot-caption"><span>The real welcome screen, captured from a clean profile.</span><a href="https://github.com/M7MMAD-OMAR/nabria-app/tree/main/docs/screenshots">All screenshots</a></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section section-gold" id="install" aria-labelledby="install-title">
+      <div class="wrap install-grid">
+        <div class="install-copy">
+          <span class="section-index">05</span>
+          <h2 class="section-title" id="install-title">Choose your distro.</h2>
+          <p>The packages include the app and transcription engine. Setup downloads only the model that fits your machine.</p>
+        </div>
+
+        <div class="install-shell" data-install-tabs>
+          <div class="install-tabs" role="tablist" aria-label="Installation method">
+            <button class="install-tab" id="tab-fedora" type="button" role="tab" aria-selected="true" aria-controls="panel-fedora">Fedora</button>
+            <button class="install-tab" id="tab-debian" type="button" role="tab" aria-selected="false" aria-controls="panel-debian" tabindex="-1">Debian / Ubuntu</button>
+            <button class="install-tab" id="tab-arch" type="button" role="tab" aria-selected="false" aria-controls="panel-arch" tabindex="-1">Arch</button>
+            <button class="install-tab" id="tab-other" type="button" role="tab" aria-selected="false" aria-controls="panel-other" tabindex="-1">Other</button>
+          </div>
+
+          <div class="command-panel" id="panel-fedora" role="tabpanel" aria-labelledby="tab-fedora">
+            <pre class="command-line">sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm</pre>
+            <div class="command-actions"><span class="command-meta">Fedora and dnf-based distributions</span><button class="copy-button" type="button" data-copy-command data-copied="Copied"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-copy"></use></svg><span>Copy command</span></button></div>
+          </div>
+          <div class="command-panel" id="panel-debian" role="tabpanel" aria-labelledby="tab-debian" hidden>
+            <pre class="command-line">wget https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.deb && sudo apt install ./nabria.deb</pre>
+            <div class="command-actions"><span class="command-meta">Debian, Ubuntu and apt-based distributions</span><button class="copy-button" type="button" data-copy-command data-copied="Copied"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-copy"></use></svg><span>Copy command</span></button></div>
+          </div>
+          <div class="command-panel" id="panel-arch" role="tabpanel" aria-labelledby="tab-arch" hidden>
+            <pre class="command-line">yay -S nabria</pre>
+            <div class="command-actions"><span class="command-meta">Available from the AUR</span><button class="copy-button" type="button" data-copy-command data-copied="Copied"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-copy"></use></svg><span>Copy command</span></button></div>
+          </div>
+          <div class="command-panel" id="panel-other" role="tabpanel" aria-labelledby="tab-other" hidden>
+            <pre class="command-line">curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh</pre>
+            <div class="command-actions"><span class="command-meta">User install for other distributions</span><button class="copy-button" type="button" data-copy-command data-copied="Copied"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-copy"></use></svg><span>Copy command</span></button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="requirements" aria-label="System requirements">
+      <ul class="wrap requirements-list">
+        <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-linux-logo"></use></svg>Linux</li>
+        <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-terminal-window"></use></svg>Wayland</li>
+        <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-microphone"></use></svg>PipeWire microphone</li>
+        <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-shield-check"></use></svg>MIT licensed</li>
+      </ul>
+    </div>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <div class="wrap">
+        <h2 class="closing-title" id="closing-title">Say it.<br><span>Keep moving.</span></h2>
+        <a class="button button-primary" href="#install"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-download-simple"></use></svg>Install Nabria</a>
+      </div>
+    </section>
   </main>
-  <footer class="wrap"><span>NABRIA · local voice dictation for Linux</span><span class="mono">github.com/M7MMAD-OMAR/nabria-app</span></footer>
+
+  <footer class="site-footer">
+    <div class="wrap footer-main">
+      <a class="footer-brand" href="./"><img src="assets/nabria-mark.svg" alt="" width="36" height="36"><span><strong>Nabria</strong><small>Local voice dictation for Linux</small></span></a>
+      <nav class="footer-links" aria-label="Footer navigation"><a href="https://github.com/M7MMAD-OMAR/nabria-app">Source</a><a href="https://github.com/M7MMAD-OMAR/nabria-app/blob/main/README.md">Docs</a><a href="https://github.com/M7MMAD-OMAR/nabria-app/blob/main/LICENSE">MIT licence</a></nav>
+      <a class="sbarah-link" href="https://sbarah.com" aria-label="Visit Sbarah"><span>A Sbarah project</span><img src="assets/sbarah-logo.svg" alt="Sbarah" width="70" height="37"></a>
+    </div>
+    <div class="wrap footer-bottom"><span>Nothing leaves your machine.</span><span>Duotone icons by <a href="https://phosphoricons.com">Phosphor</a>.</span></div>
+  </footer>
 </body>
 </html>

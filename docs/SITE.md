@@ -7,7 +7,7 @@ the source of truth for the landing page's visual and content decisions.
 
 | | |
 |---|---|
-| Style | **everything is drawn.** Shapes, strokes, no photographs, no screenshots |
+| Style | product story drawn from the orb geometry; setup shown with real screenshots |
 | Scale | large — a section should read from across the room |
 | Text | almost none. Labels and numbers, not sentences |
 | Job | say what it is, show it working, hand over a download |
@@ -55,8 +55,9 @@ application instead of like a page about it.
 `4px` for anything secondary, and nothing thinner — a hairline breaks the
 "drawn at size" reading and disappears on a phone.
 
-**Dark only.** The palette is a dark theme; a light variant would be a second
-design to keep true. The page and the product should be the same object.
+**Dark is the anchor, not the only ground.** The hero, privacy section and
+footer use the app's dark palette. Warm cream, coral and gold sections separate
+the product story without introducing colours outside the shipped palette.
 
 ## Sections
 
@@ -147,11 +148,12 @@ that cannot work.
 |---|---|
 | where | GitHub Pages, `main` branch, `/docs` folder |
 | why there | no workflow, no build, nothing that can fail — the objection to CI applies here too |
-| files | `docs/index.html`, `docs/ar/index.html`, `docs/.nojekyll` |
+| pages | `docs/index.html`, `docs/ar/index.html`, `docs/.nojekyll` |
 | domain | `nabria.sbarah.com` via CNAME, later |
-| assets | inline SVG, inline CSS. No framework, no image files |
-| script | none. The hero animates with CSS keyframes |
-| budget | one file under 60 KB, one request |
+| assets | shared CSS and JS, generated Nabria SVG mark, social image, real setup screenshots |
+| icons | local Phosphor Duotone sprite with the upstream MIT licence |
+| script | mobile menu, install tabs and command copy only |
+| budget | static files, no framework and no build step |
 
 `.nojekyll` is not optional: Pages runs Jekyll on a branch source by default,
 which would try to render `docs/DESIGN.md` and `docs/SITE.md` as pages.

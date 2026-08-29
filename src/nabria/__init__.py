@@ -5,4 +5,4 @@
 # way scripts/release-engine.sh derives its release name from engine/VERSION.
 # Before that check existed this said 0.1.0 while v0.2.0 was tagged, and
 # nothing anywhere noticed.
-__version__ = "0.4.1"
+__version__ = "0.4.2"

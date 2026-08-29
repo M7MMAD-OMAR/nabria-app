@@ -213,16 +213,24 @@ menu, cloud sync, a plugin system. There is one key and it types what you said.
 ## Known limits
 
 - **Wayland only.** X11 is not supported and is not planned.
-- **GNOME**, and anywhere `gtk4-layer-shell` is missing, gets an ordinary
-  window for the indicator instead of one that floats above everything. It
-  still works; it can be covered. Ubuntu 24.04 does not package the GTK4 layer
-  shell at all.
+- **On GNOME the indicator is an ordinary window** rather than one that floats
+  above everything. It still works; it can be covered. This is not a missing
+  package and installing anything will not change it — measured on a stock
+  GNOME session with the layer-shell library present and loading, because
+  Mutter does not implement the protocol at all. KDE Plasma does, and gets the
+  overlay. Ubuntu 24.04 does not package the library, and there the fallback is
+  the ordinary one.
 - **Flatpak is not possible.** Compositors refuse privileged Wayland protocols
   to sandboxed clients, and the three this depends on — layer shell, virtual
   keyboard, clipboard reading — are all withheld. Measured, not assumed; see
   [docs/DESIGN.md](docs/DESIGN.md).
-- **The shortcut is manual.** There is no cross-desktop way to register a
-  global hotkey on Wayland yet.
+- **The shortcut is usually manual.** There is still no way to register a
+  global hotkey that works on every Wayland desktop, so the setup step is
+  written for the general case: it tells you the line and, where the desktop
+  keeps its shortcuts in a file, offers to write it for you. Both GNOME and
+  KDE Plasma now carry the `GlobalShortcuts` portal, which the app uses in
+  addition when it is there — [docs/DESKTOPS.md](docs/DESKTOPS.md) records what
+  each desktop was measured to provide.
 
 ## Contributing
 
