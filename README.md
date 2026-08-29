@@ -249,6 +249,17 @@ packaging bug so far was found. CI runs the same script, so a green tick
 confirms what you already know rather than being the only place the truth
 exists. Everything works offline with `podman` or `docker` installed.
 
+## Support the work
+
+Nabria is free, MIT, and runs entirely on your own machine — there is no
+account to sell you and no usage to meter, which is the point of it and also
+the reason there is nothing behind it but time.
+
+If it saved you some, you can [buy me a coffee](https://buymeacoffee.com/m7mmadomar).
+
+A report of a distribution or desktop it does not work on is worth as much;
+those are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Licence
 
 MIT. It builds [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT) and

@@ -33,7 +33,6 @@
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: calc(var(--header-height) + 20px);
 }
 
 [id] {
@@ -546,7 +545,7 @@ html[dir="rtl"] .nabria-orb {
 }
 
 .section {
-  padding-block: clamp(92px, 11vw, 150px);
+  padding-block: clamp(80px, 8vw, 120px);
 }
 
 .section-light {
@@ -837,7 +836,7 @@ html[dir="rtl"] .flow-arrow {
 
 .setup-grid {
   display: grid;
-  grid-template-columns: 0.72fr 1.28fr;
+  grid-template-columns: 0.9fr 1.1fr;
   gap: clamp(54px, 7vw, 92px);
   align-items: center;
 }
@@ -897,7 +896,7 @@ html[dir="rtl"] .flow-arrow {
   gap: 16px;
   border-block-start: 1px solid var(--line-light);
   color: var(--muted-dark);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .install-grid {
@@ -1059,7 +1058,7 @@ html[dir="rtl"] .flow-arrow {
 }
 
 .closing {
-  padding-block: clamp(100px, 12vw, 170px);
+  padding-block: clamp(92px, 10vw, 140px);
   text-align: center;
 }
 
@@ -1080,6 +1079,10 @@ html[dir="rtl"] .closing-title {
 
 .closing .button {
   margin-block-start: 42px;
+}
+
+html[dir="rtl"] .closing .button {
+  margin-block-start: 64px;
 }
 
 .site-footer {
