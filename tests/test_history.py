@@ -14,8 +14,14 @@ import pytest
 
 @pytest.fixture
 def history(fresh_config):
-    # history binds DATA_DIR at import time, so it has to be reloaded after
-    # the config module has been pointed at the temporary tree.
+    """The module, pointed at the temporary tree.
+
+    The reload is belt to the braces of `history._path()` resolving the
+    directory per call. It used to be the only thing standing between this
+    suite and the transcripts of whoever ran it -- and it only protected the
+    tests that asked for this fixture. One that imported the module directly
+    deleted thirty-eight real ones.
+    """
     from nabria import history as module
 
     return importlib.reload(module)
@@ -45,7 +51,7 @@ def test_missing_file_is_not_an_error(history):
 
 def test_a_corrupt_line_does_not_hide_the_rest(history):
     history.append("good one", 1.0, 0.1)
-    with history.HISTORY_PATH.open("a", encoding="utf-8") as sink:
+    with history._path().open("a", encoding="utf-8") as sink:
         sink.write("{ truncated write from a crash\n")
     history.append("newer one", 1.0, 0.1)
 
@@ -55,7 +61,7 @@ def test_a_corrupt_line_does_not_hide_the_rest(history):
 
 def test_arabic_is_stored_readable(history):
     history.append("مرحبا كيف حالك", 1.0, 0.1)
-    raw = history.HISTORY_PATH.read_text(encoding="utf-8")
+    raw = history._path().read_text(encoding="utf-8")
     assert "مرحبا كيف حالك" in raw
 
 
@@ -70,6 +76,24 @@ def test_audio_path_is_recorded_only_when_there_is_one(history):
 def test_the_log_is_trimmed(history):
     for index in range(history.KEEP_LINES + 50):
         history.append(f"line {index}", 1.0, 0.1)
-    lines = history.HISTORY_PATH.read_text(encoding="utf-8").splitlines()
+    lines = history._path().read_text(encoding="utf-8").splitlines()
     assert len(lines) == history.KEEP_LINES
     assert history.last() == f"line {history.KEEP_LINES + 49}"  # newest survives
+
+
+def test_the_transcripts_follow_the_temporary_profile(history, tmp_path):
+    """The guard for the worst thing this suite has ever done.
+
+    `HISTORY_PATH` was resolved at import and `fresh_config` reloaded only
+    `config`, so a test that wrote or deleted history reached the *real* one.
+    A test of `history.clear()` deleted thirty-eight of the author's own
+    transcripts, and there was no snapshot to get them back from.
+
+    So the path is resolved per call now, and this asserts the property
+    directly rather than trusting the fixture to have reloaded the right list
+    of modules.
+    """
+    assert history._path().is_relative_to(tmp_path)
+    history.append("under test", 1.0, 1.0)
+    assert history._path().exists()
+    assert history._path().is_relative_to(tmp_path)

@@ -63,6 +63,44 @@ def _model_label(name: str) -> str:
     return f"{i18n.ltr(model.key)} — {i18n.t(model.summary)}"
 
 
+class _Confirm(Gtk.Button):
+    """A button that asks before it does it, without a dialog.
+
+    Press once and it becomes the question; press again and it happens;
+    press anything else, or leave, and it goes back to being a button. That is
+    the whole mechanism, and it is here rather than `Gtk.AlertDialog` because
+    that arrived in GTK 4.10 and Debian stable ships 4.8 -- so a dialog means
+    two code paths for one question, on a control whose entire job is to be
+    unambiguous.
+
+    It also reads better for what these actually are. Deleting a 1.6 GB model
+    or every transcript you have ever taken deserves a second press; it does
+    not deserve a modal window over the top of the thing you were looking at.
+    """
+
+    def __init__(self, label: str, question: str, on_confirm):
+        super().__init__(label=label)
+        self.quiet = label
+        self.question = question
+        self.on_confirm = on_confirm
+        self.armed = False
+        self.connect("clicked", self._pressed)
+
+    def _pressed(self, _button) -> None:
+        if not self.armed:
+            self.armed = True
+            self.set_label(self.question)
+            self.add_css_class("destructive-action")
+            return
+        self.disarm()
+        self.on_confirm()
+
+    def disarm(self) -> None:
+        self.armed = False
+        self.set_label(self.quiet)
+        self.remove_css_class("destructive-action")
+
+
 class SettingsWindow(Gtk.ApplicationWindow):
     def __init__(
         self,
@@ -179,6 +217,50 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self.record_source = 0
         return False
 
+    def _retitle_delete(self) -> None:
+        """Name the model in the question, and say when it is the last one.
+
+        "Delete?" over a combo box is a question about whichever entry happens
+        to be selected, which is exactly the ambiguity a confirmation exists to
+        remove.
+        """
+        index = self.model_combo.get_active()
+        if not 0 <= index < len(self.model_paths):
+            self.delete_model.set_sensitive(False)
+            return
+        self.delete_model.set_sensitive(True)
+        name = Path(self.model_paths[index]).stem.removeprefix("ggml-")
+        self.delete_model.question = i18n.t(
+            "settings.model.remove.confirm", model=i18n.ltr(name)
+        )
+        self.delete_model.disarm()
+
+    def _remove_model(self) -> None:
+        index = self.model_combo.get_active()
+        if not 0 <= index < len(self.model_paths):
+            return
+        path = Path(self.model_paths[index])
+        freed = 0
+        with contextlib.suppress(OSError):
+            freed = path.stat().st_size
+        if not models.remove(path):
+            return
+
+        self.model_paths.pop(index)
+        self.model_combo.remove(index)
+        message = i18n.t("settings.model.removed", megabytes=round(freed / 1_000_000))
+        if not self.model_paths:
+            # Not an error, and not a state to leave silently: `needs_setup`
+            # opens the wizard when there is no model, so say that is what will
+            # happen rather than letting a window appear out of nowhere.
+            message += " " + i18n.t("settings.model.remove.last")
+        else:
+            self.model_combo.set_active(0)
+            self.on_change("model", self.model_paths[0])
+        self.model_note.set_text(message)
+        self.model_note.set_visible(True)
+        self._retitle_delete()
+
     # -- engine ------------------------------------------------------------
 
     def _engine_page(self) -> Gtk.Widget:
@@ -193,8 +275,27 @@ class SettingsWindow(Gtk.ApplicationWindow):
         if current in self.model_paths:
             self.model_combo.set_active(self.model_paths.index(current))
         self.model_combo.connect("changed", self._on_model_changed)
-        box.append(_row(i18n.t("settings.model"), self.model_combo))
+
+        # A model is the largest thing this program puts on anyone's disk --
+        # 1.6 GB at the top of the catalogue -- and until now the only way to
+        # get that back was to know where the directory was. Something that can
+        # spend a gigabyte and a half without asking should be able to give it
+        # back without being read about.
+        picker = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.model_combo.set_hexpand(True)
+        picker.append(self.model_combo)
+        self.delete_model = _Confirm(
+            i18n.t("settings.model.remove"), i18n.t("settings.model.remove.confirm",
+                                                    model=""), self._remove_model,
+        )
+        picker.append(self.delete_model)
+        box.append(_row(i18n.t("settings.model"), picker))
+
+        self.model_note = _hint("")
+        self.model_note.set_visible(False)
+        box.append(self.model_note)
         box.append(_hint(i18n.t("settings.model.hint")))
+        self._retitle_delete()
 
         box.append(_row(i18n.t("settings.language"),
                         self._picker("language", LANGUAGES)))
@@ -245,6 +346,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         return combo
 
     def _on_model_changed(self, combo: Gtk.ComboBoxText) -> None:
+        self._retitle_delete()
         index = combo.get_active()
         if 0 <= index < len(self.model_paths):
             self.on_change("model", self.model_paths[index])
@@ -373,22 +475,62 @@ class SettingsWindow(Gtk.ApplicationWindow):
 
     def _history_page(self) -> Gtk.Widget:
         box = _page()
-        listbox = Gtk.ListBox()
-        listbox.set_selection_mode(Gtk.SelectionMode.NONE)
-
-        records = history.recent(200)
-        if not records:
-            listbox.append(
-                Gtk.Label(label=i18n.t("settings.no_transcripts"), margin_top=12)
-            )
-        for record in records:
-            listbox.append(_history_row(record))
+        self.history_list = Gtk.ListBox()
+        self.history_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._fill_history()
 
         scroller = Gtk.ScrolledWindow()
         scroller.set_vexpand(True)
-        scroller.set_child(listbox)
+        scroller.set_child(self.history_list)
         box.append(scroller)
+
+        # Every word ever dictated on this machine is on this tab, and the
+        # audio for any of it that was kept is beside it. A program that keeps
+        # that has to be able to let go of it, in the window where it is being
+        # looked at -- not by explaining which directory to empty.
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        row.set_halign(Gtk.Align.END)
+        self.clear_history = _Confirm(
+            i18n.t("settings.history.clear"),
+            i18n.t("settings.history.clear.confirm", count=0),
+            self._clear_history,
+        )
+        row.append(self.clear_history)
+        box.append(row)
+
+        self.history_note = _hint("")
+        self.history_note.set_visible(False)
+        box.append(self.history_note)
+        self._retitle_clear()
         return box
+
+    def _fill_history(self) -> None:
+        while (child := self.history_list.get_first_child()) is not None:
+            self.history_list.remove(child)
+        records = history.recent(200)
+        if not records:
+            self.history_list.append(
+                Gtk.Label(label=i18n.t("settings.no_transcripts"), margin_top=12)
+            )
+        for record in records:
+            self.history_list.append(_history_row(record))
+
+    def _retitle_clear(self) -> None:
+        """Say how many, because "delete all" is a different question at 3
+        transcripts than at two thousand."""
+        count = len(history.recent(history.KEEP_LINES))
+        self.clear_history.set_sensitive(count > 0)
+        self.clear_history.question = i18n.t(
+            "settings.history.clear.confirm", count=count
+        )
+        self.clear_history.disarm()
+
+    def _clear_history(self) -> None:
+        history.clear()
+        self._fill_history()
+        self.history_note.set_text(i18n.t("settings.history.cleared"))
+        self.history_note.set_visible(True)
+        self._retitle_clear()
 
 
 def _history_row(record: dict) -> Gtk.Widget:

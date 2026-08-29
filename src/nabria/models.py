@@ -473,6 +473,29 @@ def download(
     return target
 
 
+def remove(path: Path) -> bool:
+    """Delete a model file. Returns whether there was one to delete.
+
+    These are the largest thing this program puts on anybody's disk -- 1.6 GB
+    for the top of the catalogue -- and until now the only way to get that back
+    was to know where the directory was. An application that can spend a
+    gigabyte and a half without asking should be able to give it back without
+    being read about.
+
+    `unlink` and not a check-then-delete: a link this program adopted may
+    already point at nothing, and `missing_ok` covers both that and the file
+    having gone in between.
+    """
+    try:
+        # `is_symlink` first, because a link whose target is gone does not
+        # `exist()` and still has to go.
+        existed = path.is_symlink() or path.exists()
+        path.unlink(missing_ok=True)
+    except OSError:
+        return False
+    return existed
+
+
 def _cli() -> int:
     """`python3 -m nabria.models [key]` -- used by scripts/install.sh."""
     import sys

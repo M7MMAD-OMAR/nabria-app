@@ -76,13 +76,30 @@ def fresh_config(xdg, monkeypatch):
 
     from nabria import config
 
-    yield importlib.reload(config)
+    # Every module that copies a path out of `config` at *import* time has to
+    # be reloaded with it, or it keeps pointing at the real one. This is not
+    # hypothetical and it is not cheap when it happens: `history.HISTORY_PATH`
+    # was bound at import and not reloaded here, so a test that called
+    # `history.clear()` deleted the transcripts of whoever was running the
+    # suite. Thirty-eight of them, on the machine this line was written on,
+    # with no snapshot to get them back from.
+    #
+    # The modules themselves now resolve these lazily -- see `history._path` --
+    # so this is the second guard rather than the only one.
+    dependents = ["history"]
+
+    reloaded = importlib.reload(config)
+    for name in dependents:
+        importlib.reload(importlib.import_module(f"nabria.{name}"))
+    yield reloaded
     # The environment has to go back before the reload, not after: monkeypatch
     # undoes its own changes only once every fixture that depends on it has
     # finished, so a reload here would otherwise re-read the temporary paths
     # and restore nothing.
     monkeypatch.undo()
     importlib.reload(config)
+    for name in dependents:
+        importlib.reload(importlib.import_module(f"nabria.{name}"))
 
 
 def write_wav(path: Path, samples: list[int], rate: int = 16_000) -> Path:

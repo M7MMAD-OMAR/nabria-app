@@ -75,7 +75,7 @@
                 <ul class="distro-menu" role="listbox" aria-label="Linux distribution" hidden>
                   <li role="option" tabindex="0" aria-selected="true" data-command="sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm">Fedora</li>
                   <li role="option" tabindex="0" aria-selected="false" data-command="wget https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.deb &amp;&amp; sudo apt install ./nabria.deb">Debian / Ubuntu</li>
-                  <li role="option" tabindex="0" aria-selected="false" data-command="yay -S nabria">Arch</li>
+                  <li role="option" tabindex="0" aria-selected="false" data-command="git clone https://github.com/M7MMAD-OMAR/nabria-app.git &amp;&amp; cd nabria-app/packaging &amp;&amp; makepkg -si">Arch</li>
                   <li role="option" tabindex="0" aria-selected="false" data-command="curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh">Other</li>
                 </ul>
               </div>
@@ -244,7 +244,7 @@
             <div class="command-actions"><span class="command-meta">Debian, Ubuntu and apt-based distributions</span><button class="copy-button" type="button" data-copy-command data-copied="Copied"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-copy"></use></svg><span>Copy command</span></button></div>
           </div>
           <div class="command-panel" id="panel-arch" role="tabpanel" aria-labelledby="tab-arch" hidden>
-            <pre class="command-line">yay -S nabria</pre>
+            <pre class="command-line">git clone https://github.com/M7MMAD-OMAR/nabria-app.git &amp;&amp; cd nabria-app/packaging &amp;&amp; makepkg -si</pre>
             <div class="command-actions"><span class="command-meta">Available from the AUR</span><button class="copy-button" type="button" data-copy-command data-copied="Copied"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-copy"></use></svg><span>Copy command</span></button></div>
           </div>
           <div class="command-panel" id="panel-other" role="tabpanel" aria-labelledby="tab-other" hidden>

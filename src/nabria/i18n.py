@@ -452,6 +452,29 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "أغلق هذه النافذة وافتحها لترى التغيير. منفصلة عن اللغة أعلاه، "
               "وهي اللغة التي تتكلمها.",
     },
+    "settings.model.remove": {"en": "Delete", "ar": "احذف"},
+    "settings.model.remove.confirm": {
+        "en": "Delete {model} from this machine?",
+        "ar": "حذف {model} من هذا الجهاز؟",
+    },
+    "settings.model.removed": {
+        "en": "Deleted. {megabytes} MB is back.",
+        "ar": "حُذف. عاد {megabytes} م.ب.",
+    },
+    "settings.model.remove.last": {
+        "en": "This is the only model installed. Setup will open and offer to "
+              "fetch another.",
+        "ar": "هذا النموذج الوحيد المثبَّت. سيُفتح الإعداد ويعرض جلب غيره.",
+    },
+    "settings.history.clear": {"en": "Delete all", "ar": "احذف الكل"},
+    "settings.history.clear.confirm": {
+        "en": "Delete {count} transcripts and their audio?",
+        "ar": "حذف {count} تفريغًا وملفاتها الصوتية؟",
+    },
+    "settings.history.cleared": {
+        "en": "Deleted. Nothing of what you said is left on this machine.",
+        "ar": "حُذفت. لم يبقَ على هذا الجهاز شيء مما قلته.",
+    },
     "settings.record.start": {"en": "Start speaking", "ar": "ابدأ الكلام"},
     "settings.record.stop": {"en": "Stop and type it", "ar": "أوقِف واكتبه"},
     "settings.record.working": {"en": "Typing it…", "ar": "يكتبه…"},

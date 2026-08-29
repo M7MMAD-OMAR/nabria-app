@@ -6,6 +6,7 @@
 #
 #   scripts/install.sh [--model KEY] [--no-model] [--no-engine] [--no-service]
 #   scripts/install.sh --uninstall    remove it, keeping config, models, history
+#   scripts/install.sh --uninstall --purge   ... and remove those too
 set -euo pipefail
 
 project_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -22,6 +23,7 @@ do_model=yes
 do_engine=yes
 do_service=yes
 do_uninstall=no
+do_purge=no
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -30,6 +32,7 @@ while [ $# -gt 0 ]; do
     --no-engine) do_engine=no; shift ;;
     --no-service) do_service=no; shift ;;
     --uninstall) do_uninstall=yes; shift ;;
+    --purge) do_purge=yes; shift ;;
     -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -71,15 +74,33 @@ if [ "$do_uninstall" = yes ]; then
   python3 -m nabria.shortcut --unbind 2>/dev/null | while read -r line; do
     ok "$line"
   done || true
-  # Config, models and transcripts are deliberately left. Removing an install
-  # is not the same as asking to lose a 1.6 GB model and every transcript ever
-  # taken, and there is no way to get either of them back.
+  # Config, models and transcripts are deliberately left unless asked for.
+  # Removing an install is not the same as asking to lose a 1.6 GB model and
+  # every transcript ever taken, and there is no way to get either of them
+  # back -- so the destructive half is a separate word you have to type.
+  if [ "$do_purge" = yes ]; then
+    say "Removing your data as well"
+    for path in \
+      "${XDG_CONFIG_HOME:-$HOME/.config}/nabria" \
+      "${XDG_DATA_HOME:-$HOME/.local/share}/nabria" \
+      "${XDG_STATE_HOME:-$HOME/.local/state}/nabria"
+    do
+      if [ -e "$path" ]; then
+        rm -rf "$path"
+        ok "removed $path"
+      fi
+    done
+    echo
+    echo "  Nothing of what you said is left on this machine."
+    exit 0
+  fi
+
   say "Left alone"
-  echo "  $HOME/.config/nabria      settings"
-  echo "  $HOME/.local/share/nabria models and transcripts"
-  echo "  $HOME/.local/state/nabria the log"
+  echo "  ${XDG_CONFIG_HOME:-$HOME/.config}/nabria      settings"
+  echo "  ${XDG_DATA_HOME:-$HOME/.local/share}/nabria models and transcripts"
+  echo "  ${XDG_STATE_HOME:-$HOME/.local/state}/nabria the log"
   echo
-  echo "  Delete those by hand if you want them gone."
+  echo "  Add --purge to remove those too."
   exit 0
 fi
 

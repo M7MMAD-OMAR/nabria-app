@@ -112,3 +112,92 @@ def test_destroying_the_window_stops_the_poll_too(application, fresh_config):
     # nothing touches the destroyed window on the way out.
     assert window._refresh_record() == GLib.SOURCE_REMOVE
     assert window.record_source == 0
+
+
+# -- letting go of things -----------------------------------------------------
+
+
+def test_a_destructive_button_asks_before_it_does_it(application, fresh_config):
+    """Two presses, and no dialog.
+
+    `Gtk.AlertDialog` arrived in GTK 4.10 and Debian stable ships 4.8, so a
+    dialog here would be two code paths for one question -- on a control whose
+    entire job is to be unambiguous.
+    """
+    done = []
+    button = settings_window._Confirm("Delete", "Really delete?", lambda: done.append(1))
+
+    button.emit("clicked")
+    assert button.get_label() == "Really delete?"
+    assert button.has_css_class("destructive-action")
+    assert done == [], "one press was enough, which is the bug this prevents"
+
+    button.emit("clicked")
+    assert done == [1]
+    assert button.get_label() == "Delete", "it stayed armed after doing it"
+    assert not button.has_css_class("destructive-action")
+
+
+def test_deleting_the_transcripts_takes_the_audio_with_them(fresh_config, tmp_path):
+    """Otherwise nothing that matters has been deleted.
+
+    `keep_audio` leaves a recording of everything ever said in the room. A
+    person who deleted their transcripts and was left with the audio has been
+    told something untrue.
+    """
+    from nabria import history
+
+    # Asserted, not assumed. This test deleted the author's own transcripts
+    # when the path was resolved at import and this file imported the module
+    # directly instead of through the fixture that reloaded it.
+    assert history._path().is_relative_to(tmp_path)
+
+    audio = fresh_config.STATE_DIR / "take-1.wav"
+    audio.parent.mkdir(parents=True, exist_ok=True)
+    audio.write_bytes(b"RIFF....")
+    failed = fresh_config.STATE_DIR / "failed" / "take-2.wav"
+    failed.parent.mkdir(parents=True, exist_ok=True)
+    failed.write_bytes(b"RIFF....")
+
+    history.append("something said out loud", 2.0, 1.0, audio=str(audio))
+    assert history.recent(10)
+
+    assert history.clear() == 1
+    assert history.recent(10) == []
+    assert not audio.exists()
+    # Nothing in the log ever pointed at this one -- it is a take that could
+    # not be transcribed, which is exactly why it was kept.
+    assert not failed.exists()
+
+
+def test_removing_a_model_gives_the_disk_back(fresh_config):
+    from nabria import models
+
+    fresh_config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    model = fresh_config.MODEL_DIR / "ggml-base.bin"
+    model.write_bytes(b"lmgg" + b"\0" * 100)
+
+    assert models.remove(model) is True
+    assert models.models_in(fresh_config.MODEL_DIR) == []
+    # Twice is not an error: the file is gone either way, which is what was
+    # asked for.
+    assert models.remove(model) is False
+
+
+def test_removing_a_model_whose_link_is_already_dead(fresh_config, tmp_path):
+    """`exists()` is False for a dangling link and the name is still taken.
+
+    `adopt` leaves one of these when the original is deleted, and a delete
+    button that cannot clear it would leave a name nothing can reuse.
+    """
+    from nabria import models
+
+    fresh_config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    gone = tmp_path / "gone.bin"
+    gone.write_bytes(b"lmgg")
+    link = fresh_config.MODEL_DIR / "ggml-x.bin"
+    link.symlink_to(gone)
+    gone.unlink()
+
+    assert models.remove(link) is True
+    assert not link.is_symlink()
