@@ -286,10 +286,14 @@ updating; it does not solve the signature.
 3. ~~**Default model.**~~ Decided by hardware — see the table above.
 4. ~~**Licence.**~~ MIT, chosen rather than asked about since it was the last
    thing blocking Phase 0. Apache-2.0 remains an easy change.
-5. **Arabic-first or language-neutral?** Still open. `language` defaults to
-   `auto` in a fresh config, and the Levantine prompt is not shipped — it is
-   the real differentiator and nobody gets it without being told. Ship it as an
-   Arabic preset detected from the locale?
+5. ~~**Arabic-first or language-neutral?**~~ Detected, offered, never forced.
+   The interface comes up in the desktop's own language, the setup wizard
+   preselects that language for dictation as well, and choosing Arabic ships
+   the Levantine prompt with it — so an Arabic desktop gets the thing that
+   makes this good at Arabic without anybody having to be told it exists, and
+   an English one is not given a dialect prompt it has no use for. Neither is
+   derived from the other afterwards: `language` is what you speak and
+   `ui_language` is what the windows are worded in.
 6. ~~**Who builds the engine?**~~ Nobody: `scripts/release-engine.sh` publishes
    it and the installer fetches it. Compiling is the fallback.
 
@@ -327,3 +331,33 @@ updating; it does not solve the signature.
   README and 404ed it. And `__version__` said 0.1.0 with `v0.2.0` tagged, with
   nothing reading either — `release.sh` now refuses a tag that disagrees with
   the source, which is how the mismatch was found.
+- **2026-08-29** — Setup will now use a model that is already on the machine
+  rather than fetching it again: it searches the directories the format owns,
+  identifies the known ones by size, gates every candidate on the four bytes
+  every ggml file starts with, and **links** what is chosen rather than
+  copying it — a hard link where the filesystem allows one, because that is
+  the one that survives the original being deleted. A found model is
+  preselected only when it is not a downgrade from what the hardware
+  recommends; saving one download costs accuracy on every sentence afterwards.
+
+  KDE Plasma and GNOME were run from stock live images in a virtual machine and
+  written up in `docs/DESKTOPS.md`. Both advertise `GlobalShortcuts` at version
+  2. The indicator cannot be a layer surface on GNOME at all — the library is
+  installed and loads, and Mutter simply does not implement the protocol, so no
+  package will change it; KDE, from the same package, gets the overlay. The
+  README used to imply the opposite. The images were deleted afterwards.
+
+  `install.sh --uninstall` now takes back the shortcut block it wrote, the
+  desktop's accent colour is an optional palette source through the settings
+  portal, and the settings window will take a dictation on its own — which is
+  the only way in for anyone who has not yet found where their desktop keeps
+  its keyboard shortcuts.
+
+  Two rounds of review found nine real defects in that work, every one of them
+  reproduced before being fixed: a config-writing path that reported a checksum
+  it had never run, a dead symlink that made a model permanently unadoptable, a
+  write that failed silently through a symlink onto another filesystem, an
+  uninstaller that could die between deleting the files and saying where the
+  models were, a screenshot script that published a picture with a terminal
+  showing through one edge, and a D-Bus call with no timeout on the path that
+  draws the first window.
