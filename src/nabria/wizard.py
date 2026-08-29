@@ -27,6 +27,14 @@ from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from . import audio, config, gpu, i18n, models, shortcut, theme  # noqa: E402
 
+# The window's width, and the only dimension of it that is fixed. The pages
+# differ in length and not in measure, so a width that moves between steps
+# would be motion carrying no information.
+WIDTH = 560
+# Tall enough for the longest step -- the model list -- with the shorter ones
+# filling the difference rather than leaving it blank.
+HEIGHT = 560
+
 # Below this the microphone is under the silence gate and every take would be
 # thrown away, so the test has to fail rather than politely report a number.
 GOOD_ENOUGH_DBFS = -42.0
@@ -266,6 +274,26 @@ def choose_model_file(parent: Gtk.Window, on_chosen) -> None:
     chooser.show()
 
 
+def _status(label: Gtk.Label, text: str = "", *, style: str = "") -> None:
+    """Show a status line, or take its space back when there is nothing to say.
+
+    An empty `Gtk.Label` still occupies a line. Four of these sit between a
+    page's content and its buttons, holding room for a message that has not
+    happened yet -- and once the window began sizing itself to its content,
+    that reserved room stopped being invisible and became a gap in the middle
+    of the page, which is what it had always been.
+
+    It also clears the two result colours every time, so a failure followed by
+    a success is not printed in red.
+    """
+    for name in ("nabria-good", "nabria-bad"):
+        label.remove_css_class(name)
+    if style:
+        label.add_css_class(style)
+    label.set_text(text)
+    label.set_visible(bool(text))
+
+
 def group(cards: list[Choice]) -> None:
     """Make a list of cards one radio group."""
     for card in cards[1:]:
@@ -277,13 +305,27 @@ class Wizard(Gtk.ApplicationWindow):
         super().__init__(application=application, title="Nabria")
         self.settings = settings
         self.on_finished = on_finished
-        self.set_default_size(560, 560)
+        # One frame for all five steps, and the buttons anchored to the
+        # bottom of it.
+        #
+        # A window that resized itself to each page was tried and measured, and
+        # it does not survive contact with a compositor: asking for 560 wide
+        # and leaving the height open came back 1217x232, and setting both on a
+        # window already on screen was honoured on three pages out of six.
+        # `set_default_size` is read when the window is mapped, and a
+        # `set_size_request` that would force the issue is a *minimum*, so the
+        # window could then never shrink again.
+        #
+        # So the frame is fixed and the layout fills it instead. The empty
+        # space under the welcome step was never the fixed height -- it was the
+        # buttons floating in the middle of it.
+        self.set_default_size(WIDTH, HEIGHT)
         # Five fixed steps with nothing to resize and nothing to keep open, so
         # it asks to be a fixed panel rather than a window. Whether it gets
         # one is the compositor's decision; measured, Hyprland honours the
-        # hint and floats it at exactly this size. Where a compositor does not,
-        # the README gives the window rule -- keyed on the title, which is the
-        # product name and is never translated.
+        # hint and floats it. Where a compositor does not, the README gives the
+        # window rule -- keyed on the title, which is the product name and is
+        # never translated.
         #
         # The settings window deliberately does *not* do this: it has a
         # scrollable transcript list, which is the one place resizing earns
@@ -295,6 +337,12 @@ class Wizard(Gtk.ApplicationWindow):
         self.has_gpu = gpu.plan("auto").use_gpu
 
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT)
+        # The stack stays vertically homogeneous, which is its default and is
+        # load-bearing in a way that is not obvious. Turning it off -- so each
+        # page would ask for its own height -- also switches the width request
+        # onto the height-for-width path, and there a wrapping paragraph asks
+        # for its unwrapped width. Measured on the same window, same content,
+        # one property apart: 560x560 with it on, 1217x560 with it off.
         self.stack.set_margin_top(24)
         self.stack.set_margin_bottom(24)
         self.stack.set_margin_start(24)
@@ -313,6 +361,13 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _page(self, title: str, lede: str) -> Gtk.Box:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        # Slack above the step as well as below it, so a short one sits in the
+        # middle of the frame rather than clinging to the top of it. On the
+        # steps that fill the window there is no slack and this does nothing;
+        # on the welcome step it is the difference between a title card and a
+        # page that looks like it stopped loading.
+        page.append(Gtk.Box(vexpand=True))
+
         heading = i18n.label(title)
         heading.add_css_class("nabria-title")
         # Kept on the box so a page can retitle itself without going hunting
@@ -328,6 +383,12 @@ class Wizard(Gtk.ApplicationWindow):
         return page
 
     def _buttons(self, page: Gtk.Box, *buttons: Gtk.Widget) -> None:
+        # Whatever is left over goes above the buttons, not below them. A row
+        # that sits directly under two sentences, with a third of the window
+        # empty beneath it, reads as a page that failed to finish loading --
+        # which is exactly how the welcome step looked.
+        page.append(Gtk.Box(vexpand=True))
+
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         row.set_halign(Gtk.Align.END)
         row.set_margin_top(8)
@@ -408,8 +469,11 @@ class Wizard(Gtk.ApplicationWindow):
         scroller = Gtk.ScrolledWindow(vexpand=True)
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         # Natural height while everything fits, so three cards do not sit in a
-        # tall empty box on the ordinary first run.
+        # tall empty box on the ordinary first run -- and a ceiling, because
+        # the window sizes itself to its content now, so an uncapped list would
+        # grow the window past the screen instead of scrolling.
         scroller.set_propagate_natural_height(True)
+        scroller.set_max_content_height(430)
         scroller.set_child(self.model_list)
         page.append(scroller)
 
@@ -445,7 +509,7 @@ class Wizard(Gtk.ApplicationWindow):
         for card in self.choices:
             card.radio.set_active(card is default)
 
-        self.model_note = i18n.label("", wrap=True)
+        self.model_note = i18n.label("", wrap=True, visible=False)
         self.model_note.add_css_class("nabria-hint")
         page.append(self.model_note)
 
@@ -544,19 +608,17 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _offer_file(self, path: Path | None) -> None:
         """Add a hand-picked file to the page, chosen, or say why it cannot be."""
-        self.model_note.remove_css_class("nabria-bad")
         if path is None:
             # Picked over a network mount, so there is no file here to link to.
-            self.model_note.add_css_class("nabria-bad")
-            self.model_note.set_text(i18n.t("wizard.model.not_local"))
+            _status(self.model_note, i18n.t("wizard.model.not_local"),
+                    style="nabria-bad")
             return
         if not models.looks_like_a_model(path):
-            self.model_note.add_css_class("nabria-bad")
-            self.model_note.set_text(
-                i18n.t("wizard.model.not_a_model", path=i18n.ltr(path))
-            )
+            _status(self.model_note,
+                    i18n.t("wizard.model.not_a_model", path=i18n.ltr(path)),
+                    style="nabria-bad")
             return
-        self.model_note.set_text("")
+        _status(self.model_note)
 
         for card in self.choices:
             if card.found is not None and card.found.path == path:
@@ -574,7 +636,7 @@ class Wizard(Gtk.ApplicationWindow):
         self.download_title = page.heading
         self.progress = Gtk.ProgressBar(show_text=True)
         page.append(self.progress)
-        self.download_note = i18n.label("", wrap=True)
+        self.download_note = i18n.label("", wrap=True, visible=False)
         self.download_note.add_css_class("nabria-hint")
         page.append(self.download_note)
 
@@ -592,7 +654,7 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _microphone_page(self) -> Gtk.Box:
         page = self._page(i18n.t("wizard.mic.title"), i18n.t("wizard.mic.lede"))
-        self.mic_result = i18n.label("", wrap=True)
+        self.mic_result = i18n.label("", wrap=True, visible=False)
         page.append(self.mic_result)
 
         test = Gtk.Button(label=i18n.t("wizard.mic.test"))
@@ -615,7 +677,7 @@ class Wizard(Gtk.ApplicationWindow):
         for command in commands:
             page.append(_key_line(command, pasteable=True))
 
-        self.bind_result = i18n.label("", wrap=True)
+        self.bind_result = i18n.label("", wrap=True, visible=False)
         page.append(self.bind_result)
 
         done = Gtk.Button(label=i18n.t("wizard.done"))
@@ -639,14 +701,10 @@ class Wizard(Gtk.ApplicationWindow):
         path = shortcut.config_file()
         assert path is not None  # the button only exists when there is one
 
-        for name in ("nabria-good", "nabria-bad"):
-            self.bind_result.remove_css_class(name)
-
         if shortcut.already_bound(path):
             # Not an error, and not a reason to write it twice.
-            self.bind_result.set_text(
-                i18n.t("wizard.shortcut.already", path=i18n.ltr(path))
-            )
+            _status(self.bind_result,
+                    i18n.t("wizard.shortcut.already", path=i18n.ltr(path)))
             button.set_sensitive(False)
             return
         try:
@@ -655,17 +713,15 @@ class Wizard(Gtk.ApplicationWindow):
             # Safe to leave the button live: the write is atomic, so a failure
             # means the file is exactly as it was and trying again is the
             # right thing to offer.
-            self.bind_result.add_css_class("nabria-bad")
-            self.bind_result.set_text(
-                i18n.t("wizard.shortcut.failed", path=i18n.ltr(path),
-                       error=i18n.ltr(exc))
-            )
+            _status(self.bind_result,
+                    i18n.t("wizard.shortcut.failed", path=i18n.ltr(path),
+                           error=i18n.ltr(exc)),
+                    style="nabria-bad")
             return
-        self.bind_result.add_css_class("nabria-good")
-        self.bind_result.set_text(
-            i18n.t("wizard.shortcut.bound", path=i18n.ltr(written))
-            + " " + i18n.t("wizard.shortcut.reload")
-        )
+        _status(self.bind_result,
+                i18n.t("wizard.shortcut.bound", path=i18n.ltr(written))
+                + " " + i18n.t("wizard.shortcut.reload"),
+                style="nabria-good")
         button.set_sensitive(False)
 
     # -- actions -----------------------------------------------------------
@@ -688,7 +744,7 @@ class Wizard(Gtk.ApplicationWindow):
             i18n.t("wizard.progress", model=i18n.ltr(model.key),
                    done=0, total=model.megabytes)
         )
-        self.download_note.set_text("")
+        _status(self.download_note)
 
         def report(done: int, total: int) -> None:
             GLib.idle_add(self._show_progress, model, done, total)
@@ -724,7 +780,7 @@ class Wizard(Gtk.ApplicationWindow):
         """
         self._begin_work(i18n.t("wizard.checking"))
         self.progress.set_text(i18n.t("wizard.checking"))
-        self.download_note.set_text(i18n.ltr(entry.path))
+        _status(self.download_note, i18n.ltr(entry.path))
 
         def report(done: int, total: int) -> None:
             GLib.idle_add(self._show_progress, entry.model, done, total)
@@ -752,7 +808,7 @@ class Wizard(Gtk.ApplicationWindow):
     def _download_done(self, model, path) -> bool:
         self.progress.set_fraction(1.0)
         self.progress.set_text(i18n.t("wizard.verified"))
-        self.download_note.set_text(i18n.ltr(path))
+        _status(self.download_note, i18n.ltr(path))
         self.settings["model"] = str(path)
         config.save(self.settings)
         self.download_next.set_sensitive(True)
@@ -760,12 +816,12 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _download_failed(self, message: str) -> bool:
         self.progress.set_text(i18n.t("wizard.failed"))
-        self.download_note.set_text(message)
+        _status(self.download_note, message)
         self.download_retry.set_visible(True)
         return GLib.SOURCE_REMOVE
 
     def _test_microphone(self) -> None:
-        self.mic_result.set_text(i18n.t("wizard.mic.listening"))
+        _status(self.mic_result, i18n.t("wizard.mic.listening"))
 
         def work() -> None:
             try:
@@ -778,22 +834,17 @@ class Wizard(Gtk.ApplicationWindow):
         threading.Thread(target=work, daemon=True, name="nabria-mic-test").start()
 
     def _microphone_result(self, level, error: str) -> bool:
-        for name in ("nabria-good", "nabria-bad"):
-            self.mic_result.remove_css_class(name)
         if error:
-            self.mic_result.add_css_class("nabria-bad")
-            self.mic_result.set_text(error)
+            _status(self.mic_result, error, style="nabria-bad")
         elif level is not None and level > GOOD_ENOUGH_DBFS:
-            self.mic_result.add_css_class("nabria-good")
-            self.mic_result.set_text(
-                i18n.t("wizard.mic.heard", level=i18n.ltr(f"{level:.0f}"))
-            )
+            _status(self.mic_result,
+                    i18n.t("wizard.mic.heard", level=i18n.ltr(f"{level:.0f}")),
+                    style="nabria-good")
             self.stack.set_visible_child_name("shortcut")
         else:
-            self.mic_result.add_css_class("nabria-bad")
-            self.mic_result.set_text(
-                i18n.t("wizard.mic.barely", level=i18n.ltr(f"{level:.0f}"))
-            )
+            _status(self.mic_result,
+                    i18n.t("wizard.mic.barely", level=i18n.ltr(f"{level:.0f}")),
+                    style="nabria-bad")
         return GLib.SOURCE_REMOVE
 
     def _finish(self) -> None:

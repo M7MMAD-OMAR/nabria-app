@@ -87,6 +87,38 @@ def geometry_of(title):
     return None
 
 
+def settled_geometry(title, tries=25):
+    """The same rectangle twice running, which is not the same as a rectangle.
+
+    A floating window is animated into place, and `hyprctl clients` answers
+    with wherever it is at the instant it is asked -- so a rectangle read
+    mid-flight is a real answer to the wrong question. grim then copies that
+    part of the output, and what lands in the file is the window with a strip
+    of whatever it was sliding across down one edge.
+
+    This is not hypothetical. It is what published the Arabic welcome shot with
+    a terminal showing through the right-hand quarter of it: right size, right
+    window, right workspace, wrong place -- and nothing in the run said so.
+    Only the window asking not to be resizable made it float, and only floating
+    made it move.
+    """
+    previous = None
+    for _ in range(tries):
+        current = geometry_of(title)
+        # Not there *yet* is not the same as not there. GTK considers the
+        # window presented before the compositor has a client for it, so the
+        # first look can come back empty for a window that appears a frame
+        # later -- which showed up as the settings shots failing in the second
+        # language and not the first, the run order being the only difference
+        # between them.
+        if current is not None:
+            if current == previous:
+                return current
+            previous = current
+        time.sleep(0.15)
+    return previous
+
+
 def looks_like_a_window(path):
     """Whether the capture is the window, or whatever was covering it.
 
@@ -259,7 +291,7 @@ def capture_all(app):
             failed = True
             window.destroy()
             continue
-        geometry = geometry_of(title)
+        geometry = settled_geometry(title)
         if geometry is None:
             print("  ! " + stem + ": the window never appeared", file=sys.stderr)
             failed = True
@@ -276,7 +308,17 @@ def capture_all(app):
             failed = True
             window.destroy()
             continue
-        crop_below(path, page_height(window, kind, page), window.get_height())
+        # Only a window that is bigger than its content needs cutting down.
+        #
+        # `resizable` is exactly that question. The setup window asks not to be
+        # resizable, so the compositor floats it at its natural height and the
+        # frame already *is* the crop -- running the trim over it anyway shaved
+        # a few pixels off the bottom, which took the rounded corners with them
+        # and left a different bottom edge on every page. The settings window
+        # is resizable and gets tiled into whatever column it lands in, which
+        # is the case this was written for.
+        if window.get_resizable():
+            crop_below(path, page_height(window, kind, page), window.get_height())
         print("  " + stem + ".png")
         window.destroy()
 

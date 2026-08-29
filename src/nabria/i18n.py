@@ -132,6 +132,17 @@ def label(text: str = "", **properties: object):
     from gi.repository import Gtk
 
     properties.setdefault("xalign", start_align())
+    # A wrapping label reports the width of the *unwrapped* sentence as its
+    # natural width, which is the whole paragraph on one line. That is only a
+    # preference in a window the user can resize; in one that sizes itself to
+    # its content it is the width, and the setup window came out sixteen
+    # hundred pixels wide with three lines of text strung across it.
+    #
+    # `max_width_chars = 1` is the GTK idiom for "wrap to whatever I am given"
+    # -- it collapses the natural width to the minimum, so the container's own
+    # width decides and the text wraps inside it.
+    if properties.get("wrap"):
+        properties.setdefault("max_width_chars", 1)
     return Gtk.Label(label=text, **properties)
 
 

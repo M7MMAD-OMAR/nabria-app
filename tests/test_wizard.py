@@ -399,3 +399,71 @@ def test_the_buttons_stay_reachable_however_many_models_turn_up(
     while scroller is not None and not isinstance(scroller, Gtk.ScrolledWindow):
         scroller = scroller.get_parent()
     assert scroller is not None, "the card list cannot scroll, so it can hide the buttons"
+
+
+def test_an_empty_status_line_takes_no_space(application, fresh_config):
+    """A message that has not happened yet must not leave a hole in the page.
+
+    An empty Gtk.Label still occupies a line, and four of these sit between a
+    page's content and its buttons. Once the window began sizing itself to its
+    content, that reserved room stopped being invisible and became a gap in
+    the middle of the page -- which is what it had always been.
+    """
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    for label in (setup.model_note, setup.download_note,
+                  setup.mic_result, setup.bind_result):
+        assert not label.get_visible()
+
+    wizard._status(setup.model_note, "something happened", style="nabria-bad")
+    assert setup.model_note.get_visible()
+    assert setup.model_note.has_css_class("nabria-bad")
+
+    # And a success after a failure is not printed in red.
+    wizard._status(setup.model_note, "it worked", style="nabria-good")
+    assert not setup.model_note.has_css_class("nabria-bad")
+
+    wizard._status(setup.model_note)
+    assert not setup.model_note.get_visible()
+
+
+def test_the_stack_stays_vertically_homogeneous(application, fresh_config):
+    """One property apart, and the window is twice the width it asked for.
+
+    Turning it off -- so each step would ask for its own height -- also moves
+    the *width* request onto the height-for-width path, where a wrapping
+    paragraph asks for the width of the unwrapped sentence. Measured on the
+    same window with the same content: 560x560 with it on, 1217x560 with it
+    off, and every published screenshot came out with a strip of desktop down
+    one side. It reads like a line about vertical layout and is not.
+    """
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    assert setup.stack.get_vhomogeneous()
+    # Natural width, which is what a compositor is handed and what it hands
+    # back. It has to fit inside the frame; the failure being guarded against
+    # is it asking for more than twice that.
+    assert setup.measure(Gtk.Orientation.HORIZONTAL, -1)[1] <= wizard.WIDTH
+
+
+def test_the_buttons_sit_at_the_bottom_of_the_frame(application, fresh_config):
+    """The void under the welcome step was never the fixed height.
+
+    It was a button row sitting directly under two sentences with a third of
+    the window empty below it. The frame is one size for all five steps -- a
+    window that resized per page was tried and the compositor would not honour
+    it -- so the leftover space has to be *placed*, above the actions and
+    around the content, rather than left at the end.
+    """
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    page = setup.stack.get_child_by_name("welcome")
+
+    children = []
+    child = page.get_first_child()
+    while child is not None:
+        children.append(child)
+        child = child.get_next_sibling()
+
+    # Something that takes the slack before the buttons, and something that
+    # takes it before the content -- otherwise the shortest step is a title
+    # clinging to the top of an empty frame.
+    assert children[0].get_vexpand(), "nothing centres a short step"
+    assert children[-2].get_vexpand(), "nothing pushes the buttons down"
