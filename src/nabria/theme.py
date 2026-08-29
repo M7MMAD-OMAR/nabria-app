@@ -60,6 +60,71 @@ def to_hex(colour: tuple[float, float, float], lighten: float = 0.0) -> str:
     )
 
 
+def desktop_accent() -> str | None:
+    """The desktop's accent colour, or None -- which is the usual answer.
+
+    Read through `org.freedesktop.appearance/accent-color` on the settings
+    portal rather than from any one desktop's own configuration key. That is
+    the cross-desktop form of the question, and both backends this project has
+    measured implement the portal (docs/DESKTOPS.md); reading a GNOME gsetting
+    instead would answer for one desktop and be silently wrong on the rest.
+
+    "Not set" is a normal result and not a failure. Most sessions have no
+    accent colour at all -- measured on the machine this was written on, where
+    the portal answers and the key does not exist -- and the shipped coral is
+    the right answer there, so every path out of here that is not a colour is
+    None rather than an exception.
+
+    `ReadOne` first, `Read` after it: the second is the older name and is
+    doubly wrapped, and a desktop shipping only one of the two is not worth a
+    version check.
+    """
+    from gi.repository import Gio, GLib
+
+    def ask(method: str):
+        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        return connection.call_sync(
+            "org.freedesktop.portal.Desktop",
+            "/org/freedesktop/portal/desktop",
+            "org.freedesktop.portal.Settings",
+            method,
+            GLib.Variant("(ss)", ("org.freedesktop.appearance", "accent-color")),
+            None,
+            Gio.DBusCallFlags.NONE,
+            # A second, because this is on the path that draws the first
+            # window. A desktop whose portal cannot answer in that long is one
+            # whose accent colour is not worth waiting for.
+            1000,
+            None,
+        )
+
+    reply = None
+    for method in ("ReadOne", "Read"):
+        try:
+            reply = ask(method)
+            break
+        except GLib.Error:
+            continue
+    if reply is None:
+        return None
+
+    # (v) -> v -> (ddd), with the older call wrapping it once more.
+    value = reply.unpack()
+    while isinstance(value, tuple) and len(value) == 1:
+        value = value[0]
+    if not isinstance(value, tuple) or len(value) != 3:
+        return None
+    try:
+        channels = [float(channel) for channel in value]
+    except (TypeError, ValueError):
+        return None
+    # The specification says an unset accent is (-1, -1, -1), and a desktop
+    # that answers with something outside the range is not answering.
+    if not all(0.0 <= channel <= 1.0 for channel in channels):
+        return None
+    return to_hex((channels[0], channels[1], channels[2]))
+
+
 def add_css(css: str) -> None:
     """Register a stylesheet above the desktop theme's own.
 
@@ -107,6 +172,12 @@ def load(
 ) -> dict[str, tuple[float, float, float]]:
     palette = dict(DARK)
     if follow_desktop:
+        # Weakest desktop source first. The accent names one colour; a
+        # generated palette names many and is the more specific answer, so it
+        # goes over the top; and the user's own file wins over both, below.
+        accent = desktop_accent()
+        if accent:
+            palette["primary"] = accent
         palette.update(_read(PALETTE_PATH))
     if config_dir is not None:
         palette.update(_read(config_dir / "palette.json"))

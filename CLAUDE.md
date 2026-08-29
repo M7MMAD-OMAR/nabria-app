@@ -238,6 +238,17 @@ required" under `nabria-control-probe.scope`.
 So **renaming the unit file breaks portal shortcuts**, quietly -- the daemon
 starts normally and the key simply never fires.
 
+### Uninstalling has to undo the config write
+
+`shortcut.bind()` appends to somebody else's compositor configuration, so
+`install.sh --uninstall` calls `shortcut.unbind()` — via `python3 -m
+nabria.shortcut --unbind`, so the fence constants have one home rather than a
+second copy in a `sed` expression. It removes **only** what is between
+`MARKER` and `MARKER_END`: a line somebody pasted by hand is indistinguishable
+from ours from the outside and is theirs to keep. A fence with no closing half
+is refused rather than guessed at — guessing there means deleting lines
+somebody wrote.
+
 ### Distribution packages
 
 `packaging/layout.sh` is the **only** place the installed layout is written

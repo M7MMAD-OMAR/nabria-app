@@ -19,6 +19,13 @@ def clean_environment(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
+@pytest.fixture
+def hyprland(monkeypatch, tmp_path):
+    """A Hyprland session whose configuration lives under tmp_path."""
+    monkeypatch.setenv("HYPRLAND_INSTANCE_SIGNATURE", "test")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+
 def test_nothing_known_still_gives_a_usable_answer():
     assert shortcut.detect() == ""
     lines = shortcut.instructions()
@@ -289,3 +296,88 @@ def test_a_symlinked_config_stays_a_symlink(tmp_path, monkeypatch):
 
     assert link.is_symlink(), "the symlink was replaced by a regular file"
     assert shortcut.command(shortcut.TOGGLE) in real.read_text(encoding="utf-8")
+
+
+# -- taking the block back --------------------------------------------------
+
+
+def test_unbind_removes_only_the_block_it_wrote(tmp_path, hyprland):
+    original = "bind = SUPER, Return, exec, kitty\n"
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text(original)
+
+    shortcut.bind(config)
+    assert shortcut.MARKER in config.read_text()
+
+    assert shortcut.unbind(config) == [config]
+    # Byte for byte what was there before, blank line included -- otherwise
+    # binding and unbinding a few times walks the file down the page.
+    assert config.read_text() == original
+
+
+def test_unbind_leaves_a_hand_pasted_binding_alone(tmp_path, hyprland):
+    """It looks identical from the outside and it is not ours.
+
+    Most existing installations are exactly this case: pasting the line was
+    the only way to do it until the wizard could write it. Removing what we
+    did not add would be deleting somebody's configuration on uninstall.
+    """
+    mine = "bind = CTRL ALT, Q, exec, nabria toggle\n"
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text(mine)
+
+    assert shortcut.unbind(config) == []
+    assert config.read_text() == mine
+
+
+def test_unbind_is_quiet_when_there_is_nothing_to_remove(tmp_path, hyprland):
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text("# nothing here\n")
+    assert shortcut.unbind(config) == []
+
+
+def test_unbind_refuses_a_block_with_no_end(tmp_path, hyprland):
+    """A fence with one side is a half-edited file, not a block.
+
+    Guessing where it ends means deleting lines somebody wrote, and there is
+    no way to give those back.
+    """
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    text = f"{shortcut.MARKER}\nbind = CTRL ALT, Q, exec, nabria toggle\nbind = SUPER, T, exec, kitty\n"
+    config.write_text(text)
+
+    assert shortcut.unbind(config) == []
+    assert config.read_text() == text
+
+
+def test_unbind_follows_includes(tmp_path, hyprland):
+    # `bind` only ever writes to the top level, but configurations get
+    # reorganised between then and now, and a block that has been moved into
+    # an included file is still ours to take back.
+    hypr = tmp_path / "hypr"
+    (hypr / "conf.d").mkdir(parents=True)
+    top = hypr / "hyprland.conf"
+    top.write_text("source = conf.d/keys.conf\n")
+    part = hypr / "conf.d" / "keys.conf"
+    part.write_text(
+        f"bind = SUPER, T, exec, kitty\n\n{shortcut.MARKER}\n"
+        f"bind = CTRL ALT, Q, exec, nabria toggle\n{shortcut.MARKER_END}\n"
+    )
+
+    assert shortcut.unbind(top) == [part]
+    assert part.read_text() == "bind = SUPER, T, exec, kitty\n"
+
+
+def test_unbind_keeps_the_file_s_permissions(tmp_path, hyprland):
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text("bind = SUPER, T, exec, kitty\n")
+    config.chmod(0o600)
+    shortcut.bind(config)
+
+    shortcut.unbind(config)
+    assert config.stat().st_mode & 0o777 == 0o600

@@ -225,6 +225,79 @@ def bind(path: Path | None = None) -> Path:
     return path
 
 
+def _without_block(text: str) -> str | None:
+    """The text with our fenced block removed, or None if it was not there.
+
+    Line-based and fence-based: everything from `MARKER` to `MARKER_END`
+    inclusive, plus the blank line `bind` puts before it so that removing and
+    re-adding does not accumulate blank lines. Nothing outside the fence is
+    read, let alone rewritten -- a binding somebody pasted by hand looks
+    exactly like ours from the outside and is theirs to keep.
+    """
+    lines = text.splitlines(keepends=True)
+    try:
+        start = next(i for i, line in enumerate(lines) if line.strip() == MARKER)
+        end = next(
+            i for i in range(start, len(lines)) if lines[i].strip() == MARKER_END
+        )
+    except StopIteration:
+        # An opening fence with no closing one is somebody's half-edited file,
+        # and guessing where the block ends there means deleting their lines.
+        return None
+    while start > 0 and not lines[start - 1].strip():
+        start -= 1
+    return "".join(lines[:start] + lines[end + 1:])
+
+
+def unbind(path: Path | None = None) -> list[Path]:
+    """Remove the block `bind` wrote. Returns the files changed, if any.
+
+    Uninstalling used to leave the lines behind, so the key went on being
+    bound to a command that no longer existed -- harmless, in that pressing it
+    did nothing, and untidy in someone else's configuration file, which is not
+    a good place to leave litter.
+
+    Includes are searched as well as the top-level file. `bind` only ever
+    writes to the top level, but configurations get reorganised between then
+    and now, and a block that has been moved into an included file is still
+    ours to take back.
+
+    Same write as `bind`: temporary file, fsync, rename. A half-removed block
+    is a worse outcome than one left in place.
+    """
+    path = path or config_file()
+    if path is None:
+        return []
+    try:
+        files = [path, *_included(path, detect(), MAX_INCLUDE_DEPTH, {path})]
+    except OSError:
+        files = [path]
+
+    changed = []
+    for candidate in files:
+        try:
+            existing = _read(candidate)
+        except OSError:
+            continue
+        updated = _without_block(existing)
+        if updated is None or updated == existing:
+            continue
+        temporary = candidate.with_suffix(candidate.suffix + ".nabria-new")
+        try:
+            with temporary.open("w", encoding="utf-8") as sink:
+                sink.write(updated)
+                sink.flush()
+                os.fsync(sink.fileno())
+            temporary.chmod(candidate.stat().st_mode & 0o7777)
+            os.replace(temporary, candidate.resolve())
+        except OSError:
+            continue
+        finally:
+            temporary.unlink(missing_ok=True)
+        changed.append(candidate)
+    return changed
+
+
 def instructions() -> list[str]:
     """Lines to show the user, the first of which is the sentence.
 
@@ -258,3 +331,24 @@ def instructions() -> list[str]:
     if where == "gnome":
         return [i18n.t("shortcut.gnome"), command(TOGGLE)]
     return [i18n.t("shortcut.generic"), command(TOGGLE)]
+
+
+def _cli() -> int:
+    """`python3 -m nabria.shortcut --unbind` -- used by scripts/install.sh.
+
+    A subcommand rather than shell in the installer: the block is fenced by
+    constants defined here, and a sed expression in another file would be a
+    second copy of them that nothing keeps in step.
+    """
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--unbind":
+        for path in unbind():
+            print(f"removed the shortcut block from {path}")
+        return 0
+    print("usage: python3 -m nabria.shortcut --unbind", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(_cli())
