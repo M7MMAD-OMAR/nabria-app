@@ -208,11 +208,14 @@ class Wizard(Gtk.ApplicationWindow):
         self.set_default_size(560, 560)
         # Five fixed steps with nothing to resize and nothing to keep open, so
         # it asks to be a fixed panel rather than a window. Whether it gets
-        # one is the compositor's decision -- a tiling compositor gives it the
-        # whole column regardless, and the honest way to change that is a
-        # window rule, which the README spells out. The settings window
-        # deliberately does *not* do this: it has a scrollable transcript list,
-        # which is the one place resizing earns its keep.
+        # one is the compositor's decision; measured, Hyprland honours the
+        # hint and floats it at exactly this size. Where a compositor does not,
+        # the README gives the window rule -- keyed on the title, which is the
+        # product name and is never translated.
+        #
+        # The settings window deliberately does *not* do this: it has a
+        # scrollable transcript list, which is the one place resizing earns
+        # its keep, and its own docstring says so.
         self.set_resizable(False)
         self.add_css_class("nabria-setup")
         install_style(settings)

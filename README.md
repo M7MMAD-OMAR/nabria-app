@@ -117,9 +117,10 @@ that cannot be produced again.
 
 ### On a tiling desktop
 
-The setup window asks to be a fixed panel, and a tiling compositor gives it
-the whole column anyway — that is its decision to make, not the
-application's. If you would rather it floated:
+The setup window asks to be a fixed panel rather than a window — five steps,
+nothing to resize, nothing to keep open. Hyprland honours that and floats it;
+whether any other compositor does is its decision, not the application's. If
+yours tiles it anyway:
 
 ```
 # Hyprland
@@ -130,8 +131,9 @@ windowrule = float, title:^(Nabria)$
 for_window [title="^Nabria$"] floating enable
 ```
 
-The settings window is deliberately left alone. It has a scrollable list of
-your transcripts, which is the one place being resizable earns its keep.
+The settings window is deliberately left alone, and the rules above do not
+match it. It has a scrollable list of your transcripts, which is the one
+place being resizable earns its keep.
 
 `nabria settings` is where the model, the microphone and your transcripts live.
 
