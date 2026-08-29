@@ -190,13 +190,55 @@
   });
 
   document.querySelectorAll("[data-quick-install]").forEach((quickInstall) => {
-    const select = quickInstall.querySelector("select");
+    const picker = quickInstall.querySelector("[data-distro-picker]");
+    const trigger = picker?.querySelector(".distro-trigger");
+    const menu = picker?.querySelector(".distro-menu");
+    const label = picker?.querySelector("[data-distro-label]");
+    const options = menu ? [...menu.querySelectorAll('[role="option"]')] : [];
     const command = quickInstall.querySelector("code");
-    if (!select || !command) return;
-    select.addEventListener("change", () => {
-      const option = select.options[select.selectedIndex];
+    if (!picker || !trigger || !menu || !label || !options.length || !command) return;
+
+    const close = () => {
+      menu.hidden = true;
+      trigger.setAttribute("aria-expanded", "false");
+    };
+
+    const choose = (option) => {
+      options.forEach((item) => item.setAttribute("aria-selected", String(item === option)));
+      label.textContent = option.textContent.trim();
       command.textContent = option.dataset.command || "";
       command.title = command.textContent;
+      close();
+    };
+
+    trigger.addEventListener("click", () => {
+      const open = menu.hidden;
+      menu.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+      if (open) options.find((option) => option.getAttribute("aria-selected") === "true")?.focus();
+    });
+
+    options.forEach((option) => {
+      option.addEventListener("click", () => choose(option));
+      option.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          choose(option);
+        } else if (event.key === "ArrowDown") {
+          event.preventDefault();
+          options[(options.indexOf(option) + 1) % options.length].focus();
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          options[(options.indexOf(option) - 1 + options.length) % options.length].focus();
+        } else if (event.key === "Escape") {
+          close();
+          trigger.focus();
+        }
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!picker.contains(event.target)) close();
     });
   });
 })();

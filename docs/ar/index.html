@@ -11,9 +11,9 @@
   <meta property="og:image" content="../assets/nabria-social.png?v=2">
   <title>نَبْرة | احكِ وبس</title>
   <link rel="icon" href="../assets/nabria-mark.svg?v=2" type="image/svg+xml">
-  <link rel="preload" href="../assets/site.css?v=13" as="style">
-  <link rel="stylesheet" href="../assets/site.css?v=13">
-  <script src="../assets/site.js?v=13" defer></script>
+  <link rel="preload" href="../assets/site.css?v=17" as="style">
+  <link rel="stylesheet" href="../assets/site.css?v=17">
+  <script src="../assets/site.js?v=17" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">انتقل للمحتوى</a>
@@ -68,7 +68,18 @@
             </a>
           </div>
           <div class="hero-quick-install" data-quick-install>
-            <div class="quick-install-head"><strong>تثبيت سريع</strong><select aria-label="توزيعة لينكس"><option data-command="sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm">Fedora</option><option data-command="wget https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.deb &amp;&amp; sudo apt install ./nabria.deb">Debian / Ubuntu</option><option data-command="yay -S nabria">Arch</option><option data-command="curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh">غيرها</option></select></div>
+            <div class="quick-install-head">
+              <strong>تثبيت سريع</strong>
+              <div class="distro-picker" data-distro-picker>
+                <button class="distro-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span data-distro-label>Fedora</span><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-arrow-up-right"></use></svg></button>
+                <ul class="distro-menu" role="listbox" aria-label="توزيعة لينكس" hidden>
+                  <li role="option" tabindex="0" aria-selected="true" data-command="sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm">Fedora</li>
+                  <li role="option" tabindex="0" aria-selected="false" data-command="wget https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.deb &amp;&amp; sudo apt install ./nabria.deb">Debian / Ubuntu</li>
+                  <li role="option" tabindex="0" aria-selected="false" data-command="yay -S nabria">Arch</li>
+                  <li role="option" tabindex="0" aria-selected="false" data-command="curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh">غيرها</li>
+                </ul>
+              </div>
+            </div>
             <div class="quick-install-command"><code id="quick-command" tabindex="0" title="sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm">sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm</code><button type="button" data-copy-command data-copy-target="quick-command" data-copied="تم النسخ" aria-label="انسخ أمر التثبيت"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-copy"></use></svg><span>انسخ</span></button></div>
           </div>
           <ul class="hero-facts" aria-label="معلومات عن المنتج">
@@ -122,7 +133,7 @@
           <article class="step">
             <div class="step-top"><span class="step-number">03</span><span class="step-icon"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-waveform"></use></svg></span></div>
             <h3>اضغط مرة ثانية</h3>
-            <p>كلماتك بتظهر بمكان المؤشر.</p>
+            <p>نَبْرة بتكتب كلماتك بمكان المؤشر.</p>
           </article>
         </div>
       </div>
@@ -163,7 +174,7 @@
         <div class="language-copy">
           <span class="section-index">03</span>
           <h2 class="section-title" id="language-title">العربي من الأساس.</h2>
-          <p>واجهة التطبيق بالعربي والإنكليزي. اللغة اللي بتحكيها منفصلة عن لغة الواجهة.</p>
+          <p>الواجهة بالعربي والإنكليزي. لغة الحكي شي، ولغة الواجهة شي تاني.</p>
         </div>
 
         <div class="language-demo">
@@ -178,7 +189,7 @@
       <div class="wrap setup-grid">
         <div class="setup-copy">
           <span class="section-index">04</span>
-          <h2 class="section-title" id="setup-title">ضبطها مرة. وانساها.</h2>
+          <h2 class="section-title" id="setup-title">ضبطها مرة. وبعدين انساها.</h2>
           <p>اختار نموذج، جرّب المايكروفون، واربط الاختصار. بعدها نَبْرة بتبعد عن طريقك.</p>
           <ul class="setup-notes">
             <li><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-check-circle"></use></svg>بتختار نموذج مناسب لجهازك</li>
@@ -255,7 +266,7 @@
 
     <section class="closing" aria-labelledby="closing-title">
       <div class="wrap">
-        <h2 class="closing-title" id="closing-title">قولها.<br><span>وكفّي.</span></h2>
+        <h2 class="closing-title" id="closing-title">قولها.<br><span>بتنزل.</span></h2>
         <a class="button button-primary" href="#install"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-download-simple"></use></svg>ثبّت نَبْرة</a>
       </div>
     </section>

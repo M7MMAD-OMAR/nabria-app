@@ -141,7 +141,11 @@ The settings window is deliberately left alone, and the rules above do not
 match it. It has a scrollable list of your transcripts, which is the one
 place being resizable earns its keep.
 
-`nabria settings` is where the model, the microphone and your transcripts live.
+`nabria settings` is where the model, the microphone and your transcripts
+live — and, at the top of it, a button that takes a dictation. That is there
+for the stretch before a key is bound: on GNOME and KDE the shortcut is a
+settings dialog you have to find first, and until you have, this is the way
+in. The key is faster once you have one.
 
 ![Settings, in English](docs/screenshots/en/settings-engine.png)
 
@@ -227,7 +231,8 @@ menu, cloud sync, a plugin system. There is one key and it types what you said.
 - **The shortcut is usually manual.** There is still no way to register a
   global hotkey that works on every Wayland desktop, so the setup step is
   written for the general case: it tells you the line and, where the desktop
-  keeps its shortcuts in a file, offers to write it for you. Both GNOME and
+  keeps its shortcuts in a file, offers to write it for you. Until you have
+  one, the settings window will take a dictation on its own. Both GNOME and
   KDE Plasma now carry the `GlobalShortcuts` portal, which the app uses in
   addition when it is there — [docs/DESKTOPS.md](docs/DESKTOPS.md) records what
   each desktop was measured to provide.

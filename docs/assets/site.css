@@ -403,11 +403,11 @@ html[dir="rtl"] .closing-title {
   padding: 14px;
   display: grid;
   gap: 12px;
-  border: 1px solid #d1bbb1;
+  border: 1px solid var(--line-dark);
   border-radius: 14px;
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: 8px 8px 0 #352824;
+  background: var(--night-raised);
+  color: var(--cream);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
   transform: rotate(-1deg);
 }
 
@@ -423,7 +423,7 @@ html[dir="rtl"] .hero-quick-install {
 }
 
 .quick-install-head strong {
-  color: #8c422f;
+  color: var(--thinking);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -435,16 +435,85 @@ html[dir="rtl"] .quick-install-head strong {
   text-transform: none;
 }
 
-.quick-install-head select {
-  min-block-size: 44px;
-  padding-inline: 11px 32px;
-  border: 1px solid #d1bbb1;
+.distro-picker {
+  position: relative;
+  z-index: 3;
+}
+
+.distro-trigger {
+  min-block-size: 42px;
+  min-inline-size: 150px;
+  padding-inline: 13px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  border: 1px solid var(--line-dark);
   border-radius: 8px;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--night-soft);
+  color: var(--cream);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.distro-trigger .icon {
+  rotate: 90deg;
+  color: var(--thinking);
+}
+
+html[dir="rtl"] .distro-trigger .icon {
+  rotate: 90deg;
+}
+
+.distro-trigger:hover,
+.distro-trigger:focus-visible,
+.distro-trigger[aria-expanded="true"] {
+  border-color: #72584f;
+}
+
+.distro-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  inline-size: 100%;
+  margin: 0;
+  padding: 5px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--line-dark);
+  border-radius: 10px;
+  background: var(--night-soft);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  list-style: none;
+}
+
+.distro-menu[hidden] {
+  display: none;
+}
+
+.distro-menu li {
+  min-block-size: 40px;
+  padding-inline: 12px;
+  display: flex;
+  align-items: center;
+  border-radius: 7px;
+  color: #d9cbc5;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.distro-menu li:hover,
+.distro-menu li:focus-visible {
+  background: var(--night);
+  color: var(--cream);
+  outline: none;
+}
+
+.distro-menu li[aria-selected="true"] {
+  color: var(--voice);
+  font-weight: 700;
 }
 
 .quick-install-command {
@@ -458,15 +527,16 @@ html[dir="rtl"] .quick-install-head strong {
 
 .quick-install-command code {
   min-inline-size: 0;
-  color: #5d4a43;
+  padding-block: 2px;
+  color: #d9cbc5;
   font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
-  white-space: nowrap;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  white-space: normal;
+  overflow-wrap: anywhere;
   unicode-bidi: isolate;
   text-align: left;
+  user-select: all;
 }
 
 .quick-install-command button {
