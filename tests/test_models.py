@@ -292,3 +292,185 @@ def test_the_readme_states_the_catalogue_s_real_sizes():
         assert abs(actual - float(amount)) <= 0.5 * 10 ** -len(decimals), (
             f"README says {key} is {stated}, catalogue says {actual:.2f} {unit}"
         )
+
+
+# -- models that are already on the machine ---------------------------------
+#
+# The wizard offers to link one of these rather than spending a second
+# download and a second copy of the disk on bytes that are already here. What
+# these check is that it finds them, refuses what only looks like one, and
+# never quietly accepts a file that fails the published checksum.
+
+
+def a_model_file(path: Path, contents: bytes = b"") -> Path:
+    """A file that begins the way every ggml file does."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(models.GGML_MAGIC + contents)
+    return path
+
+
+def test_the_magic_is_what_the_catalogue_models_actually_start_with():
+    """Not taken on trust.
+
+    whisper.cpp writes GGML_FILE_MAGIC as a host-endian integer, so the byte
+    order in the file is the machine's, not the constant's. Building the same
+    four bytes the same way here is what would catch a big-endian build -- and
+    the constant being wrong would mean the search silently finds nothing at
+    all, which reads exactly like "there is nothing on this machine".
+    """
+    assert models.GGML_MAGIC == (0x67676D6C).to_bytes(4, "little")
+
+
+def test_a_bin_file_that_is_not_a_model_is_refused(tmp_path):
+    # The case this exists for: a firmware blob, a disk image, another
+    # project's weights. Accepting one gets reported as "whisper-server did
+    # not start", which says nothing about the actual mistake.
+    (tmp_path / "firmware.bin").write_bytes(b"\x7fELF" + b"\0" * 64)
+    assert models.looks_like_a_model(tmp_path / "firmware.bin") is False
+
+
+def test_a_model_is_identified_by_size_not_by_name(tmp_path):
+    base = models.CATALOG["base"]
+    renamed = a_model_file(tmp_path / "speech.bin", b"\0" * (base.size - 4))
+    assert models.identify(renamed) is base
+
+
+def test_search_finds_a_model_and_names_it_from_the_catalogue(tmp_path, models_dir):
+    base = models.CATALOG["base"]
+    a_model_file(tmp_path / "elsewhere/ggml-base.bin", b"\0" * (base.size - 4))
+
+    found = models.search([(tmp_path / "elsewhere", "*.bin")], models_dir)
+    assert [(entry.name, entry.model) for entry in found] == [("base", base)]
+
+
+def test_search_offers_an_unknown_model_without_pretending_to_know_it(
+    tmp_path, models_dir
+):
+    # A size or a quantisation this program does not publish. Usable, but there
+    # is no checksum to hold it to, and `model=None` is how the page knows to
+    # say so.
+    a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 1000)
+    found = models.search([(tmp_path, "*.bin")], models_dir)
+    assert len(found) == 1
+    assert found[0].model is None
+    assert found[0].name == "medium"
+
+
+def test_one_file_reached_by_two_names_is_one_model(tmp_path, models_dir):
+    """The published cache links one blob into several snapshot directories."""
+    real = a_model_file(tmp_path / "blobs/abc123", b"\0" * 100)
+    (tmp_path / "snapshots").mkdir()
+    (tmp_path / "snapshots/ggml-base.bin").symlink_to(real)
+
+    found = models.search(
+        [(tmp_path / "snapshots", "*.bin"), (tmp_path / "blobs", "*")], models_dir
+    )
+    assert len(found) == 1
+
+
+def test_a_model_already_adopted_is_not_offered_again(tmp_path, models_dir):
+    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    models.adopt(source, models_dir)
+    assert models.search([(tmp_path, "*.bin")], models_dir) == []
+
+
+def test_a_model_already_downloaded_is_not_offered_again(tmp_path, models_dir):
+    # A separate copy this time -- different inode, same bytes. Adopting it
+    # would change nothing, so it does not appear.
+    base = models.CATALOG["base"]
+    (models_dir / base.filename).write_bytes(models.GGML_MAGIC + b"\0" * (base.size - 4))
+    a_model_file(tmp_path / "ggml-base.bin", b"\0" * (base.size - 4))
+    assert models.search([(tmp_path, "*.bin")], models_dir) == []
+
+
+def test_a_missing_search_directory_is_not_an_error(models_dir, tmp_path):
+    # Most of the real list does not exist on most machines.
+    assert models.search([(tmp_path / "nowhere", "*.bin")], models_dir) == []
+
+
+def test_adopt_links_rather_than_copying(tmp_path, models_dir):
+    """The point of the whole feature: 1.6 GB is not spent twice.
+
+    Checked through the link count rather than through free space, which is
+    the only measurement that is the same on every filesystem.
+    """
+    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    target = models.adopt(source, models_dir)
+    assert target.stat().st_nlink == 2
+    assert target.read_bytes() == source.read_bytes()
+
+
+def test_an_adopted_model_survives_the_original_being_deleted(tmp_path, models_dir):
+    # Which is why a hard link is tried first. Somebody who empties their
+    # downloads folder a week later has not uninstalled their model.
+    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    target = models.adopt(source, models_dir)
+    source.unlink()
+    assert target.exists()
+    assert models.models_in(models_dir) == [target]
+
+
+def test_adopt_falls_back_to_a_symlink_across_filesystems(
+    tmp_path, models_dir, monkeypatch
+):
+    # os.link fails with EXDEV across filesystems and EPERM on a root-owned
+    # file under fs.protected_hardlinks, which is Fedora's default -- so the
+    # fallback is not a rare path, it is the ordinary one for /usr/share.
+    def refuse(*_args):
+        raise PermissionError("fs.protected_hardlinks")
+
+    monkeypatch.setattr(models.os, "link", refuse)
+    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    target = models.adopt(source, models_dir)
+    assert target.is_symlink()
+    assert target.read_bytes() == source.read_bytes()
+
+
+def test_a_symlinked_model_whose_original_is_gone_is_not_offered(
+    tmp_path, models_dir, monkeypatch
+):
+    """A dead path must not reach the engine.
+
+    `models_in` globs names, and a broken symlink still has a name. Handing
+    that to whisper-server fails as "the engine did not start", which is the
+    least legible error this program can produce -- while the real answer is
+    the plainest one there is: the model is not there any more.
+    """
+    monkeypatch.setattr(models.os, "link", lambda *_: (_ for _ in ()).throw(OSError()))
+    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    models.adopt(source, models_dir)
+    source.unlink()
+    assert models.models_in(models_dir) == []
+
+
+def test_adopt_verifies_a_recognised_model_against_the_published_checksum(
+    tmp_path, models_dir
+):
+    # Right size, wrong bytes: exactly what a half-finished copy from
+    # somewhere else looks like, and the one thing size alone cannot catch.
+    base = models.CATALOG["base"]
+    impostor = a_model_file(tmp_path / "ggml-base.bin", b"\0" * (base.size - 4))
+    with pytest.raises(models.DownloadError):
+        models.adopt(impostor, models_dir, base)
+    assert models.models_in(models_dir) == []
+
+
+def test_adopt_refuses_a_file_that_is_not_a_model_at_all(tmp_path, models_dir):
+    (tmp_path / "notes.bin").write_bytes(b"just some bytes")
+    with pytest.raises(models.DownloadError):
+        models.adopt(tmp_path / "notes.bin", models_dir)
+
+
+def test_adopt_reports_progress_while_it_checks(tmp_path, models_dir, monkeypatch):
+    # A sha256 of 1.6 GB is not instant, and a progress bar that does not move
+    # during it reads as a hang.
+    body = b"\0" * (2 * models.CHUNK)
+    source = a_model_file(tmp_path / "ggml-x.bin", body)
+    entry = models.Model(
+        key="x", filename="ggml-x.bin", size=len(body) + 4,
+        sha256=hashlib.sha256(models.GGML_MAGIC + body).hexdigest(),
+        summary="model.base.summary", needs_gpu=False,
+    )
+    seen: list[int] = []
+    models.adopt(source, models_dir, entry, lambda done, total: seen.append(done))
+    assert seen and seen[-1] == entry.size

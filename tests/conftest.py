@@ -132,6 +132,23 @@ def models_dir(tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def no_models_lying_around(monkeypatch):
+    """Nothing outside the temporary tree, for every test.
+
+    `models.search` reads real directories -- a whisper.cpp checkout, the
+    published cache, the downloads folder -- so the wizard's model page depends
+    on what happens to be on the machine running the suite. That is a test that
+    passes on a clean CI runner and fails on the laptop of anyone who has ever
+    fetched a model by hand, which is most people who work on this.
+
+    Tests about the search point it somewhere temporary themselves.
+    """
+    from nabria import models
+
+    monkeypatch.setattr(models, "search_roots", list)
+
+
+@pytest.fixture(autouse=True)
 def ui_language():
     """English, and no locale in the environment, for every test.
 

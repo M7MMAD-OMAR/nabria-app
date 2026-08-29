@@ -13,6 +13,7 @@ contents. Verified against locally downloaded copies of all three.
 from __future__ import annotations
 
 import hashlib
+import os
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -20,6 +21,17 @@ from typing import Callable, NamedTuple
 
 BASE_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
 CHUNK = 1 << 20
+
+# The first four bytes of every ggml file. whisper.cpp writes GGML_FILE_MAGIC
+# (0x67676d6c) as a host-endian uint32, so on a little-endian machine it lands
+# in this order; checked against all three catalogue models.
+#
+# Four bytes being the whole test is the point. It is what lets a scan of
+# several directories stay instant while still refusing a `.bin` that is a
+# firmware blob, a disk image, or another project's weights -- and a wrong
+# answer there would be reported by whisper-server failing to start, which is
+# the least legible error this program can produce.
+GGML_MAGIC = b"lmgg"
 
 
 class Model(NamedTuple):
@@ -125,7 +137,14 @@ def models_in(model_dir: Path) -> list[Path]:
     return [
         path
         for path in found
-        if not path.with_suffix(path.suffix + ".aria2").exists()
+        # `exists()` follows the link, and that is the reason it is here:
+        # `adopt` can leave a symbolic link to a model somewhere else, and
+        # emptying that somewhere else leaves a name that still globs but
+        # cannot be opened. Offering it would hand the engine a dead path,
+        # which fails as "whisper-server did not start" rather than as the
+        # missing model it actually is.
+        if path.exists()
+        and not path.with_suffix(path.suffix + ".aria2").exists()
         and not path.with_suffix(path.suffix + ".part").exists()
     ]
 
@@ -137,16 +156,207 @@ def installed(model_dir: Path, model: Model) -> bool:
     return path.exists() and path.stat().st_size == model.size
 
 
-def verify(path: Path, model: Model) -> bool:
+def verify(
+    path: Path, model: Model, on_progress: Callable[[int, int], None] | None = None
+) -> bool:
     digest = hashlib.sha256()
+    done = 0
     with path.open("rb") as source:
         while chunk := source.read(CHUNK):
             digest.update(chunk)
+            done += len(chunk)
+            if on_progress:
+                on_progress(done, model.size)
     return digest.hexdigest() == model.sha256
 
 
 class DownloadError(RuntimeError):
     pass
+
+
+# -- models that are already on the machine ---------------------------------
+#
+# The largest model is 1.6 GB. Someone who has already fetched one -- for a
+# different program, from a checkout, or by hand into their downloads folder --
+# should not spend that a second time on the connection and a third time on the
+# disk. So the wizard looks before it offers to download, and a found model is
+# linked into place rather than copied.
+
+
+class Found(NamedTuple):
+    """A whisper model sitting somewhere else on this machine."""
+
+    path: Path
+    # The catalogue entry, when the size identifies one. `None` for anything
+    # else that is a real ggml file -- a size or a quantisation this program
+    # does not offer. Those are usable and are offered, but there is no
+    # published checksum to hold them to, and the interface has to say so.
+    model: Model | None
+
+    @property
+    def name(self) -> str:
+        if self.model is not None:
+            return self.model.key
+        return self.path.stem.removeprefix("ggml-")
+
+
+_BY_SIZE = {model.size: model for model in CATALOG.values()}
+
+
+def search_roots() -> list[tuple[Path, str]]:
+    """Where a whisper model already on this machine tends to sit.
+
+    Only locations belonging to the *format*: whisper.cpp's own conventional
+    directories, the cache the models are published into, and the folder a
+    browser saves to. Directories belonging to particular programs are
+    deliberately not listed -- the list would go stale, and it would put other
+    people's product names in this file and in anything describing the feature.
+
+    Nothing here walks `$HOME`. A recursive scan of a home directory to fill in
+    one page of a setup wizard is not a trade this program makes: it reads
+    every name a person has, and on a large disk it does not finish.
+    """
+    home = Path.home()
+    cache = Path(os.environ.get("XDG_CACHE_HOME") or home / ".cache")
+    data = Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
+    return [
+        (home / "whisper.cpp/models", "*.bin"),
+        (home / "src/whisper.cpp/models", "*.bin"),
+        (cache / "whisper.cpp", "*.bin"),
+        (data / "whisper.cpp/models", "*.bin"),
+        (Path("/usr/share/whisper.cpp/models"), "*.bin"),
+        # The published cache keeps the *named* file under `snapshots/` as a
+        # symlink into `blobs/`, whose own names are content hashes with no
+        # extension -- so the named copy is the only one worth globbing for.
+        # The pattern is shaped rather than `**`: a cache holding hundreds of
+        # unrelated repositories would otherwise be walked in full, on a page
+        # that has to appear the moment it is asked for.
+        (cache / "huggingface/hub", "models--*[wW]hisper*/snapshots/*/*.bin"),
+        (home / "Downloads", "*.bin"),
+    ]
+
+
+def looks_like_a_model(path: Path) -> bool:
+    """Whether this is a ggml file at all. Four bytes, so it is free."""
+    try:
+        with path.open("rb") as source:
+            return source.read(4) == GGML_MAGIC
+    except OSError:
+        return False
+
+
+def identify(path: Path) -> Model | None:
+    """Which catalogue model a file is, by size.
+
+    Size and not name: a copy renamed on its way into somebody's downloads
+    folder is still the same 1,624,555,275 bytes, and the three sizes are
+    hundreds of megabytes apart, so there is nothing for a coincidence to land
+    on. The checksum is the real answer, and `adopt` asks for it once, when a
+    file is actually being taken -- not here, where it would mean hashing every
+    candidate to draw a page.
+    """
+    try:
+        return _BY_SIZE.get(path.stat().st_size)
+    except OSError:
+        return None
+
+
+def search(
+    roots: list[tuple[Path, str]] | None = None, model_dir: Path | None = None
+) -> list[Found]:
+    """Every whisper model already on this machine, outside our own directory.
+
+    `roots` is injectable so tests can point it somewhere temporary; left alone
+    it is `search_roots()`.
+    """
+    # Identity is the inode, not the path. A model this program adopted is
+    # reachable under both its original name and ours, and the published cache
+    # publishes one blob under several snapshot names -- all of which are one
+    # model, and would otherwise be offered two and three times over.
+    ours: set[tuple[int, int]] = set()
+    have: set[str] = set()
+    if model_dir is not None:
+        for path in models_in(model_dir):
+            try:
+                info = path.stat()
+            except OSError:
+                continue
+            ours.add((info.st_dev, info.st_ino))
+        have = {
+            model.filename for model in CATALOG.values() if installed(model_dir, model)
+        }
+
+    seen: set[tuple[int, int]] = set(ours)
+    found: list[Found] = []
+    for directory, pattern in search_roots() if roots is None else roots:
+        try:
+            candidates = sorted(directory.glob(pattern))
+        except OSError:
+            continue
+        for path in candidates:
+            try:
+                info = path.stat()  # follows the link, so a symlink is its target
+            except OSError:
+                continue  # a dangling link, or one we may not read
+            identity = (info.st_dev, info.st_ino)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            entry = _BY_SIZE.get(info.st_size)
+            # A separate copy of a model we already hold. Same bytes, different
+            # inode, and adopting it would change nothing.
+            if entry is not None and entry.filename in have:
+                continue
+            if looks_like_a_model(path):
+                found.append(Found(path, entry))
+    return found
+
+
+def adopt(
+    source: Path,
+    model_dir: Path,
+    model: Model | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> Path:
+    """Take a model that is already on this machine, without a second copy.
+
+    A link, never a copy. These files run to 1.6 GB and the whole reason for
+    pointing at one that is already here is to not spend that twice.
+
+    A hard link is tried first because it is the one that survives: the
+    original can be deleted, the downloads folder emptied, and the model is
+    still here and still a single copy of the bytes. It fails across
+    filesystems, and on a root-owned file under a kernel with
+    `fs.protected_hardlinks` -- Fedora's default -- so a symbolic link is the
+    fallback, at the cost that removing the original removes the model.
+    `models_in` drops a link whose target has gone rather than offering the
+    engine a path it cannot open.
+    """
+    model_dir.mkdir(parents=True, exist_ok=True)
+    # The named file in a published cache is itself a symlink into a blob
+    # store. Linking to the link would leave the model one cache eviction away
+    # from being a dead path, whichever kind of link we then made.
+    source = source.resolve()
+    target = model_dir / (model.filename if model is not None else source.name)
+    if target.exists():
+        return target
+
+    if not looks_like_a_model(source):
+        raise DownloadError("not a whisper model file")
+    # Recognised files are held to exactly the standard a downloaded one is.
+    # An unrecognised one cannot be -- there is no published copy to compare it
+    # against -- and the interface says so rather than implying a check.
+    if model is not None and not verify(source, model, on_progress):
+        raise DownloadError("checksum mismatch; this is not the model it looks like")
+
+    try:
+        os.link(source, target)
+    except OSError:
+        try:
+            target.symlink_to(source)
+        except OSError as exc:
+            raise DownloadError(str(exc)) from exc
+    return target
 
 
 def download(

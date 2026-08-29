@@ -300,6 +300,30 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "يحتاج بطاقة رسوميات منفصلة ليواكب الكلام.",
     },
     "wizard.model.size": {"en": "{megabytes} MB", "ar": "{megabytes} م.ب"},
+    "wizard.model.here": {
+        "en": "already on this machine",
+        "ar": "موجود على هذا الجهاز",
+    },
+    # Said out loud rather than quietly skipped. A file this program does not
+    # publish cannot be checked against anything, and the difference between
+    # "verified" and "assumed" is the whole reason the other cards can be
+    # trusted.
+    "wizard.model.unverifiable": {
+        "en": "Not one of the three, so there is no published copy to check it "
+              "against.",
+        "ar": "ليس أحد النماذج الثلاثة، فلا توجد نسخة منشورة للتحقّق منه "
+              "بمقارنتها.",
+    },
+    "wizard.model.use": {"en": "Use this one", "ar": "استخدم هذا"},
+    "wizard.model.choose": {"en": "Choose a file…", "ar": "اختر ملفًا…"},
+    "wizard.model.not_a_model": {
+        "en": "{path} is not a whisper model file.",
+        "ar": "{path} ليس ملف نموذج whisper.",
+    },
+    "wizard.checking": {
+        "en": "Checking it against the published copy",
+        "ar": "التحقّق منه بمقارنته بالنسخة المنشورة",
+    },
     "wizard.download": {"en": "Download", "ar": "تنزيل"},
     "wizard.downloading": {"en": "Downloading", "ar": "جارٍ التنزيل"},
     "wizard.progress": {

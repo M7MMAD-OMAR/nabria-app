@@ -107,7 +107,7 @@ audio.py      input devices and level measurement, via wpctl
 config.py     every path, and the one JSON config file
 theme.py      the shipped dark palette, optional desktop-palette override
 gpu.py        Vulkan enumeration (ctypes, in a subprocess) -> device decision
-models.py     the three-model catalogue, and a resumable checksummed download
+models.py     the catalogue, a resumable download, and the search for one already here
 wizard.py     first run: model, download, microphone test, shortcut
 shortcut.py   compositor detection + the exact line to paste
 portal.py     org.freedesktop.portal.GlobalShortcuts (optional, additive)
@@ -199,6 +199,33 @@ packaging. `-DGGML_NATIVE=OFF -DBUILD_SHARED_LIBS=OFF -DGGML_VULKAN=ON` gives
 one portable static binary for every machine: it falls back to CPU cleanly with
 no Vulkan driver and still picks up AVX2/FMA through ggml's runtime dispatch
 (`GGML_NATIVE=ON` measured no faster).
+
+### Models already on the machine
+
+The wizard searches before it offers a download, and **links rather than
+copies** what it finds — a hard link first, because that one survives the
+original being deleted; a symlink only when `os.link` refuses, which is the
+ordinary case across filesystems and for a root-owned file under
+`fs.protected_hardlinks`. `models_in` therefore filters on `exists()`: a
+symlink whose target has gone still globs, and handing that path to the engine
+reports "whisper-server did not start" instead of "the model is missing".
+
+Three rules that are easy to undo by accident:
+
+- **The search never walks `$HOME`.** `search_roots` is a list of
+  format-owned directories, and the published cache's glob is shaped rather
+  than `**` — a wizard page must not wait on someone's disk.
+- **A found model is preselected only when it is not a downgrade** from what
+  `recommended` would choose. Saving one download costs accuracy on every
+  sentence afterwards, and that trade is the user's to make, not ours.
+- **Two places must neutralise the search or they stop being hermetic**:
+  `tests/conftest.py` (autouse) and `scripts/capture.py`. The second is a
+  privacy matter — without it the README's screenshots carry directory names
+  from the machine that generated them.
+
+Identity in the search is `(st_dev, st_ino)`, not the path: an adopted model is
+reachable under both names, and the published cache exposes one blob under
+several snapshots.
 
 ### The shortcut portal
 

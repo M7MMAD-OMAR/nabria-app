@@ -18,6 +18,7 @@ Sway session, not only on a fully themed desktop.
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 import gi
 
@@ -106,7 +107,8 @@ class Choice(Gtk.Box):
     """
 
     def __init__(self, name: str, summary: str = "", *, note: str = "",
-                 badge: str = "", trailing: str = ""):
+                 note_style: str = "nabria-bad", badge: str = "",
+                 trailing: str = ""):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         self.add_css_class("nabria-card")
 
@@ -152,10 +154,13 @@ class Choice(Gtk.Box):
             body.add_css_class("nabria-lede")
             column.append(body)
 
-        # Reserved for the thing that turns a preference into a mistake.
+        # Reserved for the thing that turns a preference into a mistake --
+        # which is why it is red by default, and why `note_style` exists for
+        # the notes that are merely worth knowing. A caution that always looks
+        # like a failure stops being read as either.
         if note:
             warning = i18n.label(note, wrap=True)
-            warning.add_css_class("nabria-bad")
+            warning.add_css_class(note_style)
             warning.add_css_class("nabria-hint")
             column.append(warning)
 
@@ -192,6 +197,58 @@ def _key_line(text: str, *, pasteable: bool = False) -> Gtk.Widget:
         label.set_xalign(0.0)
     label.add_css_class("nabria-key")
     return label
+
+
+def choose_model_file(parent: Gtk.Window, on_chosen) -> None:
+    """Ask for a model file, on either of the toolkit's two file dialogs.
+
+    `Gtk.FileDialog` arrived in GTK 4.10 and Debian stable ships 4.8, which is
+    inside the distribution matrix -- so the older `FileChooserNative` is not a
+    courtesy to old systems, it is the only one that opens on one of the three
+    this program is tested against.
+
+    Dismissing the dialog is not an error and says nothing: somebody who
+    changed their mind is told nothing, because there is nothing to tell them.
+    """
+    only_models = Gtk.FileFilter()
+    only_models.set_name("*.bin")
+    only_models.add_pattern("*.bin")
+
+    def chosen(file) -> None:
+        if file is not None and file.get_path():
+            on_chosen(Path(file.get_path()))
+
+    if hasattr(Gtk, "FileDialog"):
+        dialog = Gtk.FileDialog(title=i18n.t("wizard.model.choose"))
+        dialog.set_default_filter(only_models)
+
+        def finished(source, result) -> None:
+            try:
+                chosen(source.open_finish(result))
+            except GLib.Error:
+                pass  # dismissed
+
+        dialog.open(parent, None, finished)
+        return
+
+    chooser = Gtk.FileChooserNative(
+        title=i18n.t("wizard.model.choose"),
+        transient_for=parent,
+        action=Gtk.FileChooserAction.OPEN,
+    )
+    chooser.add_filter(only_models)
+
+    def responded(dialog, response) -> None:
+        file = dialog.get_file()
+        dialog.destroy()
+        if response == Gtk.ResponseType.ACCEPT:
+            chosen(file)
+
+    chooser.connect("response", responded)
+    # Held on the window on purpose: a native chooser that nothing else
+    # references is collected while it is still on the screen.
+    parent._chooser = chooser
+    chooser.show()
 
 
 def group(cards: list[Choice]) -> None:
@@ -243,6 +300,11 @@ class Wizard(Gtk.ApplicationWindow):
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         heading = i18n.label(title)
         heading.add_css_class("nabria-title")
+        # Kept on the box so a page can retitle itself without going hunting
+        # through its own children. The download page needs it: the same page
+        # is a download and a checksum, and calling the second one a download
+        # would be a lie in the largest text on the screen.
+        page.heading = heading
         page.append(heading)
         if lede:
             subtitle = i18n.label(lede, wrap=True)
@@ -318,6 +380,11 @@ class Wizard(Gtk.ApplicationWindow):
             i18n.t("wizard.model.lede_gpu" if self.has_gpu else "wizard.model.lede_nogpu"),
         )
 
+        # The cards live in their own box so that one picked by hand later can
+        # be appended without landing underneath the buttons.
+        self.model_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        page.append(self.model_list)
+
         self.choices = []
         for model in models.CATALOG.values():
             card = Choice(
@@ -332,20 +399,146 @@ class Wizard(Gtk.ApplicationWindow):
                      if model.needs_gpu and not self.has_gpu else "",
             )
             card.model = model
+            card.found = None
             self.choices.append(card)
-            page.append(card)
-        group(self.choices)
-        for card in self.choices:
-            card.radio.set_active(card.model.key == recommended.key)
+            self.model_list.append(card)
 
-        fetch = Gtk.Button(label=i18n.t("wizard.download"))
-        fetch.add_css_class("suggested-action")
-        fetch.connect("clicked", lambda _b: self._begin_download())
-        self._buttons(page, fetch)
+        # Look before offering to download. Most of these are hundreds of
+        # megabytes and a great many machines already hold one, from a
+        # checkout, another program, or a browser -- and the search costs a
+        # handful of directory listings and four bytes per candidate, so it
+        # runs while the page is being built rather than behind a button
+        # somebody has to know to press.
+        for entry in models.search(model_dir=config.MODEL_DIR):
+            self.choices.append(self._found_card(entry))
+
+        group(self.choices)
+        default = self._default_choice(recommended)
+        for card in self.choices:
+            card.radio.set_active(card is default)
+
+        self.model_note = i18n.label("", wrap=True)
+        self.model_note.add_css_class("nabria-hint")
+        page.append(self.model_note)
+
+        self.fetch = Gtk.Button(label=i18n.t("wizard.download"))
+        self.fetch.add_css_class("suggested-action")
+        self.fetch.connect("clicked", lambda _b: self._begin_download())
+        # The other half of the answer: a model that is somewhere this search
+        # has no business looking, which is most places a person might keep
+        # one.
+        browse = Gtk.Button(label=i18n.t("wizard.model.choose"))
+        browse.connect("clicked", lambda _b: choose_model_file(self, self._offer_file))
+        self._buttons(page, browse, self.fetch)
+
+        # Connected after the button exists, because the handler renames it.
+        for card in self.choices:
+            card.radio.connect("toggled", self._retitle_action)
+        self._retitle_action()
         return page
+
+    def _found_card(self, entry: models.Found) -> Choice:
+        """One card for a model that is already here, appended to the list."""
+        card = Choice(
+            i18n.ltr(entry.name),
+            # The path, not a summary: which of the copies on this machine
+            # this is, is the only thing the reader needs to decide.
+            i18n.ltr(entry.path),
+            trailing=i18n.t("wizard.model.here"),
+            note="" if entry.model else i18n.t("wizard.model.unverifiable"),
+            # Worth knowing, not a failure. The red on the other cards means
+            # "this will not keep up with speech on this machine"; a file with
+            # no published copy to compare against still works.
+            note_style="nabria-lede",
+        )
+        card.model = entry.model
+        card.found = entry
+        self.model_list.append(card)
+        return card
+
+    def _default_choice(self, recommended: models.Model) -> Choice:
+        """Which card starts selected.
+
+        A model already on the disk wins over an equal or worse one behind a
+        download -- that is the whole feature, and having to notice a card and
+        click it is barely better than not having one.
+
+        It does not win a *downgrade*, which is the part that is easy to get
+        wrong. Finding the smallest model on a machine with a graphics card is
+        not a reason to install the smallest model: it saves one download,
+        once, and costs accuracy on every sentence afterwards. So a found model
+        is preselected only when it is at least the size of the one recommended
+        for this machine, and the recommendation keeps the page otherwise --
+        with the found card still sitting there for anyone who would rather
+        skip the download.
+
+        "Can run" is the same judgement `best_installed` makes: a model wanting
+        a graphics card this machine does not have is not a slower answer, it
+        is an unusable one, and choosing it *for* somebody would be this
+        program's mistake rather than their preference.
+
+        An unrecognised file is never chosen for anyone either. There is no
+        published copy to check it against, so taking it has to be a decision
+        somebody made.
+        """
+        usable = [
+            card for card in self.choices
+            if card.found is not None and card.model is not None
+            and (self.has_gpu or not card.model.needs_gpu)
+            and card.model.size >= recommended.size
+        ]
+        if usable:
+            return max(usable, key=lambda card: card.model.size)
+        return next(
+            card for card in self.choices
+            if card.found is None and card.model.key == recommended.key
+        )
+
+    def _selected_choice(self) -> Choice:
+        for card in self.choices:
+            if card.radio.get_active():
+                return card
+        return self.choices[0]
+
+    def _retitle_action(self, *_args) -> None:
+        """Say what the button is about to do, which is not always a download.
+
+        A model already on the machine -- found, hand-picked, or fetched by
+        install.sh before the wizard ever opened -- needs no download at all,
+        and a button still saying "Download" above a card saying "already on
+        this machine" reads as the search not having worked.
+        """
+        card = self._selected_choice()
+        here = card.found is not None or (
+            card.model is not None and models.installed(config.MODEL_DIR, card.model)
+        )
+        self.fetch.set_label(i18n.t("wizard.model.use" if here else "wizard.download"))
+
+    def _offer_file(self, path: Path) -> None:
+        """Add a hand-picked file to the page, chosen, or say why it cannot be."""
+        self.model_note.remove_css_class("nabria-bad")
+        if not models.looks_like_a_model(path):
+            self.model_note.add_css_class("nabria-bad")
+            self.model_note.set_text(
+                i18n.t("wizard.model.not_a_model", path=i18n.ltr(path))
+            )
+            return
+        self.model_note.set_text("")
+
+        for card in self.choices:
+            if card.found is not None and card.found.path == path:
+                card.radio.set_active(True)  # already listed; just choose it
+                return
+
+        card = self._found_card(models.Found(path, models.identify(path)))
+        card.radio.set_group(self.choices[0].radio)
+        card.radio.connect("toggled", self._retitle_action)
+        self.choices.append(card)
+        card.radio.set_active(True)
 
     def _download_page(self) -> Gtk.Box:
         page = self._page(i18n.t("wizard.downloading"), "")
+        self.download_title = page.heading
         self.progress = Gtk.ProgressBar(show_text=True)
         page.append(self.progress)
         self.download_note = i18n.label("", wrap=True)
@@ -444,14 +637,12 @@ class Wizard(Gtk.ApplicationWindow):
 
     # -- actions -----------------------------------------------------------
 
-    def _selected_model(self) -> models.Model:
-        for choice in self.choices:
-            if choice.radio.get_active():
-                return choice.model
-        return models.recommended(self.has_gpu)
-
     def _begin_download(self) -> None:
-        model = self._selected_model()
+        card = self._selected_choice()
+        if card.found is not None:
+            self._adopt(card.found)
+            return
+        model = card.model
         if models.installed(config.MODEL_DIR, model):
             # Already fetched, almost always by install.sh. Showing a download
             # page that completes instantly reads as a glitch.
@@ -459,10 +650,7 @@ class Wizard(Gtk.ApplicationWindow):
             config.save(self.settings)
             self.stack.set_visible_child_name("microphone")
             return
-        self.stack.set_visible_child_name("download")
-        self.download_next.set_sensitive(False)
-        self.download_retry.set_visible(False)
-        self.progress.set_fraction(0.0)
+        self._begin_work(i18n.t("wizard.downloading"))
         self.progress.set_text(
             i18n.t("wizard.progress", model=i18n.ltr(model.key),
                    done=0, total=model.megabytes)
@@ -481,6 +669,44 @@ class Wizard(Gtk.ApplicationWindow):
             GLib.idle_add(self._download_done, model, path)
 
         threading.Thread(target=work, daemon=True, name="nabria-fetch").start()
+
+    def _begin_work(self, title: str) -> None:
+        """Put the progress page up, named for what is about to happen on it."""
+        self.stack.set_visible_child_name("download")
+        self.download_title.set_text(title)
+        self.download_next.set_sensitive(False)
+        self.download_retry.set_visible(False)
+        self.progress.set_fraction(0.0)
+
+    def _adopt(self, entry: models.Found) -> None:
+        """Link a model that is already on this machine into place.
+
+        On the progress page, and not instantly, because the check that makes
+        it safe reads the whole file: up to 1.6 GB of sha256, which needs
+        somewhere to show that it is moving or it reads as a hang. A recognised
+        file is held to exactly the standard a downloaded one is. An
+        unrecognised one has no published copy to be compared against, so there
+        is nothing to read and the page passes straight through -- which is
+        also why its card says so before this point is reached.
+        """
+        self._begin_work(i18n.t("wizard.checking"))
+        self.progress.set_text(i18n.t("wizard.checking"))
+        self.download_note.set_text(i18n.ltr(entry.path))
+
+        def report(done: int, total: int) -> None:
+            GLib.idle_add(self._show_progress, entry.model, done, total)
+
+        def work() -> None:
+            try:
+                path = models.adopt(
+                    entry.path, config.MODEL_DIR, entry.model, report
+                )
+            except models.DownloadError as exc:
+                GLib.idle_add(self._download_failed, str(exc))
+                return
+            GLib.idle_add(self._download_done, entry.model, path)
+
+        threading.Thread(target=work, daemon=True, name="nabria-adopt").start()
 
     def _show_progress(self, model, done: int, total: int) -> bool:
         self.progress.set_fraction(done / max(total, 1))

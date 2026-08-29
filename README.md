@@ -57,6 +57,12 @@ The first launch downloads the transcription model — a few hundred megabytes,
 chosen to suit your hardware. That is the only download left after installing;
 the engine itself is in the package.
 
+If you already have a whisper model on the machine, setup finds it and offers
+it, and there is a **Choose a file…** button for one kept somewhere else. A
+model taken that way is linked rather than copied, so it costs no second copy
+of the disk, and a recognised one is checked against its published checksum
+exactly as a downloaded one is.
+
 The packages are the better path if one exists for your system, because updates
 then arrive the way every other update on your machine does — through `dnf
 upgrade`, `apt upgrade`, or whatever your desktop already uses to tell you
@@ -186,6 +192,11 @@ graphics card is larger than the difference between the models. The rule the
 setup wizard follows is simply: the largest model where there is a discrete
 card to run it on, the smallest where there is not. Change it any time in
 settings, and anything you drop into the model directory appears there too.
+
+Nothing here has to be downloaded twice. Setup looks for models already on the
+machine before it offers one, and takes what it finds by linking to it. A model
+it does not publish — another size, a quantised build — is still offered, with
+the plain caveat that there is no published copy to check it against.
 
 An integrated graphics chip is not used even when one is present. It has no
 memory of its own, shares bandwidth with everything else running, and its

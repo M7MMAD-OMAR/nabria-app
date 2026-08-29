@@ -22,7 +22,17 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, GLib, Gtk  # noqa: E402
 
-from nabria import config, i18n, settings_window, wizard  # noqa: E402
+from nabria import config, i18n, models, settings_window, wizard  # noqa: E402
+
+# Nothing of this machine's reaches a published picture.
+#
+# The throwaway profile covers the config, the models and the history, because
+# those are addressed through XDG variables. The model page's search is not: it
+# looks in the *real* home directory for models installed by anything else, and
+# the machine that runs this script has several -- so the README would carry a
+# photograph of the author's own directory names. A new install is what is
+# being photographed, and on one of those this list is empty.
+models.search_roots = list
 
 language, out_dir, shots = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
 i18n.apply(language)
