@@ -115,6 +115,24 @@ typing fails the text is on your clipboard and a notification says so. If
 transcription fails the recording is kept, because the audio is the one thing
 that cannot be produced again.
 
+### On a tiling desktop
+
+The setup window asks to be a fixed panel, and a tiling compositor gives it
+the whole column anyway — that is its decision to make, not the
+application's. If you would rather it floated:
+
+```
+# Hyprland
+windowrule = float, title:^(Nabria)$
+```
+```
+# sway
+for_window [title="^Nabria$"] floating enable
+```
+
+The settings window is deliberately left alone. It has a scrollable list of
+your transcripts, which is the one place being resizable earns its keep.
+
 `nabria settings` is where the model, the microphone and your transcripts live.
 
 ![Settings, in English](docs/screenshots/en/settings-engine.png)

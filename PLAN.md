@@ -178,7 +178,13 @@ way to bind a global hotkey on Wayland.
       block, so appending parses and does nothing), and not on KDE or GNOME
       (a settings dialog, no file). It keeps a copy of the old file, refuses
       to add a binding that is already there however it got there, and never
-      rewrites a line it did not add.
+      rewrites a line it did not add. It also refuses when there is no config
+      file where it expects one, rather than creating one the compositor does
+      not read -- which is what it did on the first machine it met.
+- [ ] `install.sh --uninstall` should remove the block it wrote. The block is
+      fenced by `shortcut.MARKER` and `MARKER_END` so it can be, and until it
+      is, uninstalling leaves binds that exec a binary that is gone. Harmless
+      -- the key does nothing -- but untidy, and the markers exist for it.
 - [ ] A window with a record button, for when no key can be bound at all.
 
 ## Phase 4 — release

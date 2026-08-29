@@ -22,7 +22,7 @@ import threading
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from . import audio, config, gpu, i18n, models, shortcut, theme  # noqa: E402
 
@@ -117,6 +117,20 @@ class Choice(Gtk.Box):
         self.radio.connect("toggled", self._on_toggled)
         self.append(self.radio)
 
+        # And the whole card is the target, not the dot. The card is already
+        # what shows the selection and already carries everything the choice
+        # turns on -- the size of the download, whether this machine can run
+        # it -- so making the 16px circle the only thing that answers is a
+        # smaller target than the thing being asked about.
+        #
+        # Selecting an already-selected radio in a group is a no-op, so a
+        # click that lands on the radio itself is not counted twice.
+        click = Gtk.GestureClick()
+        click.connect("released", lambda *_: self.radio.set_active(True))
+        self.add_controller(click)
+        # An invisible hit target is barely better than a small one.
+        self.set_cursor(Gdk.Cursor.new_from_name("pointer", None))
+
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         column.set_hexpand(True)
 
@@ -191,7 +205,15 @@ class Wizard(Gtk.ApplicationWindow):
         super().__init__(application=application, title="Nabria")
         self.settings = settings
         self.on_finished = on_finished
-        self.set_default_size(560, 520)
+        self.set_default_size(560, 560)
+        # Five fixed steps with nothing to resize and nothing to keep open, so
+        # it asks to be a fixed panel rather than a window. Whether it gets
+        # one is the compositor's decision -- a tiling compositor gives it the
+        # whole column regardless, and the honest way to change that is a
+        # window rule, which the README spells out. The settings window
+        # deliberately does *not* do this: it has a scrollable transcript list,
+        # which is the one place resizing earns its keep.
+        self.set_resizable(False)
         self.add_css_class("nabria-setup")
         install_style(settings)
 
@@ -401,6 +423,9 @@ class Wizard(Gtk.ApplicationWindow):
         try:
             written = shortcut.bind(path)
         except OSError as exc:
+            # Safe to leave the button live: the write is atomic, so a failure
+            # means the file is exactly as it was and trying again is the
+            # right thing to offer.
             self.bind_result.add_css_class("nabria-bad")
             self.bind_result.set_text(
                 i18n.t("wizard.shortcut.failed", path=i18n.ltr(path),

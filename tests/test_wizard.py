@@ -157,3 +157,26 @@ def test_an_already_downloaded_model_skips_the_download_page(application, fresh_
         choice.radio.set_active(choice.model.key == "base")
     setup._begin_download()
     assert setup.stack.get_visible_child_name() == "microphone"
+
+
+def test_the_whole_card_selects_it_not_just_the_radio(application, fresh_config):
+    """A 16px circle is a smaller target than the thing being asked about.
+
+    Emitting the gesture's own signal rather than synthesising a pointer
+    event: what is under test is that the card is wired to the radio at all,
+    and a test that needed a real click would need a real display server
+    position, which is not a thing this suite has.
+    """
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    other = [c for c in setup.choices if not c.radio.get_active()][0]
+
+    controllers = [
+        c for c in other.observe_controllers()
+        if isinstance(c, Gtk.GestureClick)
+    ]
+    assert controllers, "the card has no click gesture, so only the dot works"
+    controllers[0].emit("released", 1, 0.0, 0.0)
+
+    assert other.radio.get_active()
+    assert other.has_css_class("selected")
+    assert sum(1 for c in setup.choices if c.radio.get_active()) == 1
