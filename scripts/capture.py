@@ -175,17 +175,32 @@ def hide_pointer():
                    capture_output=True)
 
 
-def settle():
-    """Let the window actually reach the screen.
+def settle(ready=None, tries=40):
+    """Let the window actually reach the screen, and the page reach the window.
 
     present() only asks. Turning the main loop alone is not enough -- the
     compositor has its own frame to draw -- so this alternates between the two
     rather than sleeping once and hoping.
+
+    `ready` is the thing being waited *for*, rather than a length of time. A
+    fixed wait was enough on an idle machine and not on a busy one: with a
+    container build and a large download running, the stack's slide animation
+    had not finished when grim fired and the shortcut page was photographed
+    still showing the welcome page. Correct size, correct title, wrong
+    picture, no error.
     """
-    for _ in range(3):
+    for _ in range(tries):
         while GLib.MainContext.default().iteration(False):
             pass
-        time.sleep(0.25)
+        time.sleep(0.1)
+        if ready is None or ready():
+            # One more turn after the condition holds: it goes true when GTK
+            # has decided, which is before the frame carrying it is drawn.
+            time.sleep(0.2)
+            while GLib.MainContext.default().iteration(False):
+                pass
+            return True
+    return False
 
 
 def shoot(app):
@@ -209,10 +224,17 @@ def capture_all(app):
             window = wizard.Wizard(app, dict(settings), lambda: None)
             window.present()
             window.stack.set_visible_child_name(page)
+            stack = window.stack
+            def showing(stack=stack, page=page):
+                return (stack.get_visible_child_name() == page
+                        and not stack.get_transition_running())
         else:
             window = settings_window.SettingsWindow(app, dict(settings), lambda *a: None)
             window.present()
-            window.get_child().set_current_page(int(page))
+            notebook = window.get_child()
+            notebook.set_current_page(int(page))
+            def showing(notebook=notebook, page=page):
+                return notebook.get_current_page() == int(page)
 
         # Unique, and set after the window is built so it overrides whatever
         # the window titled itself. Every wizard page is one window class with
@@ -222,7 +244,11 @@ def capture_all(app):
         # unmapped. Four of the six pictures were of the wrong page.
         title = "Nabria capture: " + stem
         window.set_title(title)
-        settle()
+        if not settle(showing):
+            print("  ! " + stem + ": the page never came up", file=sys.stderr)
+            failed = True
+            window.destroy()
+            continue
         geometry = geometry_of(title)
         if geometry is None:
             print("  ! " + stem + ": the window never appeared", file=sys.stderr)
