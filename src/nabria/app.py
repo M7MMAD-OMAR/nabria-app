@@ -90,6 +90,11 @@ class Daemon:
         i18n.apply(str(self.settings.get("ui_language", "auto")))
         config.STATE_DIR.mkdir(parents=True, exist_ok=True)
         self.log_file = config.LOG_PATH.open("a", encoding="utf-8", buffering=1)
+        # config.load() runs before this file is open, so anything it had to
+        # correct waits here. A number it could not read is the kind of typo
+        # whose every other symptom points at the wrong component.
+        for warning in config.load_warnings:
+            self.log(warning)
 
         # A unique application id makes a second copy impossible: if one is
         # already running, the new process hands its activation over and exits.
@@ -578,15 +583,11 @@ class Daemon:
         takes separates the two without guessing at levels: any successful take
         clears the count.
         """
-        # Guarded: this runs inside the take's try block, so a hand-edited
-        # config holding "three" would raise, file the take into failed/ and
-        # report a transcription failure -- turning a typo into what looks
-        # like a broken transcriber.
-        try:
-            after = int(self.settings.get("silent_notice_after", 3) or 0)
-        except (TypeError, ValueError):
-            self.log("silent_notice_after is not a number, using 3")
-            after = 3
+        # config.load() has already made this a number, and said so in the log
+        # if it could not: a hand-edited "three" here used to raise inside the
+        # take, file the audio into failed/ and report a broken transcriber,
+        # turning a typo into what looked like a broken engine.
+        after = int(self.settings.get("silent_notice_after", 3) or 0)
         self.silent_run += 1
         if not after or self.silent_run != after:
             return

@@ -186,6 +186,41 @@ def silence_threshold(settings: dict[str, Any]) -> float:
         return float(DEFAULTS["silence_threshold_dbfs"])
 
 
+def _coerce_numbers(settings: dict[str, Any]) -> list[str]:
+    """Make every numeric setting a number, and say what was wrong.
+
+    The guard used to live at the call sites, and only at the one where the
+    failure had been noticed: `silent_notice_after` was wrapped in `int()`
+    while `max_seconds`, `orb_margin`, `server_port`, `threads` and
+    `idle_unload_seconds` were read raw. A typo in any of those raised inside
+    the take, filed the audio into failed/ and reported a broken transcriber,
+    which says nothing about the actual mistake -- or, in the engine's command
+    line, became "whisper-server did not start".
+
+    Types come from DEFAULTS rather than a second list, so a numeric key added
+    there is covered without anybody remembering to come back here. Booleans
+    are left alone: `bool` is an `int` subclass and JSON already gives us the
+    real thing.
+    """
+    problems = []
+    for key, default in DEFAULTS.items():
+        if isinstance(default, bool) or not isinstance(default, (int, float)):
+            continue
+        value = settings.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            try:
+                settings[key] = type(default)(value)
+            except (TypeError, ValueError):
+                settings[key] = default
+                problems.append(f"{key} is not a number ({value!r}), using {default}")
+    return problems
+
+
+# Filled by `load()` and drained by the daemon once its log file is open --
+# load() runs before there is anywhere to write to.
+load_warnings: list[str] = []
+
+
 def load() -> dict[str, Any]:
     """Defaults overlaid with the user's file; unknown keys are kept, not dropped."""
     settings = dict(DEFAULTS)
@@ -196,6 +231,8 @@ def load() -> dict[str, Any]:
     except (OSError, ValueError):
         # A corrupt config must not stop dictation from working at all.
         pass
+    load_warnings.clear()
+    load_warnings.extend(_coerce_numbers(settings))
     for key in ("server_binary", "model"):
         settings[key] = str(Path(settings[key]).expanduser())
 

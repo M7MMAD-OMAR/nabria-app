@@ -109,6 +109,11 @@ def best_installed(model_dir: Path, has_gpu: bool | None = None) -> Path | None:
     a subprocess). Then the safe answer is the largest model that does not want
     a GPU, because being wrong that way costs some accuracy and being wrong the
     other way costs a tool that runs slower than speech.
+
+    `has_gpu=False` is the same judgement, only certain: the filter used to sit
+    on the `None` branch alone, so telling this function there was no graphics
+    card produced a *worse* answer than not telling it, and a machine holding
+    nothing but the largest model had it chosen automatically.
     """
     present = {path.name: path for path in models_in(model_dir)}
     if not present:
@@ -119,7 +124,7 @@ def best_installed(model_dir: Path, has_gpu: bool | None = None) -> Path | None:
         preferred = recommended(has_gpu)
         if preferred.filename in present:
             return present[preferred.filename]
-    else:
+    if not has_gpu:
         known = [model for model in known if not model.needs_gpu] or known
 
     if known:

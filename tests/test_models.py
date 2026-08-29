@@ -352,6 +352,40 @@ def test_a_model_is_identified_by_size_not_by_name(tmp_path):
     assert models.identify(renamed) is base
 
 
+def test_knowing_there_is_no_gpu_never_gives_a_worse_answer(tmp_path):
+    # The filter that keeps a GPU-only model off a machine that cannot run it
+    # sat on the has_gpu=None branch alone, so saying "there is no graphics
+    # card" produced a *worse* answer than saying nothing: the largest model
+    # was picked and dictation runs slower than speech, which is unusable
+    # rather than merely slow.
+    for key in ("small", "large-v3-turbo"):
+        model = models.CATALOG[key]
+        a_model_file(tmp_path / model.filename, model.size)
+
+    without_gpu = models.best_installed(tmp_path, has_gpu=False)
+    assert without_gpu is not None
+    chosen = models.identify(without_gpu)
+    assert chosen is not None and chosen.needs_gpu is False
+    # Unknown hardware has always taken the safe branch; certain knowledge
+    # must not be worse than that.
+    assert without_gpu == models.best_installed(tmp_path, has_gpu=None)
+
+    # A machine that does have the card still gets the model worth having.
+    with_gpu = models.best_installed(tmp_path, has_gpu=True)
+    assert with_gpu is not None
+    preferred = models.identify(with_gpu)
+    assert preferred is not None and preferred.key == "large-v3-turbo"
+
+
+def test_the_only_model_present_is_used_even_if_it_wants_a_gpu(tmp_path):
+    # The filter must not strip the list down to nothing: a machine holding
+    # only the large model and no card is better served by a slow model than
+    # by "no model installed", which stops dictation entirely.
+    large = models.CATALOG["large-v3-turbo"]
+    a_model_file(tmp_path / large.filename, large.size)
+    assert models.best_installed(tmp_path, has_gpu=False) is not None
+
+
 def test_search_finds_a_model_and_names_it_from_the_catalogue(tmp_path, models_dir):
     base = models.CATALOG["base"]
     a_model_file(tmp_path / "elsewhere/ggml-base.bin", base.size)

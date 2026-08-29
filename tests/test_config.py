@@ -40,6 +40,53 @@ def test_unknown_keys_are_kept_not_dropped(fresh_config):
     assert fresh_config.load()["from_the_future"] == 1
 
 
+def test_a_number_written_as_a_word_does_not_break_a_take(fresh_config):
+    # Every symptom of this points somewhere else: a bad max_seconds or
+    # silent_notice_after raised inside the take, filed the audio into failed/
+    # and reported a broken transcriber, while a bad threads or server_port
+    # became "whisper-server did not start". The typo is named in the log
+    # instead, and the default stands in.
+    fresh_config.save({
+        **fresh_config.DEFAULTS,
+        "silent_notice_after": "three",
+        "max_seconds": "",
+        "orb_margin": None,
+        "threads": "many",
+        "server_port": "auto",
+        "idle_unload_seconds": "never",
+    })
+    settings = fresh_config.load()
+
+    for key in ("silent_notice_after", "max_seconds", "orb_margin",
+                "threads", "server_port", "idle_unload_seconds"):
+        assert settings[key] == fresh_config.DEFAULTS[key], key
+        assert isinstance(settings[key], (int, float)), key
+    # Silent correction is the failure this is meant to prevent, so each one
+    # has to be named.
+    assert len(fresh_config.load_warnings) == 6
+    assert any("silent_notice_after" in line for line in fresh_config.load_warnings)
+
+
+def test_a_number_written_as_a_string_is_taken_at_its_word(fresh_config):
+    # "8" is a typo with an obvious meaning, and JSON makes it easy to write.
+    # Correcting it to the default would quietly ignore what the user asked
+    # for, which is worse than reading it.
+    fresh_config.save({**fresh_config.DEFAULTS, "threads": "8", "orb_margin": "40"})
+    settings = fresh_config.load()
+    assert settings["threads"] == 8
+    assert settings["orb_margin"] == 40
+    assert fresh_config.load_warnings == []
+
+
+def test_booleans_are_left_alone(fresh_config):
+    # bool is an int subclass, so a careless coercion turns True into 1 and
+    # the settings window's switches stop matching the file.
+    fresh_config.save({**fresh_config.DEFAULTS, "prewarm": True, "keep_audio": False})
+    settings = fresh_config.load()
+    assert settings["prewarm"] is True
+    assert settings["keep_audio"] is False
+
+
 def test_arabic_is_saved_readable_not_escaped(fresh_config):
     fresh_config.save({**fresh_config.DEFAULTS, "vocabulary": "هلأ بحكي"})
     raw = fresh_config.CONFIG_PATH.read_text(encoding="utf-8")
