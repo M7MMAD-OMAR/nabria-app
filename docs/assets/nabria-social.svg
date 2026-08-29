@@ -4,8 +4,10 @@
   <rect width="1200" height="630" fill="#17110F"/>
   <g opacity=".18" stroke="#F4E6E0"><path d="M0 105h1200M0 210h1200M0 315h1200M0 420h1200M0 525h1200"/><path d="M150 0v630M300 0v630M450 0v630M600 0v630M750 0v630M900 0v630M1050 0v630"/></g>
   <rect x="88" y="82" width="112" height="112" rx="30" fill="#211916" stroke="#4A3A35" stroke-width="3"/>
-  <path d="M113 132v16M128 119v42M144 108v64M160 119v42M175 132v16" fill="none" stroke="#FF9D7D" stroke-width="9" stroke-linecap="round"/>
+  <path d="M112 132c0 22 13 36 32 36s32-14 32-36" fill="none" stroke="#FF9D7D" stroke-width="9" stroke-linecap="round"/>
+  <path d="M127 132v16M144 117v34M161 132v16" fill="none" stroke="#FF9D7D" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="144" cy="105" r="7" fill="#F0C48A"/>
   <text x="88" y="315" fill="#F4E6E0" font-family="Arial, sans-serif" font-size="114" font-weight="700" letter-spacing="-6">Just talk.</text>
   <text x="94" y="380" fill="#BCA9A2" font-family="Arial, sans-serif" font-size="30">Local voice dictation for Linux</text>
-  <g transform="translate(830 126)"><rect width="270" height="360" rx="50" fill="#211916" stroke="#4A3A35" stroke-width="3"/><circle cx="135" cy="180" r="92" fill="#17110F" stroke="#4A3A35" stroke-width="3"/><path d="M88 168v24M111 143v74M135 124v112M159 143v74M182 168v24" fill="none" stroke="#FF9D7D" stroke-width="12" stroke-linecap="round"/><circle cx="135" cy="180" r="116" fill="none" stroke="#F0C48A" stroke-width="2" stroke-dasharray="4 13" opacity=".55"/></g>
+  <g transform="translate(830 126)"><rect width="270" height="360" rx="50" fill="#211916" stroke="#4A3A35" stroke-width="3"/><circle cx="135" cy="180" r="92" fill="#17110F" stroke="#4A3A35" stroke-width="3"/><path d="M82 174c0 38 21 62 53 62s53-24 53-62" fill="none" stroke="#FF9D7D" stroke-width="12" stroke-linecap="round"/><path d="M105 174v28M135 144v63M165 174v28" fill="none" stroke="#FF9D7D" stroke-width="12" stroke-linecap="round"/><circle cx="135" cy="123" r="10" fill="#F0C48A"/></g>
 </svg>

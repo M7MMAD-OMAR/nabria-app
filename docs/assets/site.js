@@ -1,6 +1,8 @@
 (() => {
   const header = document.querySelector(".site-header");
   const menuButton = document.querySelector(".menu-toggle");
+  const pageMain = document.querySelector("main");
+  const pageFooter = document.querySelector(".site-footer");
 
   const closeMenu = () => {
     if (!header || !menuButton) return;
@@ -8,6 +10,8 @@
     menuButton.setAttribute("aria-expanded", "false");
     menuButton.setAttribute("aria-label", menuButton.dataset.openLabel || "Open menu");
     document.body.classList.remove("menu-open");
+    if (pageMain) pageMain.inert = false;
+    if (pageFooter) pageFooter.inert = false;
   };
 
   if (header && menuButton) {
@@ -20,6 +24,8 @@
         open ? menuButton.dataset.closeLabel || "Close menu" : menuButton.dataset.openLabel || "Open menu",
       );
       document.body.classList.toggle("menu-open", open);
+      if (pageMain) pageMain.inert = open;
+      if (pageFooter) pageFooter.inert = open;
     });
 
     header.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeMenu));

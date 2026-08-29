@@ -1210,19 +1210,34 @@ html[dir="rtl"] .closing .button {
 
   .primary-nav {
     inset-block-start: var(--header-height);
-    padding: 34px 24px 22px;
+    padding: 24px 24px 16px;
     flex-direction: column;
     align-items: flex-start;
-    gap: 24px;
+    gap: 4px;
     border-block-end: 0;
   }
 
+  .primary-nav a {
+    inline-size: 100%;
+    min-block-size: 44px;
+    display: flex;
+    align-items: center;
+  }
+
   .header-actions {
-    inset-block-start: calc(var(--header-height) + 190px);
-    padding: 20px 24px 34px;
+    inset-block-start: calc(var(--header-height) + 228px);
+    padding: 16px 24px 28px;
     flex-direction: column;
     align-items: stretch;
     border-block-end: 1px solid var(--line-dark);
+  }
+
+  body.menu-open::before {
+    content: "";
+    position: fixed;
+    inset: var(--header-height) 0 0;
+    z-index: 40;
+    background: var(--night);
   }
 
   .header-actions .header-link,
