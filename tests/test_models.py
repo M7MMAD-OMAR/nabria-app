@@ -302,10 +302,19 @@ def test_the_readme_states_the_catalogue_s_real_sizes():
 # never quietly accepts a file that fails the published checksum.
 
 
-def a_model_file(path: Path, contents: bytes = b"") -> Path:
-    """A file that begins the way every ggml file does."""
+def a_model_file(path: Path, size: int = 4) -> Path:
+    """A file that begins the way every ggml file does, of an exact size.
+
+    Sparse: the catalogue is identified by size, so these tests need files of
+    148 MB and 488 MB, and writing those for real filled /tmp and failed the
+    suite with a quota error that looked nothing like a test failure. The hole
+    reads back as the zeroes the checksum tests already expect.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(models.GGML_MAGIC + contents)
+    with path.open("wb") as sink:
+        sink.write(models.GGML_MAGIC)
+        if size > len(models.GGML_MAGIC):
+            sink.truncate(size)
     return path
 
 
@@ -321,6 +330,14 @@ def test_the_magic_is_what_the_catalogue_models_actually_start_with():
     assert models.GGML_MAGIC == (0x67676D6C).to_bytes(4, "little")
 
 
+def _digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(models.CHUNK):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def test_a_bin_file_that_is_not_a_model_is_refused(tmp_path):
     # The case this exists for: a firmware blob, a disk image, another
     # project's weights. Accepting one gets reported as "whisper-server did
@@ -331,13 +348,13 @@ def test_a_bin_file_that_is_not_a_model_is_refused(tmp_path):
 
 def test_a_model_is_identified_by_size_not_by_name(tmp_path):
     base = models.CATALOG["base"]
-    renamed = a_model_file(tmp_path / "speech.bin", b"\0" * (base.size - 4))
+    renamed = a_model_file(tmp_path / "speech.bin", base.size)
     assert models.identify(renamed) is base
 
 
 def test_search_finds_a_model_and_names_it_from_the_catalogue(tmp_path, models_dir):
     base = models.CATALOG["base"]
-    a_model_file(tmp_path / "elsewhere/ggml-base.bin", b"\0" * (base.size - 4))
+    a_model_file(tmp_path / "elsewhere/ggml-base.bin", base.size)
 
     found = models.search([(tmp_path / "elsewhere", "*.bin")], models_dir)
     assert [(entry.name, entry.model) for entry in found] == [("base", base)]
@@ -349,7 +366,7 @@ def test_search_offers_an_unknown_model_without_pretending_to_know_it(
     # A size or a quantisation this program does not publish. Usable, but there
     # is no checksum to hold it to, and `model=None` is how the page knows to
     # say so.
-    a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 1000)
+    a_model_file(tmp_path / "ggml-medium.bin", 1004)
     found = models.search([(tmp_path, "*.bin")], models_dir)
     assert len(found) == 1
     assert found[0].model is None
@@ -358,7 +375,7 @@ def test_search_offers_an_unknown_model_without_pretending_to_know_it(
 
 def test_one_file_reached_by_two_names_is_one_model(tmp_path, models_dir):
     """The published cache links one blob into several snapshot directories."""
-    real = a_model_file(tmp_path / "blobs/abc123", b"\0" * 100)
+    real = a_model_file(tmp_path / "blobs/abc123", 104)
     (tmp_path / "snapshots").mkdir()
     (tmp_path / "snapshots/ggml-base.bin").symlink_to(real)
 
@@ -369,7 +386,7 @@ def test_one_file_reached_by_two_names_is_one_model(tmp_path, models_dir):
 
 
 def test_a_model_already_adopted_is_not_offered_again(tmp_path, models_dir):
-    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    source = a_model_file(tmp_path / "ggml-medium.bin", 104)
     models.adopt(source, models_dir)
     assert models.search([(tmp_path, "*.bin")], models_dir) == []
 
@@ -378,8 +395,8 @@ def test_a_model_already_downloaded_is_not_offered_again(tmp_path, models_dir):
     # A separate copy this time -- different inode, same bytes. Adopting it
     # would change nothing, so it does not appear.
     base = models.CATALOG["base"]
-    (models_dir / base.filename).write_bytes(models.GGML_MAGIC + b"\0" * (base.size - 4))
-    a_model_file(tmp_path / "ggml-base.bin", b"\0" * (base.size - 4))
+    a_model_file(models_dir / base.filename, base.size)
+    a_model_file(tmp_path / "ggml-base.bin", base.size)
     assert models.search([(tmp_path, "*.bin")], models_dir) == []
 
 
@@ -394,7 +411,7 @@ def test_adopt_links_rather_than_copying(tmp_path, models_dir):
     Checked through the link count rather than through free space, which is
     the only measurement that is the same on every filesystem.
     """
-    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    source = a_model_file(tmp_path / "ggml-medium.bin", 104)
     target = models.adopt(source, models_dir)
     assert target.stat().st_nlink == 2
     assert target.read_bytes() == source.read_bytes()
@@ -403,7 +420,7 @@ def test_adopt_links_rather_than_copying(tmp_path, models_dir):
 def test_an_adopted_model_survives_the_original_being_deleted(tmp_path, models_dir):
     # Which is why a hard link is tried first. Somebody who empties their
     # downloads folder a week later has not uninstalled their model.
-    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    source = a_model_file(tmp_path / "ggml-medium.bin", 104)
     target = models.adopt(source, models_dir)
     source.unlink()
     assert target.exists()
@@ -420,7 +437,7 @@ def test_adopt_falls_back_to_a_symlink_across_filesystems(
         raise PermissionError("fs.protected_hardlinks")
 
     monkeypatch.setattr(models.os, "link", refuse)
-    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    source = a_model_file(tmp_path / "ggml-medium.bin", 104)
     target = models.adopt(source, models_dir)
     assert target.is_symlink()
     assert target.read_bytes() == source.read_bytes()
@@ -437,7 +454,7 @@ def test_a_symlinked_model_whose_original_is_gone_is_not_offered(
     the plainest one there is: the model is not there any more.
     """
     monkeypatch.setattr(models.os, "link", lambda *_: (_ for _ in ()).throw(OSError()))
-    source = a_model_file(tmp_path / "ggml-medium.bin", b"\0" * 100)
+    source = a_model_file(tmp_path / "ggml-medium.bin", 104)
     models.adopt(source, models_dir)
     source.unlink()
     assert models.models_in(models_dir) == []
@@ -449,7 +466,7 @@ def test_adopt_verifies_a_recognised_model_against_the_published_checksum(
     # Right size, wrong bytes: exactly what a half-finished copy from
     # somewhere else looks like, and the one thing size alone cannot catch.
     base = models.CATALOG["base"]
-    impostor = a_model_file(tmp_path / "ggml-base.bin", b"\0" * (base.size - 4))
+    impostor = a_model_file(tmp_path / "ggml-base.bin", base.size)
     with pytest.raises(models.DownloadError):
         models.adopt(impostor, models_dir, base)
     assert models.models_in(models_dir) == []
@@ -464,13 +481,75 @@ def test_adopt_refuses_a_file_that_is_not_a_model_at_all(tmp_path, models_dir):
 def test_adopt_reports_progress_while_it_checks(tmp_path, models_dir, monkeypatch):
     # A sha256 of 1.6 GB is not instant, and a progress bar that does not move
     # during it reads as a hang.
-    body = b"\0" * (2 * models.CHUNK)
-    source = a_model_file(tmp_path / "ggml-x.bin", body)
+    size = 2 * models.CHUNK
+    source = a_model_file(tmp_path / "ggml-x.bin", size)
     entry = models.Model(
-        key="x", filename="ggml-x.bin", size=len(body) + 4,
-        sha256=hashlib.sha256(models.GGML_MAGIC + body).hexdigest(),
+        key="x", filename="ggml-x.bin", size=size,
+        sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
         summary="model.base.summary", needs_gpu=False,
     )
     seen: list[int] = []
     models.adopt(source, models_dir, entry, lambda done, total: seen.append(done))
     assert seen and seen[-1] == entry.size
+
+
+def test_a_dead_link_does_not_make_the_model_unadoptable(
+    tmp_path, models_dir, monkeypatch
+):
+    """The state this feature creates, and then has to survive.
+
+    `adopt` links symbolically wherever `os.link` is refused; the original is
+    deleted a week later; `models_in` correctly hides the dead link, so the
+    wizard reopens for want of a model -- into the one action that would fix
+    it. `exists()` follows the link, so the name reads as free while `os.link`
+    refuses it as EEXIST, and the Try again button repeats that forever.
+    """
+    monkeypatch.setattr(models.os, "link", lambda *_: (_ for _ in ()).throw(OSError()))
+    gone = a_model_file(tmp_path / "gone/ggml-medium.bin", 104)
+    models.adopt(gone, models_dir)
+    gone.unlink()
+
+    again = a_model_file(tmp_path / "here/ggml-medium.bin", 104)
+    target = models.adopt(again, models_dir)
+    assert target.read_bytes() == again.read_bytes()
+    assert models.models_in(models_dir) == [target]
+
+
+def test_a_name_already_taken_is_never_returned_as_though_it_were_ours(
+    tmp_path, models_dir
+):
+    """Returning the occupant would report a check that never ran.
+
+    The wizard writes whatever comes back into `config["model"]` under a label
+    saying "verified". An unrelated file that happens to share the name would
+    be handed to the engine with that word attached to it.
+    """
+    (models_dir / "ggml-x.bin").write_bytes(models.GGML_MAGIC + b"something else")
+    source = a_model_file(tmp_path / "ggml-x.bin", 104)
+
+    target = models.adopt(source, models_dir)
+    assert target != models_dir / "ggml-x.bin"
+    assert target.read_bytes() == source.read_bytes()
+    # And the file that was already there is untouched: this program does not
+    # delete what it cannot identify.
+    assert (models_dir / "ggml-x.bin").read_bytes() != source.read_bytes()
+
+
+def test_a_broken_copy_of_a_known_model_is_replaced(tmp_path, models_dir):
+    # A truncated download of the same model, under the same name. A finished
+    # download replaces one of those, and so does this.
+    base = models.CATALOG["base"]
+    a_model_file(models_dir / base.filename, 14)
+
+    source = a_model_file(tmp_path / "elsewhere/ggml-base.bin", base.size)
+    entry = base._replace(sha256=_digest(source))
+    target = models.adopt(source, models_dir, entry)
+    assert target == models_dir / base.filename
+    assert target.stat().st_size == base.size
+
+
+def test_adopting_the_same_file_twice_is_not_a_second_model(tmp_path, models_dir):
+    source = a_model_file(tmp_path / "ggml-medium.bin", 104)
+    first = models.adopt(source, models_dir)
+    assert models.adopt(source, models_dir) == first
+    assert models.models_in(models_dir) == [first]

@@ -199,9 +199,13 @@ def test_the_whole_card_selects_it_not_just_the_radio(application, fresh_config)
 # -- a model that is already on the machine ---------------------------------
 
 
-def a_model_file(path, contents: bytes = b"") -> object:
+def a_model_file(path, size: int = 4):
+    """As in test_models: sparse, because these are hundreds of megabytes."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(models.GGML_MAGIC + contents)
+    with path.open("wb") as sink:
+        sink.write(models.GGML_MAGIC)
+        if size > len(models.GGML_MAGIC):
+            sink.truncate(size)
     return path
 
 
@@ -224,7 +228,7 @@ def test_a_model_already_here_is_offered_and_chosen(
     already have started by then.
     """
     base = models.CATALOG["base"]
-    a_model_file(elsewhere / "ggml-base.bin", b"\0" * (base.size - 4))
+    a_model_file(elsewhere / "ggml-base.bin", base.size)
 
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     chosen = setup._selected_choice()
@@ -243,7 +247,7 @@ def test_a_found_model_does_not_win_a_downgrade(
     skip the download -- it just is not chosen for them.
     """
     base = models.CATALOG["base"]
-    a_model_file(elsewhere / "ggml-base.bin", b"\0" * (base.size - 4))
+    a_model_file(elsewhere / "ggml-base.bin", base.size)
 
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     assert any(c.found is not None for c in setup.choices)
@@ -257,7 +261,7 @@ def test_a_bigger_model_already_here_beats_the_recommendation(
     # machine with no graphics card only because of the download, and there is
     # no download to weigh once it is already here.
     small = models.CATALOG["small"]
-    a_model_file(elsewhere / "ggml-small.bin", b"\0" * (small.size - 4))
+    a_model_file(elsewhere / "ggml-small.bin", small.size)
 
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     assert setup._selected_choice().model.key == "small"
@@ -270,7 +274,7 @@ def test_the_button_stops_saying_download_for_a_model_that_is_here(
     # "Download" over a card reading "already on this machine" reads as the
     # search not having worked.
     base = models.CATALOG["base"]
-    a_model_file(elsewhere / "ggml-base.bin", b"\0" * (base.size - 4))
+    a_model_file(elsewhere / "ggml-base.bin", base.size)
 
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     assert setup.fetch.get_label() == i18n.t("wizard.model.use")
@@ -289,7 +293,7 @@ def test_a_model_this_machine_cannot_run_is_offered_but_not_chosen(
     choice stays the reader's.
     """
     turbo = models.CATALOG["large-v3-turbo"]
-    a_model_file(elsewhere / "ggml-large-v3-turbo.bin", b"\0" * (turbo.size - 4))
+    a_model_file(elsewhere / "ggml-large-v3-turbo.bin", turbo.size)
 
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     assert any(c.found is not None for c in setup.choices)
@@ -302,7 +306,7 @@ def test_an_unrecognised_file_is_never_chosen_for_anyone(
 ):
     # No published copy to check it against, so taking it has to be somebody's
     # decision rather than this program's.
-    a_model_file(elsewhere / "ggml-medium.bin", b"\0" * 500)
+    a_model_file(elsewhere / "ggml-medium.bin", 504)
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     unknown = [c for c in setup.choices if c.found is not None][0]
     assert unknown.model is None
@@ -312,7 +316,7 @@ def test_an_unrecognised_file_is_never_chosen_for_anyone(
 def test_a_hand_picked_file_is_added_and_chosen(application, fresh_config, tmp_path):
     # The other half of the answer: a model kept somewhere the search has no
     # business looking, which is most places a person might keep one.
-    path = a_model_file(tmp_path / "somewhere/mine.bin", b"\0" * 500)
+    path = a_model_file(tmp_path / "somewhere/mine.bin", 504)
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     setup._offer_file(path)
 
@@ -322,7 +326,7 @@ def test_a_hand_picked_file_is_added_and_chosen(application, fresh_config, tmp_p
 
 
 def test_the_same_file_picked_twice_is_listed_once(application, fresh_config, tmp_path):
-    path = a_model_file(tmp_path / "mine.bin", b"\0" * 500)
+    path = a_model_file(tmp_path / "mine.bin", 504)
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     setup._offer_file(path)
     setup._offer_file(path)
@@ -356,9 +360,42 @@ def test_choosing_a_model_that_is_here_never_shows_a_download(
     need a progress bar; calling that bar a download would be the one piece of
     text on the screen and would be wrong.
     """
-    a_model_file(elsewhere / "ggml-medium.bin", b"\0" * 500)
+    a_model_file(elsewhere / "ggml-medium.bin", 504)
     setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
     setup._offer_file(elsewhere / "ggml-medium.bin")
     setup._begin_download()
 
     assert setup.download_title.get_text() == i18n.t("wizard.checking")
+
+
+def test_a_file_that_is_not_on_this_machine_is_reported(
+    application, fresh_config
+):
+    # A model picked over sftp or smb has no local path. Closing the dialog and
+    # doing nothing is the silent failure this project does not ship.
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    setup._offer_file(None)
+    assert setup.model_note.get_text() == i18n.t("wizard.model.not_local")
+    assert setup.model_note.has_css_class("nabria-bad")
+
+
+def test_the_buttons_stay_reachable_however_many_models_turn_up(
+    application, fresh_config, elsewhere
+):
+    """The window asks not to be resizable, so the page cannot grow.
+
+    Three cards is the floor, not the count: a machine that already holds
+    several models, plus anything picked by hand, has as many as it has. Off
+    the bottom of a 560px window that cannot be made taller, the buttons are
+    gone -- at exactly the moment the search worked best.
+    """
+    for index in range(8):
+        a_model_file(elsewhere / f"ggml-{index}.bin", 504)
+
+    setup = wizard.Wizard(application, fresh_config.load(), lambda: None)
+    assert len([c for c in setup.choices if c.found is not None]) == 8
+
+    scroller = setup.model_list.get_parent()
+    while scroller is not None and not isinstance(scroller, Gtk.ScrolledWindow):
+        scroller = scroller.get_parent()
+    assert scroller is not None, "the card list cannot scroll, so it can hide the buttons"

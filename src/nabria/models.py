@@ -312,6 +312,15 @@ def search(
     return found
 
 
+def _free_name(target: Path) -> Path:
+    """`ggml-x.bin` -> `ggml-x-2.bin`, for a name already spoken for."""
+    for number in range(2, 100):
+        candidate = target.with_name(f"{target.stem}-{number}{target.suffix}")
+        if not candidate.exists() and not candidate.is_symlink():
+            return candidate
+    raise DownloadError(f"no free name beside {target}")
+
+
 def adopt(
     source: Path,
     model_dir: Path,
@@ -337,17 +346,44 @@ def adopt(
     # store. Linking to the link would leave the model one cache eviction away
     # from being a dead path, whichever kind of link we then made.
     source = source.resolve()
-    target = model_dir / (model.filename if model is not None else source.name)
-    if target.exists():
-        return target
-
     if not looks_like_a_model(source):
         raise DownloadError("not a whisper model file")
+
+    target = model_dir / (model.filename if model is not None else source.name)
+
+    # `exists()` follows the link, so a name held by a *dangling* symlink reads
+    # as free while `os.link` and `symlink_to` both refuse it as EEXIST. That
+    # is a state this function creates -- it links symbolically whenever
+    # `os.link` is refused, and the original can be deleted afterwards -- so
+    # leaving it would make the model permanently unadoptable: `models_in`
+    # hides the dead link, the wizard reopens because there is no model, and
+    # the one action that would fix it fails every time it is retried.
+    if target.is_symlink() and not target.exists():
+        target.unlink()
+
+    if target.exists() and target.samefile(source):
+        return target  # already adopted, under our name or its own
+
     # Recognised files are held to exactly the standard a downloaded one is.
     # An unrecognised one cannot be -- there is no published copy to compare it
     # against -- and the interface says so rather than implying a check.
     if model is not None and not verify(source, model, on_progress):
         raise DownloadError("checksum mismatch; this is not the model it looks like")
+
+    if target.exists():
+        # The name is taken by a different file, and returning it as though it
+        # were the adopted one would report a checksum that was never run and
+        # then point the engine at whatever happened to be sitting there.
+        if model is not None:
+            # This name belongs to this model. Either what is there *is* the
+            # model, and there was nothing to adopt, or it is a broken copy --
+            # which a finished download replaces too.
+            if target.stat().st_size == model.size and verify(target, model):
+                return target
+            target.unlink()
+        else:
+            # A file this program cannot identify is not one it may delete.
+            target = _free_name(target)
 
     try:
         os.link(source, target)

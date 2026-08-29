@@ -209,14 +209,21 @@ def choose_model_file(parent: Gtk.Window, on_chosen) -> None:
 
     Dismissing the dialog is not an error and says nothing: somebody who
     changed their mind is told nothing, because there is nothing to tell them.
+    Choosing a file that is not on this machine *is* something, and is reported
+    -- `on_chosen(None)` -- rather than closing the dialog and doing nothing.
     """
     only_models = Gtk.FileFilter()
     only_models.set_name("*.bin")
     only_models.add_pattern("*.bin")
 
     def chosen(file) -> None:
-        if file is not None and file.get_path():
-            on_chosen(Path(file.get_path()))
+        if file is None:
+            return
+        # A file picked over sftp or smb has no local path at all. Reading it
+        # would mean copying gigabytes over somebody's network to a directory
+        # that must hold the real thing, so it is refused and said out loud.
+        path = file.get_path()
+        on_chosen(Path(path) if path else None)
 
     if hasattr(Gtk, "FileDialog"):
         dialog = Gtk.FileDialog(title=i18n.t("wizard.model.choose"))
@@ -236,11 +243,19 @@ def choose_model_file(parent: Gtk.Window, on_chosen) -> None:
         transient_for=parent,
         action=Gtk.FileChooserAction.OPEN,
     )
+    # `Gtk.FileDialog` is modal by default and `Gtk.NativeDialog` is not, so
+    # without this the two branches behave differently in the way that matters:
+    # the wizard stays clickable behind the older chooser, and a second click
+    # on the same button would drop the only reference to the first one while
+    # it is still on the screen. The same click could also start the download
+    # and leave the chooser editing a page that had moved on.
+    chooser.set_modal(True)
     chooser.add_filter(only_models)
 
     def responded(dialog, response) -> None:
         file = dialog.get_file()
         dialog.destroy()
+        parent._chooser = None
         if response == Gtk.ResponseType.ACCEPT:
             chosen(file)
 
@@ -381,9 +396,22 @@ class Wizard(Gtk.ApplicationWindow):
         )
 
         # The cards live in their own box so that one picked by hand later can
-        # be appended without landing underneath the buttons.
+        # be appended without landing underneath the buttons -- and inside a
+        # scroller, because this is the one page whose length is not known when
+        # it is written. Three cards is the floor; a machine holding several
+        # models already, plus anything picked by hand, has as many as it has.
+        # The window asks not to be resizable, so without this the buttons
+        # would be pushed off the bottom of a window that cannot be made
+        # taller, and the page would be unusable at exactly the moment the
+        # search had worked best.
         self.model_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
-        page.append(self.model_list)
+        scroller = Gtk.ScrolledWindow(vexpand=True)
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Natural height while everything fits, so three cards do not sit in a
+        # tall empty box on the ordinary first run.
+        scroller.set_propagate_natural_height(True)
+        scroller.set_child(self.model_list)
+        page.append(scroller)
 
         self.choices = []
         for model in models.CATALOG.values():
@@ -514,9 +542,14 @@ class Wizard(Gtk.ApplicationWindow):
         )
         self.fetch.set_label(i18n.t("wizard.model.use" if here else "wizard.download"))
 
-    def _offer_file(self, path: Path) -> None:
+    def _offer_file(self, path: Path | None) -> None:
         """Add a hand-picked file to the page, chosen, or say why it cannot be."""
         self.model_note.remove_css_class("nabria-bad")
+        if path is None:
+            # Picked over a network mount, so there is no file here to link to.
+            self.model_note.add_css_class("nabria-bad")
+            self.model_note.set_text(i18n.t("wizard.model.not_local"))
+            return
         if not models.looks_like_a_model(path):
             self.model_note.add_css_class("nabria-bad")
             self.model_note.set_text(

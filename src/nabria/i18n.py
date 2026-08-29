@@ -320,6 +320,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "{path} is not a whisper model file.",
         "ar": "{path} ليس ملف نموذج whisper.",
     },
+    "wizard.model.not_local": {
+        "en": "That file is not on this machine. Copy it here first.",
+        "ar": "هذا الملف ليس على هذا الجهاز. انسخه إلى هنا أولًا.",
+    },
     "wizard.checking": {
         "en": "Checking it against the published copy",
         "ar": "التحقّق منه بمقارنته بالنسخة المنشورة",
