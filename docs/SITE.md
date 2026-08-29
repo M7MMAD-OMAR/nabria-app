@@ -152,7 +152,7 @@ that cannot work.
 | domain | `nabria.sbarah.com` via CNAME, later |
 | assets | shared CSS and JS, generated Nabria SVG mark, social image, real setup screenshots |
 | icons | local Phosphor Duotone sprite with the upstream MIT licence |
-| script | mobile menu, install tabs and command copy only |
+| script | animated mobile drawer, screenshot carousel, quick install, install tabs and command copy |
 | budget | static files, no framework and no build step |
 
 `.nojekyll` is not optional: Pages runs Jekyll on a branch source by default,

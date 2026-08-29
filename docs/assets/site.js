@@ -3,6 +3,7 @@
   const menuButton = document.querySelector(".menu-toggle");
   const pageMain = document.querySelector("main");
   const pageFooter = document.querySelector(".site-footer");
+  const mobileMenu = document.getElementById("mobile-menu");
 
   const closeMenu = () => {
     if (!header || !menuButton) return;
@@ -26,6 +27,9 @@
       document.body.classList.toggle("menu-open", open);
       if (pageMain) pageMain.inert = open;
       if (pageFooter) pageFooter.inert = open;
+      if (open) {
+        window.setTimeout(() => mobileMenu?.querySelector("a")?.focus(), 180);
+      }
     });
 
     header.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeMenu));
@@ -38,7 +42,85 @@
         menuButton.focus();
       }
     });
+    document.addEventListener("click", (event) => {
+      if (document.body.classList.contains("menu-open") && event.target === document.body) {
+        closeMenu();
+        menuButton.focus();
+      }
+    });
   }
+
+  document.querySelectorAll("[data-carousel]").forEach((carousel) => {
+    const slides = [...carousel.querySelectorAll("[data-slide]")];
+    const previous = carousel.querySelector("[data-carousel-prev]");
+    const next = carousel.querySelector("[data-carousel-next]");
+    const dots = carousel.querySelector("[data-carousel-dots]");
+    const caption = carousel.querySelector("[data-carousel-caption]");
+    const count = carousel.querySelector("[data-carousel-count]");
+    const viewport = carousel.querySelector(".carousel-viewport");
+    const locale = document.documentElement.lang || "en";
+    const numbers = new Intl.NumberFormat(locale, {
+      useGrouping: false,
+      numberingSystem: locale.startsWith("ar") ? "arab" : "latn",
+    });
+    let active = 0;
+    let pointerStart = null;
+
+    if (!slides.length || !previous || !next || !dots || !caption || !count || !viewport) return;
+
+    const dotButtons = slides.map((slide, index) => {
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = "carousel-dot";
+      dot.setAttribute("aria-label", slide.dataset.caption || `${index + 1}`);
+      dot.addEventListener("click", () => show(index));
+      dots.append(dot);
+      return dot;
+    });
+
+    const show = (index) => {
+      active = (index + slides.length) % slides.length;
+      slides.forEach((slide, slideIndex) => {
+        const selected = slideIndex === active;
+        slide.classList.toggle("is-active", selected);
+        slide.setAttribute("aria-hidden", String(!selected));
+      });
+      dotButtons.forEach((dot, dotIndex) => {
+        dot.setAttribute("aria-current", String(dotIndex === active));
+      });
+      caption.textContent = slides[active].dataset.caption || "";
+      count.textContent = `${numbers.format(active + 1)} / ${numbers.format(slides.length)}`;
+      const activeImage = slides[active].querySelector("img");
+      if (activeImage) activeImage.loading = "eager";
+    };
+
+    previous.addEventListener("click", () => show(active - 1));
+    next.addEventListener("click", () => show(active + 1));
+    carousel.addEventListener("keydown", (event) => {
+      const rtl = document.documentElement.dir === "rtl";
+      if (event.key === "ArrowRight") show(active + (rtl ? -1 : 1));
+      else if (event.key === "ArrowLeft") show(active + (rtl ? 1 : -1));
+      else if (event.key === "Home") show(0);
+      else if (event.key === "End") show(slides.length - 1);
+      else return;
+      event.preventDefault();
+    });
+    viewport.addEventListener("pointerdown", (event) => {
+      pointerStart = event.clientX;
+    });
+    viewport.addEventListener("pointerup", (event) => {
+      if (pointerStart === null) return;
+      const distance = event.clientX - pointerStart;
+      pointerStart = null;
+      if (Math.abs(distance) < 44) return;
+      show(active + (distance < 0 ? 1 : -1));
+    });
+    viewport.addEventListener("pointercancel", () => {
+      pointerStart = null;
+    });
+
+    show(0);
+  });
 
   document.querySelectorAll("[data-install-tabs]").forEach((group) => {
     const tabs = [...group.querySelectorAll('[role="tab"]')];
@@ -76,7 +158,10 @@
   document.querySelectorAll("[data-copy-command]").forEach((button) => {
     button.addEventListener("click", async () => {
       const panel = button.closest(".command-panel");
-      const command = panel?.querySelector(".command-line")?.textContent?.trim();
+      const target = button.dataset.copyTarget
+        ? document.getElementById(button.dataset.copyTarget)
+        : panel?.querySelector(".command-line");
+      const command = target?.textContent?.trim();
       if (!command) return;
 
       try {
@@ -101,6 +186,17 @@
         button.classList.remove("is-copied");
         if (label && original) label.textContent = original;
       }, 1800);
+    });
+  });
+
+  document.querySelectorAll("[data-quick-install]").forEach((quickInstall) => {
+    const select = quickInstall.querySelector("select");
+    const command = quickInstall.querySelector("code");
+    if (!select || !command) return;
+    select.addEventListener("change", () => {
+      const option = select.options[select.selectedIndex];
+      command.textContent = option.dataset.command || "";
+      command.title = command.textContent;
     });
   });
 })();

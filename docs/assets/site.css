@@ -33,6 +33,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 [id] {
@@ -165,6 +166,10 @@ button {
   display: flex;
   align-items: center;
   gap: 32px;
+}
+
+.header-cluster {
+  display: contents;
 }
 
 .primary-nav a,
@@ -390,6 +395,102 @@ html[dir="rtl"] .closing-title {
 
 .hero-facts .icon {
   color: var(--thinking);
+}
+
+.hero-quick-install {
+  max-inline-size: 580px;
+  margin-block-start: 26px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d1bbb1;
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 8px 8px 0 #352824;
+  transform: rotate(-1deg);
+}
+
+html[dir="rtl"] .hero-quick-install {
+  transform: rotate(1deg);
+}
+
+.quick-install-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.quick-install-head strong {
+  color: #8c422f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+html[dir="rtl"] .quick-install-head strong {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.quick-install-head select {
+  min-block-size: 44px;
+  padding-inline: 11px 32px;
+  border: 1px solid #d1bbb1;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quick-install-command {
+  min-inline-size: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  direction: ltr;
+}
+
+.quick-install-command code {
+  min-inline-size: 0;
+  color: #5d4a43;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  unicode-bidi: isolate;
+  text-align: left;
+}
+
+.quick-install-command button {
+  min-block-size: 44px;
+  padding-inline: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--voice);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.quick-install-command button:hover,
+.quick-install-command button:focus-visible {
+  background: var(--voice-hover);
+}
+
+html[dir="rtl"] .quick-install-command button {
+  direction: rtl;
 }
 
 .dictation-stage {
@@ -873,9 +974,8 @@ html[dir="rtl"] .flow-arrow {
   color: #9c4934;
 }
 
-.screenshot-frame {
+.screenshot-carousel {
   position: relative;
-  margin: 0;
   border: 1px solid var(--line-light);
   border-radius: var(--radius-lg);
   background: #eadbd4;
@@ -883,12 +983,43 @@ html[dir="rtl"] .flow-arrow {
   overflow: hidden;
 }
 
-.screenshot-frame img {
-  inline-size: 100%;
-  block-size: auto;
+.carousel-viewport {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  background: var(--night-raised);
+  overflow: hidden;
 }
 
-.screenshot-caption {
+.carousel-slide {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(5%);
+  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 360ms;
+}
+
+html[dir="rtl"] .carousel-slide {
+  transform: translateX(-5%);
+}
+
+.carousel-slide.is-active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  transition-delay: 0s;
+}
+
+.carousel-slide img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.carousel-toolbar {
   padding: 18px 22px;
   display: flex;
   align-items: center;
@@ -897,6 +1028,86 @@ html[dir="rtl"] .flow-arrow {
   border-block-start: 1px solid var(--line-light);
   color: var(--muted-dark);
   font-size: 14px;
+}
+
+.carousel-toolbar > div:first-child {
+  min-inline-size: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.carousel-toolbar strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.carousel-toolbar [data-carousel-count] {
+  color: #6d5750;
+  font-size: 12px;
+}
+
+.carousel-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.carousel-controls > button {
+  inline-size: 42px;
+  block-size: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbb6ad;
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 20px;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.carousel-controls > button:hover,
+.carousel-controls > button:focus-visible {
+  border-color: #9c4934;
+  background: var(--sand);
+  color: #8c422f;
+  transform: translateY(-1px);
+}
+
+.carousel-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.carousel-dot {
+  position: relative;
+  inline-size: 28px;
+  block-size: 42px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.carousel-dot::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 999px;
+  background: #a38b81;
+  translate: -50% -50%;
+  transition: inline-size 180ms ease, background 180ms ease;
+}
+
+.carousel-dot[aria-current="true"]::after {
+  inline-size: 20px;
+  background: #9c4934;
 }
 
 .install-grid {
@@ -1165,7 +1376,7 @@ html[dir="rtl"] .closing .button {
   padding-block: 18px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   border-block-start: 1px solid #2a211e;
   color: #796861;
@@ -1199,56 +1410,100 @@ html[dir="rtl"] .closing .button {
     justify-self: end;
   }
 
-  .primary-nav,
-  .header-actions {
+  .header-cluster {
     position: fixed;
-    inset-inline: 0;
+    inset-block-start: var(--header-height);
+    inset-block-end: 0;
+    inset-inline-end: 0;
+    inline-size: min(80vw, 340px);
+    block-size: calc(100dvh - var(--header-height));
     z-index: 45;
-    display: none;
-    background: var(--night);
+    display: flex;
+    flex-direction: column;
+    padding: 28px 24px calc(30px + env(safe-area-inset-bottom));
+    border-inline-start: 1px solid var(--line-dark);
+    background: var(--night-raised);
+    box-shadow: -24px 0 70px rgba(0, 0, 0, 0.38);
+    overflow-y: auto;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(105%);
+    transition: transform 340ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease, visibility 0s linear 340ms;
+  }
+
+  html[dir="rtl"] .header-cluster {
+    border-inline-start: 0;
+    border-inline-end: 1px solid var(--line-dark);
+    box-shadow: 24px 0 70px rgba(0, 0, 0, 0.38);
+    transform: translateX(-105%);
+  }
+
+  .site-header[data-menu-open="true"] .header-cluster,
+  html[dir="rtl"] .site-header[data-menu-open="true"] .header-cluster {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition-delay: 0s;
   }
 
   .primary-nav {
-    inset-block-start: var(--header-height);
-    padding: 24px 24px 16px;
+    justify-self: auto;
+    align-items: stretch;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-    border-block-end: 0;
+    gap: 6px;
   }
 
   .primary-nav a {
     inline-size: 100%;
-    min-block-size: 44px;
+    min-block-size: 50px;
     display: flex;
     align-items: center;
+    padding-inline: 14px;
+    border-radius: 9px;
+    font-size: 18px;
+  }
+
+  .primary-nav a:hover,
+  .primary-nav a:focus-visible {
+    background: var(--night-soft);
   }
 
   .header-actions {
-    inset-block-start: calc(var(--header-height) + 228px);
-    padding: 16px 24px 28px;
+    margin-block-start: auto;
+    padding-block-start: 22px;
+    display: grid;
+    gap: 10px;
+    border-block-start: 1px solid var(--line-dark);
     flex-direction: column;
     align-items: stretch;
-    border-block-end: 1px solid var(--line-dark);
   }
 
-  body.menu-open::before {
+  body::before {
     content: "";
     position: fixed;
     inset: var(--header-height) 0 0;
     z-index: 40;
-    background: var(--night);
+    background: rgba(10, 7, 6, 0.72);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    backdrop-filter: blur(3px);
+    transition: opacity 260ms ease, visibility 0s linear 340ms;
+  }
+
+  body.menu-open::before {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
   }
 
   .header-actions .header-link,
   .header-actions .header-download {
-    min-block-size: 46px;
+    min-block-size: 48px;
     justify-content: center;
-  }
-
-  .site-header[data-menu-open="true"] .primary-nav,
-  .site-header[data-menu-open="true"] .header-actions {
-    display: flex;
   }
 
   .hero-grid,
@@ -1291,7 +1546,7 @@ html[dir="rtl"] .closing .button {
     max-inline-size: 760px;
   }
 
-  .screenshot-frame,
+  .screenshot-carousel,
   .install-shell,
   .machine-panel {
     inline-size: 100%;
@@ -1332,6 +1587,20 @@ html[dir="rtl"] .closing .button {
   .hero-facts {
     display: grid;
     gap: 12px;
+  }
+
+  .hero-quick-install,
+  html[dir="rtl"] .hero-quick-install {
+    transform: none;
+  }
+
+  .quick-install-command {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-install-command button {
+    inline-size: 100%;
+    justify-content: center;
   }
 
   .dictation-stage {
@@ -1428,9 +1697,14 @@ html[dir="rtl"] .closing .button {
     font-size: clamp(38px, 12vw, 54px);
   }
 
-  .screenshot-caption {
+  .carousel-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .carousel-controls {
+    inline-size: 100%;
+    justify-content: space-between;
   }
 
   .install-shell {

@@ -11,9 +11,9 @@
   <meta property="og:image" content="assets/nabria-social.png?v=2">
   <title>Nabria | Just talk</title>
   <link rel="icon" href="assets/nabria-mark.svg?v=2" type="image/svg+xml">
-  <link rel="preload" href="assets/site.css?v=8" as="style">
-  <link rel="stylesheet" href="assets/site.css?v=8">
-  <script src="assets/site.js?v=8" defer></script>
+  <link rel="preload" href="assets/site.css?v=13" as="style">
+  <link rel="stylesheet" href="assets/site.css?v=13">
+  <script src="assets/site.js?v=13" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -25,26 +25,28 @@
         <span class="brand-name"><strong>Nabria</strong><small lang="ar" dir="rtl">نَبْرة</small></span>
       </a>
 
-      <nav class="primary-nav" aria-label="Main navigation">
-        <a href="#how">How it works</a>
-        <a href="#privacy">Privacy</a>
-        <a href="#setup">Setup</a>
-        <a href="#install">Install</a>
-      </nav>
+      <div class="header-cluster" id="mobile-menu">
+        <nav class="primary-nav" aria-label="Main navigation">
+          <a href="#how">How it works</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#setup">Setup</a>
+          <a href="#install">Install</a>
+        </nav>
 
-      <div class="header-actions">
-        <a class="header-link" href="ar/" lang="ar" dir="rtl">العربية</a>
-        <a class="header-link" href="https://github.com/M7MMAD-OMAR/nabria-app">
-          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-github-logo"></use></svg>
-          GitHub
-        </a>
-        <a class="header-download" href="#install">
-          <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-download-simple"></use></svg>
-          Install
-        </a>
+        <div class="header-actions">
+          <a class="header-link" href="ar/" lang="ar" dir="rtl">العربية</a>
+          <a class="header-link" href="https://github.com/M7MMAD-OMAR/nabria-app">
+            <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-github-logo"></use></svg>
+            GitHub
+          </a>
+          <a class="header-download" href="#install">
+            <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-download-simple"></use></svg>
+            Install
+          </a>
+        </div>
       </div>
 
-      <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" data-open-label="Open menu" data-close-label="Close menu"><span></span></button>
+      <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="mobile-menu" aria-expanded="false" data-open-label="Open menu" data-close-label="Close menu"><span></span></button>
     </div>
   </header>
 
@@ -64,6 +66,10 @@
               <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-github-logo"></use></svg>
               View source
             </a>
+          </div>
+          <div class="hero-quick-install" data-quick-install>
+            <div class="quick-install-head"><strong>Quick install</strong><select aria-label="Linux distribution"><option data-command="sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm">Fedora</option><option data-command="wget https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.deb &amp;&amp; sudo apt install ./nabria.deb">Debian / Ubuntu</option><option data-command="yay -S nabria">Arch</option><option data-command="curl -fsSL https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/install-nabria.sh | sh">Other</option></select></div>
+            <div class="quick-install-command"><code id="quick-command" tabindex="0" title="sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm">sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.rpm</code><button type="button" data-copy-command data-copy-target="quick-command" data-copied="Copied" aria-label="Copy install command"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-copy"></use></svg><span>Copy</span></button></div>
           </div>
           <ul class="hero-facts" aria-label="Product facts">
             <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-shield-check"></use></svg>No account</li>
@@ -181,10 +187,24 @@
           </ul>
         </div>
 
-        <figure class="screenshot-frame">
-          <img src="screenshots/en/welcome.png" alt="Nabria welcome screen explaining how local dictation works" width="746" height="341" loading="lazy">
-          <figcaption class="screenshot-caption"><span>The real welcome screen, captured from a clean profile.</span><a href="https://github.com/M7MMAD-OMAR/nabria-app/tree/main/docs/screenshots">All screenshots</a></figcaption>
-        </figure>
+        <div class="screenshot-carousel" data-carousel aria-label="Nabria interface screenshots">
+          <div class="carousel-viewport">
+            <figure class="carousel-slide is-active" data-slide data-caption="Welcome" aria-hidden="false"><img src="screenshots/en/welcome.png" alt="Nabria welcome screen" width="746" height="341"></figure>
+            <figure class="carousel-slide" data-slide data-caption="Interface language" aria-hidden="true"><img src="screenshots/en/language.png" alt="Choosing the Nabria interface language" width="746" height="674" loading="lazy"></figure>
+            <figure class="carousel-slide" data-slide data-caption="Model choice" aria-hidden="true"><img src="screenshots/en/model.png" alt="Choosing a transcription model" width="746" height="627" loading="lazy"></figure>
+            <figure class="carousel-slide" data-slide data-caption="Shortcut setup" aria-hidden="true"><img src="screenshots/en/shortcut.png" alt="Setting the global dictation shortcut" width="746" height="613" loading="lazy"></figure>
+            <figure class="carousel-slide" data-slide data-caption="Engine settings" aria-hidden="true"><img src="screenshots/en/settings-engine.png" alt="Nabria engine settings" width="1262" height="530" loading="lazy"></figure>
+            <figure class="carousel-slide" data-slide data-caption="Microphone and history" aria-hidden="true"><img src="screenshots/en/settings-microphone.png" alt="Nabria microphone settings and transcript history" width="1262" height="489" loading="lazy"></figure>
+          </div>
+          <div class="carousel-toolbar">
+            <div><strong data-carousel-caption>Welcome</strong><span data-carousel-count>1 / 6</span></div>
+            <div class="carousel-controls">
+              <button type="button" data-carousel-prev aria-label="Previous screenshot"><span aria-hidden="true">←</span></button>
+              <div class="carousel-dots" data-carousel-dots aria-label="Choose screenshot"></div>
+              <button type="button" data-carousel-next aria-label="Next screenshot"><span aria-hidden="true">→</span></button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -247,7 +267,7 @@
       <nav class="footer-links" aria-label="Footer navigation"><a href="https://github.com/M7MMAD-OMAR/nabria-app">Source</a><a href="https://github.com/M7MMAD-OMAR/nabria-app/blob/main/README.md">Docs</a><a href="https://github.com/M7MMAD-OMAR/nabria-app/blob/main/LICENSE">MIT licence</a><a href="https://buymeacoffee.com/m7mmadomar">Support the work</a></nav>
       <a class="sbarah-link" href="https://sbarah.com" aria-label="Visit Sbarah"><span>A Sbarah project</span><img src="assets/sbarah-logo.svg" alt="Sbarah" width="70" height="37"></a>
     </div>
-    <div class="wrap footer-bottom"><span>Nothing leaves your machine.</span><span>Duotone icons by <a href="https://phosphoricons.com">Phosphor</a>.</span></div>
+    <div class="wrap footer-bottom"><span>Nothing leaves your machine.</span></div>
   </footer>
 </body>
 </html>
