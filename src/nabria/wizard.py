@@ -37,6 +37,9 @@ HEIGHT = 560
 
 # Below this the microphone is under the silence gate and every take would be
 # thrown away, so the test has to fail rather than politely report a number.
+# The gate itself is config.silence_threshold(settings), which honours a raised
+# or lowered setting; this is only the fallback for a wizard with no settings
+# in hand, and must not be compared against directly.
 GOOD_ENOUGH_DBFS = -42.0
 
 STYLE_TEMPLATE = """
@@ -836,7 +839,7 @@ class Wizard(Gtk.ApplicationWindow):
     def _microphone_result(self, level, error: str) -> bool:
         if error:
             _status(self.mic_result, error, style="nabria-bad")
-        elif level is not None and level > GOOD_ENOUGH_DBFS:
+        elif level is not None and level > config.silence_threshold(self.settings):
             _status(self.mic_result,
                     i18n.t("wizard.mic.heard", level=i18n.ltr(f"{level:.0f}")),
                     style="nabria-good")

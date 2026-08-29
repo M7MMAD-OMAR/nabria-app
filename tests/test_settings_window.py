@@ -155,7 +155,10 @@ def test_deleting_the_transcripts_takes_the_audio_with_them(fresh_config, tmp_pa
     audio = fresh_config.STATE_DIR / "take-1.wav"
     audio.parent.mkdir(parents=True, exist_ok=True)
     audio.write_bytes(b"RIFF....")
-    failed = fresh_config.STATE_DIR / "failed" / "take-2.wav"
+    # The directory app.py actually files failed takes into. Writing this as
+    # STATE_DIR/failed made the test pass while clear() swept a directory
+    # nothing was ever written to, leaving every failed take on disk.
+    failed = fresh_config.FAILED_DIR / "take-2.wav"
     failed.parent.mkdir(parents=True, exist_ok=True)
     failed.write_bytes(b"RIFF....")
 

@@ -26,6 +26,11 @@ LIBEXEC_DIR = Path.home() / ".local/libexec/nabria"
 SYSTEM_LIBEXEC_DIR = Path("/usr/libexec/nabria")
 MODEL_DIR = DATA_DIR / "models"
 LOG_PATH = STATE_DIR / "nabria.log"
+# Kept audio. Both live here rather than beside their writers: app.py filed
+# failed takes into DATA_DIR while history.clear() swept STATE_DIR, so "nothing
+# of what you said is left on this machine" left every failed take on disk.
+TAKES_DIR = DATA_DIR / "takes"
+FAILED_DIR = DATA_DIR / "failed"
 
 # The control socket lives in the runtime dir so it dies with the login session
 # and a stale file can never make the toggle command hang.
@@ -159,6 +164,26 @@ DEFAULTS: dict[str, Any] = {
     # the same everywhere. ~/.config/nabria/palette.json overrides either way.
     "follow_desktop_palette": False,
 }
+
+
+def silence_threshold(settings: dict[str, Any]) -> float:
+    """The level below which a take is treated as "nothing was said".
+
+    One accessor because there are two places that judge a microphone, the
+    wizard's test and the settings window's, and one that enforces the gate.
+    The wizard used to compare against a constant copy of the default, so
+    anyone who took this file's advice and raised the threshold got a setup
+    page saying "heard you clearly" at a level under which every take was
+    then thrown away as silent.
+
+    A hand-edited file holding "quiet" here would otherwise raise inside the
+    take, file the audio into failed/ and report a broken transcriber, so a
+    value that will not convert falls back to the default instead.
+    """
+    try:
+        return float(settings.get("silence_threshold_dbfs", DEFAULTS["silence_threshold_dbfs"]))
+    except (TypeError, ValueError):
+        return float(DEFAULTS["silence_threshold_dbfs"])
 
 
 def load() -> dict[str, Any]:

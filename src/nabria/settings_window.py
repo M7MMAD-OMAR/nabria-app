@@ -116,6 +116,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.on_toggle = on_toggle
         self.read_state = state
         self.record_source = 0
+        # Set here rather than sprung into existence inside _reload_sources:
+        # _on_source_changed reads it, and a getattr default was hiding the
+        # fact that the handler can fire before the flag exists at all.
+        self._loading_sources = False
         self.set_default_size(560, 640)
 
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -266,10 +270,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
     def _engine_page(self) -> Gtk.Widget:
         box = _page()
 
-        models = config.models()
-        self.model_paths = [str(path) for path in models]
+        installed_models = config.models()
+        self.model_paths = [str(path) for path in installed_models]
         self.model_combo = Gtk.ComboBoxText()
-        for path in models:
+        for path in installed_models:
             self.model_combo.append_text(_model_label(path.name))
         current = str(self.settings.get("model", ""))
         if current in self.model_paths:
@@ -380,7 +384,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         box.append(keep)
         box.append(_hint(i18n.t("settings.keep_audio.hint")))
 
-        threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
+        threshold = config.silence_threshold(self.settings)
         box.append(_hint(i18n.t(
             "settings.gate.hint", threshold=i18n.ltr(f"{threshold:.0f}")
         )))
@@ -414,7 +418,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self._loading_sources = False
 
     def _on_source_changed(self, combo: Gtk.ComboBoxText) -> None:
-        if getattr(self, "_loading_sources", False):
+        if self._loading_sources:
             return
         index = combo.get_active()
         if not (0 <= index < len(self.source_ids)):
@@ -454,7 +458,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
                 name = source.get("name") or i18n.t("settings.input")
                 text = i18n.t("settings.level", name=i18n.ltr(name),
                               level=i18n.ltr(f"{level:.1f}"))
-                threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
+                threshold = config.silence_threshold(self.settings)
                 text += (
                     i18n.t("settings.above_gate") if level > threshold
                     else i18n.t("settings.below_gate",
@@ -510,7 +514,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         records = history.recent(200)
         if not records:
             self.history_list.append(
-                Gtk.Label(label=i18n.t("settings.no_transcripts"), margin_top=12)
+                i18n.label(i18n.t("settings.no_transcripts"), margin_top=12)
             )
         for record in records:
             self.history_list.append(_history_row(record))

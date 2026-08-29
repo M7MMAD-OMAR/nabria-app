@@ -13,13 +13,13 @@ from __future__ import annotations
 import math
 import re
 import shutil
-import struct
 import subprocess
 import tempfile
 import wave
+from array import array
 from pathlib import Path
 
-from .recorder import LEVEL_WARMUP_FRAMES, RATE, SILENT_DBFS
+from .recorder import LEVEL_WARMUP_FRAMES, RATE, SILENT_DBFS, dbfs
 
 # `wpctl status` marks the default node with an asterisk before the id.
 _SOURCE_LINE = re.compile(r"^\s*│?\s*(\*?)\s*(\d+)\.\s+(.*?)\s*\[vol:")
@@ -142,14 +142,28 @@ def measure(seconds: float = 4.0) -> float:
 
 
 def _rms_dbfs(path: Path) -> float:
+    """The take's average level, on exactly the scale the silence gate uses.
+
+    Goes through `recorder.dbfs` rather than repeating 20*log10(x/32768):
+    two definitions of this number mean the microphone test and the gate that
+    actually throws takes away can disagree about the same recording, which is
+    this project's most expensive misdiagnosis.
+
+    The warm-up frames are skipped in the file rather than read and sliced off:
+    the ALSA device-open pop dominates a short take's RMS, and seeking past it
+    avoids materialising the samples only to discard them.
+    """
     with wave.open(str(path)) as source:
-        frames = source.readframes(source.getnframes())
-    samples = struct.unpack(f"<{len(frames) // 2}h", frames[: len(frames) // 2 * 2])
-    samples = samples[LEVEL_WARMUP_FRAMES:]
+        remaining = source.getnframes() - LEVEL_WARMUP_FRAMES
+        if remaining <= 0:
+            return SILENT_DBFS
+        source.setpos(LEVEL_WARMUP_FRAMES)
+        frames = source.readframes(remaining)
+    samples = array("h")
+    samples.frombytes(frames[: len(frames) - (len(frames) % 2)])
     if not samples:
         return SILENT_DBFS
-    energy = sum(float(value) * value for value in samples)
-    rms = math.sqrt(energy / len(samples))
-    if rms <= 0:
-        return SILENT_DBFS
-    return 20.0 * math.log10(rms / 32768.0)
+    energy = 0.0
+    for value in samples:
+        energy += float(value) * float(value)
+    return dbfs(math.sqrt(energy / len(samples)) / 32768.0)

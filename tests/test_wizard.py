@@ -88,6 +88,21 @@ def test_the_microphone_bar_matches_the_silence_gate(fresh_config):
         fresh_config.DEFAULTS["silence_threshold_dbfs"]
     )
 
+    # And it has to track a threshold the user raised, which is what config.py
+    # invites ("Raise it if silence still gets through"). Comparing against the
+    # constant meant the setup page said "heard you clearly" at -30 dBFS while
+    # the daemon threw every take away at a -20 gate.
+    raised = dict(fresh_config.DEFAULTS)
+    raised["silence_threshold_dbfs"] = -20.0
+    assert fresh_config.silence_threshold(raised) == -20.0
+    assert not (-30.0 > fresh_config.silence_threshold(raised))
+
+    # A hand-edited config must not raise inside the take and get reported as
+    # a broken transcriber.
+    assert fresh_config.silence_threshold({"silence_threshold_dbfs": "quiet"}) == float(
+        fresh_config.DEFAULTS["silence_threshold_dbfs"]
+    )
+
 
 def test_choosing_arabic_ships_the_dialect_prompt(application, fresh_config):
     # The prompt is the reason Arabic works well here, and nobody would ever

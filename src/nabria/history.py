@@ -77,15 +77,14 @@ def recent(limit: int = 100) -> list[dict]:
 
 
 def last() -> str:
-    try:
-        lines = _path().read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return ""
-    for line in reversed(lines):
-        try:
-            return json.loads(line).get("text", "")
-        except ValueError:
-            continue
+    """The newest transcript's text, or "" if there is none.
+
+    Expressed through `recent` rather than repeating the read-and-skip loop:
+    the two disagreeing about what counts as a readable log is how `nabria
+    last` and the history tab would come to show different things.
+    """
+    for record in recent(1):
+        return str(record.get("text", ""))
     return ""
 
 
@@ -116,7 +115,7 @@ def clear() -> int:
     # `failed/` holds the takes that never became text. Nothing in the log
     # points at them, so deleting only what the log names would leave them.
     with suppress(OSError):
-        for leftover in (config.STATE_DIR / "failed").glob("*.wav"):
+        for leftover in config.FAILED_DIR.glob("*.wav"):
             leftover.unlink(missing_ok=True)
 
     with suppress(OSError):

@@ -35,10 +35,32 @@ from .orb import Orb
 from .recorder import MissingRecorder, Recorder
 
 LEVEL_POLL_MS = 50
-FAILED_DIR = config.DATA_DIR / "failed"
-TAKES_DIR = config.DATA_DIR / "takes"
+# config.py owns every path; these two are named here only for brevity below.
+FAILED_DIR = config.FAILED_DIR
+TAKES_DIR = config.TAKES_DIR
 # How long an engine reload waits for in-flight takes before going ahead anyway.
 RELOAD_DRAIN_SECONDS = 30.0
+
+
+def _file_take(wav_path, directory):
+    """Move a take into `directory` under a timestamp, and return where it went.
+
+    Second resolution alone collides: a short take is transcribed in a few
+    tenths, so two queued back to back land on one name and shutil.move
+    overwrites the first without a word -- leaving the earlier history row
+    pointing at the later take's audio. Shared by the kept and the failed
+    paths: the suffix loop was written for takes/ and failed/ silently
+    overwrote for months because it was a second copy of the same six lines.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    kept = directory / f"{stamp}.wav"
+    suffix = 2
+    while kept.exists():
+        kept = directory / f"{stamp}-{suffix}.wav"
+        suffix += 1
+    shutil.move(str(wav_path), kept)
+    return kept
 
 
 def _default_source_name() -> str:
@@ -127,7 +149,17 @@ class Daemon:
                 "layer shell unavailable: the indicator is an ordinary window. "
                 "Install gtk4-layer-shell, or expect it to be covered."
             )
-        self._serve()
+        # A bind failure here used to propagate into PyGObject, which prints to
+        # stderr and returns: the worker thread, the portal bind and the
+        # "daemon ready" line below were all skipped, systemd still reported
+        # the unit as running, and nabria.log was empty. Every keypress then
+        # said "daemon is not running", which is the misdiagnosis the log
+        # exists to prevent.
+        try:
+            self._serve()
+        except OSError as exc:
+            self.log(f"could not open the control socket at {config.SOCKET_PATH}: {exc}")
+            raise
         # Deferred rather than run inline: it is fully additive, and asking the
         # portal can D-Bus-activate xdg-desktop-portal, which at login is not
         # yet running -- that would hold up the socket, the worker thread and
@@ -193,11 +225,21 @@ class Daemon:
         server.listen(8)
 
         def accept_loop() -> None:
+            # One bad client must not end the loop. accept() can raise EMFILE,
+            # and recv/sendall raise ConnectionReset/BrokenPipe whenever a
+            # client gives up first -- which is exactly what client.py's 5s
+            # timeout does. Letting any of those unwind this thread leaves the
+            # socket file on disk and still bound, so every later keypress
+            # connects, blocks and times out: the hotkey stops working for the
+            # life of the daemon, with nothing in the log to say why.
             while True:
-                connection, _ = server.accept()
-                with connection:
-                    command = connection.recv(64).decode("utf-8", "replace").strip()
-                    connection.sendall(self.dispatch(command).encode("utf-8"))
+                try:
+                    connection, _ = server.accept()
+                    with connection:
+                        command = connection.recv(64).decode("utf-8", "replace").strip()
+                        connection.sendall(self.dispatch(command).encode("utf-8"))
+                except OSError as exc:
+                    self.log(f"control connection failed: {exc}")
 
         threading.Thread(target=accept_loop, daemon=True, name="nabria-control").start()
 
@@ -220,7 +262,7 @@ class Daemon:
     # -- settings window ---------------------------------------------------
 
     def _show_settings(self) -> bool:
-        window = getattr(self, "settings_window", None)
+        window = self.settings_window
         if window is not None and window.get_visible():
             window.present()
             return GLib.SOURCE_REMOVE
@@ -455,7 +497,7 @@ class Daemon:
                 GLib.idle_add(self._done, "")
                 return
 
-            threshold = float(self.settings.get("silence_threshold_dbfs", -42.0))
+            threshold = config.silence_threshold(self.settings)
             if recorder.rms_dbfs <= threshold:
                 self.log(f"silent take ({recorder.rms_dbfs:.1f} dBFS RMS), skipped")
                 self._note_silent_take(recorder.rms_dbfs, threshold)
@@ -509,12 +551,17 @@ class Daemon:
             keep_audio = True
             raise
         finally:
-            if keep_audio and wav_path.exists():
-                FAILED_DIR.mkdir(parents=True, exist_ok=True)
-                stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                kept = FAILED_DIR / f"{stamp}.wav"
-                shutil.move(str(wav_path), kept)
-                self.log(f"kept failed take at {kept}")
+            if keep_audio:
+                # This runs while the transcription failure is still
+                # propagating, so a raise here would replace it and the log
+                # would explain a file move instead of the fault that caused
+                # it. The WAV is the thing that cannot be produced again, so
+                # report the failure to keep it and let the original stand.
+                try:
+                    kept = _file_take(wav_path, FAILED_DIR)
+                    self.log(f"kept failed take at {kept}")
+                except OSError as exc:
+                    self.log(f"could not keep failed take at {wav_path}: {exc}")
             else:
                 wav_path.unlink(missing_ok=True)
 
@@ -563,19 +610,7 @@ class Daemon:
         finds nothing, which it already tolerates.
         """
         try:
-            TAKES_DIR.mkdir(parents=True, exist_ok=True)
-            # Second resolution alone collides: a short take is transcribed in
-            # a few tenths, so two queued back to back land on one name and
-            # shutil.move overwrites the first without a word -- leaving the
-            # earlier history row pointing at the later take's audio.
-            stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            kept = TAKES_DIR / f"{stamp}.wav"
-            suffix = 2
-            while kept.exists():
-                kept = TAKES_DIR / f"{stamp}-{suffix}.wav"
-                suffix += 1
-            shutil.move(str(wav_path), kept)
-            return str(kept)
+            return str(_file_take(wav_path, TAKES_DIR))
         except OSError as exc:
             # Losing the audio must never cost the transcript.
             self.log(f"could not keep audio: {exc}")
