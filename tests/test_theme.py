@@ -55,3 +55,34 @@ def test_the_accent_reader_never_raises_on_this_machine():
     """
     accent = theme.desktop_accent()
     assert accent is None or accent.startswith("#")
+
+
+def test_the_accent_is_given_up_on_rather_than_waited_for(monkeypatch):
+    """A colour is not worth a daemon that never starts.
+
+    `call_sync` takes a timeout and `bus_get_sync` does not, so a session bus
+    that accepts a connection and never completes the handshake blocks with no
+    limit at all -- measured at over 25 seconds. This runs where the first
+    window is built, so the deadline is on the whole question, connection
+    included, and a thread still waiting when it passes is abandoned.
+    """
+    import time
+
+    def never_answers():
+        time.sleep(30)
+        return "#ff0000"
+
+    monkeypatch.setattr(theme, "_ask_accent", never_answers)
+    monkeypatch.setattr(theme, "ACCENT_TIMEOUT", 0.2)
+
+    started = time.monotonic()
+    assert theme.desktop_accent() is None
+    assert time.monotonic() - started < 5
+
+
+def test_a_broken_bus_is_no_colour_rather_than_no_window(monkeypatch):
+    def explode():
+        raise RuntimeError("the bus is having a day")
+
+    monkeypatch.setattr(theme, "_ask_accent", explode)
+    assert theme.desktop_accent() is None

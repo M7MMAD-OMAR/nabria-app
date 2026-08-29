@@ -60,20 +60,14 @@ def to_hex(colour: tuple[float, float, float], lighten: float = 0.0) -> str:
     )
 
 
-def desktop_accent() -> str | None:
-    """The desktop's accent colour, or None -- which is the usual answer.
+# How long the whole accent question may take, connection included. It is on
+# the path that draws the first window, and a desktop whose portal cannot
+# answer in that long has no accent colour worth waiting for.
+ACCENT_TIMEOUT = 1.5
 
-    Read through `org.freedesktop.appearance/accent-color` on the settings
-    portal rather than from any one desktop's own configuration key. That is
-    the cross-desktop form of the question, and both backends this project has
-    measured implement the portal (docs/DESKTOPS.md); reading a GNOME gsetting
-    instead would answer for one desktop and be silently wrong on the rest.
 
-    "Not set" is a normal result and not a failure. Most sessions have no
-    accent colour at all -- measured on the machine this was written on, where
-    the portal answers and the key does not exist -- and the shipped coral is
-    the right answer there, so every path out of here that is not a colour is
-    None rather than an exception.
+def _ask_accent() -> str | None:
+    """The D-Bus half, run on a thread it is allowed to hang on.
 
     `ReadOne` first, `Read` after it: the second is the older name and is
     doubly wrapped, and a desktop shipping only one of the two is not worth a
@@ -91,9 +85,6 @@ def desktop_accent() -> str | None:
             GLib.Variant("(ss)", ("org.freedesktop.appearance", "accent-color")),
             None,
             Gio.DBusCallFlags.NONE,
-            # A second, because this is on the path that draws the first
-            # window. A desktop whose portal cannot answer in that long is one
-            # whose accent colour is not worth waiting for.
             1000,
             None,
         )
@@ -123,6 +114,47 @@ def desktop_accent() -> str | None:
     if not all(0.0 <= channel <= 1.0 for channel in channels):
         return None
     return to_hex((channels[0], channels[1], channels[2]))
+
+
+def desktop_accent() -> str | None:
+    """The desktop's accent colour, or None -- which is the usual answer.
+
+    Read through `org.freedesktop.appearance/accent-color` on the settings
+    portal rather than from any one desktop's own configuration key. That is
+    the cross-desktop form of the question, and both backends this project has
+    measured implement the portal (docs/DESKTOPS.md); reading a GNOME gsetting
+    instead would answer for one desktop and be silently wrong on the rest.
+
+    "Not set" is a normal result and not a failure. Most sessions have no
+    accent colour at all -- measured on the machine this was written on, where
+    the portal answers and the key does not exist -- and the shipped coral is
+    the right answer there, so every path out of here that is not a colour is
+    None rather than an exception.
+
+    **On a thread, with a deadline on the whole thing.** `call_sync` takes a
+    timeout and `bus_get_sync` takes none, so a session-bus address that
+    accepts a connection and never finishes the handshake blocks forever --
+    measured at over 25 seconds against a stub socket before the test was
+    killed. This runs where the daemon builds its first window, so that is not
+    a slow start, it is a daemon that never appears and says nothing about why.
+    A thread that is still waiting when the deadline passes is abandoned, not
+    joined: it is a daemon thread with nothing to write to, and the answer it
+    is waiting for stopped being wanted.
+    """
+    import threading
+
+    answer: list[str | None] = []
+
+    def work() -> None:
+        try:
+            answer.append(_ask_accent())
+        except Exception:  # noqa: BLE001 - a colour is never worth a crash
+            answer.append(None)
+
+    thread = threading.Thread(target=work, daemon=True, name="nabria-accent")
+    thread.start()
+    thread.join(ACCENT_TIMEOUT)
+    return answer[0] if answer else None
 
 
 def add_css(css: str) -> None:

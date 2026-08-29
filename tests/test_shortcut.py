@@ -381,3 +381,93 @@ def test_unbind_keeps_the_file_s_permissions(tmp_path, hyprland):
 
     shortcut.unbind(config)
     assert config.stat().st_mode & 0o777 == 0o600
+
+
+def test_unbind_removes_every_block_not_just_the_first(tmp_path, hyprland):
+    """One file should never hold two, and files get merged and restored.
+
+    Removing one of two is a removal that reports success and leaves the key
+    bound.
+    """
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    block = f"{shortcut.MARKER}\nbind = CTRL ALT, Q, exec, nabria toggle\n{shortcut.MARKER_END}\n"
+    config.write_text(f"a = 1\n\n{block}\nb = 2\n\n{block}")
+
+    assert shortcut.unbind(config) == [config]
+    assert shortcut.MARKER not in config.read_text()
+    # The blank line that survives came *after* the first block, so it is the
+    # reader's own spacing and not the one `bind` writes ahead of its fence.
+    assert config.read_text() == "a = 1\n\nb = 2\n"
+
+
+def test_unbind_takes_one_blank_line_and_not_the_reader_s(tmp_path, hyprland):
+    # `bind` puts a single blank line before the block. Walking back over every
+    # consecutive blank deletes the spacing somebody else wrote.
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        f"a = 1\n\n\n\n{shortcut.MARKER}\nbind = CTRL ALT, Q, exec, nabria toggle\n"
+        f"{shortcut.MARKER_END}\n"
+    )
+    shortcut.unbind(config)
+    assert config.read_text() == "a = 1\n\n\n"
+
+
+def test_a_source_line_pointing_nowhere_does_not_raise(tmp_path, hyprland):
+    """A line in somebody's config can say anything.
+
+    `~nosuchuser/x.conf` raises RuntimeError out of `expanduser` and a target
+    of `/` leaves an empty glob pattern -- neither an OSError, so both used to
+    travel all the way out and kill the uninstaller mid-run, after it had
+    deleted the files and before it said where the models still were.
+    """
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        "source = ~nosuchuser42/extra.conf\n"
+        "source = /\n"
+        f"\n{shortcut.MARKER}\nbind = CTRL ALT, Q, exec, nabria toggle\n"
+        f"{shortcut.MARKER_END}\n"
+    )
+    assert shortcut.unbind(config) == [config]
+    assert shortcut.already_bound(config) is False
+
+
+def test_the_block_survives_being_written_through_a_symlink(tmp_path, hyprland):
+    """Dotfiles are commonly a symlink into a repository.
+
+    The temporary file has to sit beside the *resolved* target: beside the link
+    it is on the link's filesystem, and `os.replace` across a mount boundary is
+    EXDEV -- which made the write fail for exactly the people whose
+    configuration is organised carefully enough to be symlinked.
+    """
+    real = tmp_path / "dotfiles" / "hypr.conf"
+    real.parent.mkdir(parents=True)
+    real.write_text("bind = SUPER, T, exec, kitty\n")
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.symlink_to(real)
+
+    shortcut.bind(config)
+    assert shortcut.MARKER in real.read_text()
+    assert config.is_symlink(), "the link was replaced by a regular file"
+
+    shortcut.unbind(config)
+    assert real.read_text() == "bind = SUPER, T, exec, kitty\n"
+    assert config.is_symlink()
+    assert not list(real.parent.glob("*.nabria-new"))
+
+
+def test_a_write_that_fails_is_reported_not_swallowed(tmp_path, hyprland, monkeypatch):
+    # Returning an empty list would say "there was nothing to remove" about a
+    # block still sitting in somebody's file.
+    config = tmp_path / "hypr" / "hyprland.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text("a = 1\n")
+    shortcut.bind(config)
+
+    monkeypatch.setattr(shortcut, "_write",
+                        lambda *_: (_ for _ in ()).throw(OSError("read-only")))
+    with pytest.raises(OSError):
+        shortcut.unbind(config)

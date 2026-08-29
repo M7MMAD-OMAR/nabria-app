@@ -14,7 +14,7 @@ import pytest
 gi = pytest.importorskip("gi", reason="PyGObject is not installed")
 gi.require_version("Gtk", "4.0")
 try:
-    from gi.repository import Gtk  # noqa: F401
+    from gi.repository import GLib, Gtk  # noqa: F401
 except (ImportError, ValueError) as exc:  # pragma: no cover
     pytest.skip(f"GTK 4 is unavailable: {exc}", allow_module_level=True)
 
@@ -92,3 +92,23 @@ def test_closing_the_window_stops_the_poll(application, fresh_config):
     window.emit("close-request")
     assert window.record_source == 0
     window.destroy()
+
+
+def test_destroying_the_window_stops_the_poll_too(application, fresh_config):
+    """`destroy` and `close-request` are not two names for one event.
+
+    GTK emits the first when the program closes the window and the second when
+    the user does, and the screenshot script destroys this window once per
+    picture. With only the second connected, the source stayed live and went on
+    setting a label on a button inside a destroyed window -- holding the whole
+    widget tree, the model list and the history rows alive for the rest of the
+    process, one per shot.
+    """
+    window, _ = open_window(application, fresh_config.load())
+    assert window.record_source
+    window.destroy()
+    # The next tick is what notices, since `destroy()` emits no signal a
+    # handler can be hung on. What matters is that the source goes, and that
+    # nothing touches the destroyed window on the way out.
+    assert window._refresh_record() == GLib.SOURCE_REMOVE
+    assert window.record_source == 0

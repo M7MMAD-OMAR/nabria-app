@@ -138,13 +138,31 @@ class SettingsWindow(Gtk.ApplicationWindow):
         # a poll that lives and dies with the window cannot leave a callback
         # pointing at a destroyed one, which a subscription would have to be
         # careful about on every path out of here.
-        self._refresh_record()
+        # The source is created before the first refresh, not after it: the
+        # refresh checks the source to know whether it is still wanted, so
+        # doing it the other way round made the very first one a no-op and the
+        # button opened saying "Start speaking" over a take already recording.
         self.record_source = GLib.timeout_add(200, self._refresh_record)
+        self._refresh_record()
         self.connect("close-request", self._stop_polling)
         return box
 
     def _refresh_record(self) -> bool:
         """Say what pressing it will do now, not what it did when it was built."""
+        # Two ways this window can go, and only one of them is a signal.
+        # `close-request` is emitted when the *user* closes it; the screenshot
+        # script and the daemon both end it with `destroy()`, which emits
+        # nothing this can hang a handler on. Measured: after `destroy()` the
+        # source stayed live and went on setting a label on a button inside a
+        # destroyed window, holding the whole widget tree alive -- one leak per
+        # picture taken. A destroyed window has been dropped from its
+        # application -- measured, `get_application()` returns None afterwards
+        # and never does before -- so asking that is exact, and true whichever
+        # way the window went. `get_root()` is not: it still answers with the
+        # window itself after it has been destroyed.
+        if self.record_source == 0 or self.get_application() is None:
+            self.record_source = 0
+            return GLib.SOURCE_REMOVE
         state = self.read_state() if self.read_state else "idle"
         self.record.set_label(i18n.t({
             "recording": "settings.record.stop",

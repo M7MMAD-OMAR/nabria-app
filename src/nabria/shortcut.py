@@ -131,16 +131,53 @@ def _included(path: Path, kind: str, depth: int, seen: set[Path]) -> list[Path]:
         target = (rest or "").strip().strip('"\'')
         if not target:
             continue
-        expanded = Path(target).expanduser()
-        pattern = expanded if expanded.is_absolute() else path.parent / expanded
+        # A line in somebody's configuration file, so it can say anything.
+        # `~nosuchuser/x.conf` raises RuntimeError out of `expanduser`, and a
+        # target of `/` leaves an empty pattern name that `glob` rejects with
+        # ValueError -- neither of which is an OSError, so both travelled all
+        # the way out through `unbind` and killed the uninstaller mid-run,
+        # after it had deleted the files and before it printed where the
+        # models and transcripts still are. A line that cannot be resolved is
+        # a line pointing at nothing, which is what `continue` means here.
+        try:
+            expanded = Path(target).expanduser()
+            pattern = expanded if expanded.is_absolute() else path.parent / expanded
+            candidates = sorted(pattern.parent.glob(pattern.name))
+        except (OSError, RuntimeError, ValueError):
+            continue
         # Globs, because `source = ~/.config/hypr/conf.d/*.conf` is a normal
         # thing to write and reading it literally finds nothing.
-        for candidate in sorted(pattern.parent.glob(pattern.name)):
+        for candidate in candidates:
             if candidate.is_file() and candidate not in seen:
                 seen.add(candidate)
                 found.append(candidate)
                 found.extend(_included(candidate, kind, depth - 1, seen))
     return found
+
+
+def _write(path: Path, text: str) -> None:
+    """Replace a file's contents atomically, preserving link and mode.
+
+    The temporary sits beside the **resolved** target rather than beside the
+    path we were handed. Dotfiles are commonly a symlink into a repository, and
+    a temporary next to the link is on the link's filesystem: `os.replace`
+    across a mount boundary is EXDEV, which made the write fail for exactly the
+    people whose configuration is organised carefully enough to be symlinked.
+
+    The rename follows the symlink deliberately -- replacing the link with a
+    regular file would take the file out of their repository without saying so.
+    """
+    target = path.resolve()
+    temporary = target.with_suffix(target.suffix + ".nabria-new")
+    try:
+        with temporary.open("w", encoding="utf-8") as sink:
+            sink.write(text)
+            sink.flush()
+            os.fsync(sink.fileno())
+        temporary.chmod(target.stat().st_mode & 0o7777)
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def already_bound(path: Path) -> bool:
@@ -209,19 +246,7 @@ def bind(path: Path | None = None) -> Path:
     separator = "" if not existing or existing.endswith("\n") else "\n"
     updated = existing + separator + "\n" + snippet()
 
-    temporary = path.with_suffix(path.suffix + ".nabria-new")
-    try:
-        with temporary.open("w", encoding="utf-8") as sink:
-            sink.write(updated)
-            sink.flush()
-            os.fsync(sink.fileno())
-        temporary.chmod(path.stat().st_mode & 0o7777)
-        # Follows a symlink deliberately: dotfiles are commonly symlinked into
-        # a repository, and replacing the link with a regular file would take
-        # the file out of their repository without telling them.
-        os.replace(temporary, path.resolve())
-    finally:
-        temporary.unlink(missing_ok=True)
+    _write(path, updated)
     return path
 
 
@@ -235,18 +260,29 @@ def _without_block(text: str) -> str | None:
     exactly like ours from the outside and is theirs to keep.
     """
     lines = text.splitlines(keepends=True)
-    try:
-        start = next(i for i, line in enumerate(lines) if line.strip() == MARKER)
-        end = next(
-            i for i in range(start, len(lines)) if lines[i].strip() == MARKER_END
-        )
-    except StopIteration:
-        # An opening fence with no closing one is somebody's half-edited file,
-        # and guessing where the block ends there means deleting their lines.
-        return None
-    while start > 0 and not lines[start - 1].strip():
-        start -= 1
-    return "".join(lines[:start] + lines[end + 1:])
+    found = False
+    while True:
+        try:
+            start = next(i for i, line in enumerate(lines) if line.strip() == MARKER)
+            end = next(
+                i for i in range(start, len(lines)) if lines[i].strip() == MARKER_END
+            )
+        except StopIteration:
+            # An opening fence with no closing one is somebody's half-edited
+            # file, and guessing where the block ends there means deleting
+            # their lines. Stop, keeping whatever earlier blocks were removed.
+            break
+        # Exactly one blank line, which is the one `bind` puts there. Walking
+        # back over every consecutive blank would delete the reader's own
+        # spacing -- three of somebody's blank lines for one of ours.
+        if start > 0 and not lines[start - 1].strip():
+            start -= 1
+        lines = lines[:start] + lines[end + 1:]
+        found = True
+        # And around again. One file should never hold two of these, but a
+        # configuration that has been merged, copied or restored from a backup
+        # can, and removing one of two is a removal that reports success.
+    return "".join(lines) if found else None
 
 
 def unbind(path: Path | None = None) -> list[Path]:
@@ -273,7 +309,8 @@ def unbind(path: Path | None = None) -> list[Path]:
     except OSError:
         files = [path]
 
-    changed = []
+    changed: list[Path] = []
+    failed: list[tuple[Path, OSError]] = []
     for candidate in files:
         try:
             existing = _read(candidate)
@@ -282,19 +319,18 @@ def unbind(path: Path | None = None) -> list[Path]:
         updated = _without_block(existing)
         if updated is None or updated == existing:
             continue
-        temporary = candidate.with_suffix(candidate.suffix + ".nabria-new")
         try:
-            with temporary.open("w", encoding="utf-8") as sink:
-                sink.write(updated)
-                sink.flush()
-                os.fsync(sink.fileno())
-            temporary.chmod(candidate.stat().st_mode & 0o7777)
-            os.replace(temporary, candidate.resolve())
-        except OSError:
+            _write(candidate, updated)
+        except OSError as exc:
+            # Said, not swallowed. Returning an empty list here would report
+            # "there was nothing to remove" for a block that is still sitting
+            # in somebody's configuration file.
+            failed.append((candidate, exc))
             continue
-        finally:
-            temporary.unlink(missing_ok=True)
         changed.append(candidate)
+    if failed:
+        path, exc = failed[0]
+        raise OSError(f"{path}: {exc}")
     return changed
 
 
@@ -343,8 +379,16 @@ def _cli() -> int:
     import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "--unbind":
-        for path in unbind():
-            print(f"removed the shortcut block from {path}")
+        # Nothing here may end the uninstaller. It runs after the files have
+        # already been removed and before the lines that say where the config,
+        # the models and every transcript still are -- so a non-zero exit from
+        # this, under the installer's `set -e`, is a user left with a
+        # half-finished message and a 1.6 GB model they were never told about.
+        try:
+            for path in unbind():
+                print(f"removed the shortcut block from {path}")
+        except Exception as exc:  # noqa: BLE001 - see above
+            print(f"could not remove the shortcut block: {exc}", file=sys.stderr)
         return 0
     print("usage: python3 -m nabria.shortcut --unbind", file=sys.stderr)
     return 2

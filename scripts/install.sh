@@ -64,9 +64,13 @@ if [ "$do_uninstall" = yes ]; then
   # pasted by hand looks identical from the outside and is theirs. Left behind,
   # these bind a key to a command that no longer exists: pressing it does
   # nothing, which is harmless and is still litter in someone else's file.
+  # `|| true`, and it is not defensive noise: this file runs under `set -e`
+  # with `pipefail`, and everything below it is the message telling the user
+  # where their config, their models and every transcript they have ever taken
+  # still are. Nothing about tidying up a shortcut may cost them that.
   python3 -m nabria.shortcut --unbind 2>/dev/null | while read -r line; do
     ok "$line"
-  done
+  done || true
   # Config, models and transcripts are deliberately left. Removing an install
   # is not the same as asking to lose a 1.6 GB model and every transcript ever
   # taken, and there is no way to get either of them back.
