@@ -229,7 +229,14 @@ class Daemon:
         # of them can change while the window is closed.
         from .settings_window import SettingsWindow
 
-        window = SettingsWindow(self.application, self.settings, self._apply_setting)
+        window = SettingsWindow(
+            self.application, self.settings, self._apply_setting,
+            # The way in for anyone who has not bound a key -- and on the
+            # desktops where binding one means finding a settings dialog, that
+            # is most people on their first day.
+            on_toggle=lambda: self._handle("toggle"),
+            state=lambda: self.state,
+        )
         window.connect("close-request", self._on_settings_closed)
         self.settings_window = window
         window.present()

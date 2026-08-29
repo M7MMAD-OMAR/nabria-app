@@ -199,7 +199,12 @@ way to bind a global hotkey on Wayland.
       block that has been moved is still ours to take back; and a fence with
       no closing half is refused rather than guessed at. Same atomic write as
       `bind`.
-- [ ] A window with a record button, for when no key can be bound at all.
+- [x] A record button, for when no key can be bound at all. Not a new window:
+      the launcher entry already opens the settings window for exactly this
+      reason and had nothing there to press. It says what pressing it will do
+      -- start, stop, or nothing while a take is being typed -- by polling the
+      daemon's own state, and it is absent rather than dead when the window is
+      built without a daemon behind it.
 
 ## Phase 4 — release
 

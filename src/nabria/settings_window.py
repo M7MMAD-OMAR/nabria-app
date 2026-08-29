@@ -69,13 +69,28 @@ class SettingsWindow(Gtk.ApplicationWindow):
         application: Gtk.Application,
         settings: dict,
         on_change: Callable[[str, object], None],
+        on_toggle: Callable[[], None] | None = None,
+        state: Callable[[], str] | None = None,
     ):
         super().__init__(application=application, title=i18n.t("settings.title"))
         self.settings = settings
         self.on_change = on_change
+        self.on_toggle = on_toggle
+        self.read_state = state
+        self.record_source = 0
         self.set_default_size(560, 640)
 
-        notebook = Gtk.Notebook()
+        column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        column.append(self._record_row())
+        self.set_child(column)
+
+        # Kept on the window, not just held in this scope. The screenshot
+        # script has to select a tab and ask which one is showing, and reaching
+        # in through `get_child()` to find it broke silently the moment this
+        # window grew a row above the notebook -- the picture that came out was
+        # of the tabs with the new row cropped away, and the traceback was
+        # printed where nothing was reading it.
+        self.notebook = notebook = Gtk.Notebook()
         notebook.set_margin_top(12)
         notebook.set_margin_bottom(12)
         notebook.set_margin_start(12)
@@ -85,7 +100,66 @@ class SettingsWindow(Gtk.ApplicationWindow):
                              Gtk.Label(label=i18n.t("settings.tab.microphone")))
         notebook.append_page(self._history_page(),
                              Gtk.Label(label=i18n.t("settings.tab.history")))
-        self.set_child(notebook)
+        notebook.set_vexpand(True)
+        column.append(notebook)
+
+    # -- dictating from the window ------------------------------------------
+
+    def _record_row(self) -> Gtk.Widget:
+        """A button that takes a dictation, for when no key can be bound.
+
+        The hotkey is the product and this is not a second way of doing the
+        same thing for the sake of it: on GNOME and KDE the shortcut is a
+        settings dialog somebody has to find, on a locked-down desktop there
+        may be no way to bind a key at all, and until that is done the
+        application is installed and unusable. The launcher entry already opens
+        this window for exactly that reason -- it just had nothing here to
+        press.
+
+        Only when the daemon handed us a way to ask. Constructed without one --
+        which is how the screenshots and the tests build it -- there is no
+        button, rather than a button that does nothing.
+        """
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        if self.on_toggle is None:
+            return box
+        box.set_margin_top(12)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+
+        self.record = Gtk.Button(label=i18n.t("settings.record.start"))
+        self.record.add_css_class("suggested-action")
+        self.record.connect("clicked", lambda _button: self.on_toggle())
+        box.append(self.record)
+        box.append(_hint(i18n.t("settings.record.hint")))
+
+        # Polled rather than pushed. The daemon's state changes on its own --
+        # a take finishes transcribing with nobody touching this window -- and
+        # a poll that lives and dies with the window cannot leave a callback
+        # pointing at a destroyed one, which a subscription would have to be
+        # careful about on every path out of here.
+        self._refresh_record()
+        self.record_source = GLib.timeout_add(200, self._refresh_record)
+        self.connect("close-request", self._stop_polling)
+        return box
+
+    def _refresh_record(self) -> bool:
+        """Say what pressing it will do now, not what it did when it was built."""
+        state = self.read_state() if self.read_state else "idle"
+        self.record.set_label(i18n.t({
+            "recording": "settings.record.stop",
+            "working": "settings.record.working",
+        }.get(state, "settings.record.start")))
+        # Working is not a state with an action in it: the take is already
+        # recorded and is being typed, and there is nothing to start or stop.
+        self.record.set_sensitive(state != "working")
+        return GLib.SOURCE_CONTINUE
+
+    def _stop_polling(self, *_args) -> bool:
+        if self.record_source:
+            GLib.source_remove(self.record_source)
+            self.record_source = 0
+        return False
 
     # -- engine ------------------------------------------------------------
 

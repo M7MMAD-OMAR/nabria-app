@@ -192,16 +192,18 @@ def page_height(window, kind, page):
     chosen by eye is a number that is wrong for one of the two languages, and
     wrong again the next time a sentence is edited.
     """
-    if kind == "wizard":
-        content = window.stack.get_visible_child()
-        chrome = window.stack.get_margin_top() + window.stack.get_margin_bottom()
-    else:
-        notebook = window.get_child()
-        content = notebook.get_nth_page(int(page))
-        # The tab strip, which is inside the notebook and above the page.
-        chrome = notebook.get_height() - content.get_height()
+    content = (
+        window.stack.get_visible_child() if kind == "wizard"
+        else window.notebook.get_nth_page(int(page))
+    )
     natural = content.measure(Gtk.Orientation.VERTICAL, window.get_width())[1]
-    return natural + chrome + PADDING
+    # Where the page starts, asked of GTK rather than added up from the pieces
+    # above it. Adding them up meant naming them -- the stack's margins, the
+    # notebook's tab strip -- and the sum went stale the moment the settings
+    # window grew a row above its notebook: the picture came out with the new
+    # row cropped away and nothing said so.
+    found, bounds = content.compute_bounds(window)
+    return (bounds.origin.y if found else 0) + natural + PADDING
 
 
 def hide_pointer():
@@ -271,9 +273,15 @@ def capture_all(app):
                 return (stack.get_visible_child_name() == page
                         and not stack.get_transition_running())
         else:
-            window = settings_window.SettingsWindow(app, dict(settings), lambda *a: None)
+            window = settings_window.SettingsWindow(
+                app, dict(settings), lambda *a: None,
+                # With the dictation button, because it is part of the window
+                # a user opens. Photographing the version built without a
+                # daemon would publish a picture of a window nobody has.
+                on_toggle=lambda: None, state=lambda: "idle",
+            )
             window.present()
-            notebook = window.get_child()
+            notebook = window.notebook
             notebook.set_current_page(int(page))
             def showing(notebook=notebook, page=page):
                 return notebook.get_current_page() == int(page)

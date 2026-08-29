@@ -452,6 +452,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "أغلق هذه النافذة وافتحها لترى التغيير. منفصلة عن اللغة أعلاه، "
               "وهي اللغة التي تتكلمها.",
     },
+    "settings.record.start": {"en": "Start speaking", "ar": "ابدأ الكلام"},
+    "settings.record.stop": {"en": "Stop and type it", "ar": "أوقِف واكتبه"},
+    "settings.record.working": {"en": "Typing it…", "ar": "يكتبه…"},
+    "settings.record.hint": {
+        "en": "For when there is no key to press. The shortcut is faster once "
+              "you have one.",
+        "ar": "لحين لا يكون هناك مفتاح تضغطه. الاختصار أسرع بمجرد أن يصبح لديك "
+              "واحد.",
+    },
     "settings.model": {"en": "Model", "ar": "النموذج"},
     "settings.model.hint": {
         "en": "Switching unloads the running server; the next dictation loads "
