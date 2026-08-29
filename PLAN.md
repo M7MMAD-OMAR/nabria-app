@@ -233,10 +233,11 @@ smaller and better answer than anything in-app.
 
 ## Phase 5 — the landing page
 
-Planned in `docs/SITE.md`; nothing built. All drawn, no screenshots, almost no
-words, and the drawing is the orb's own geometry rather than an invented
-visual language. GitHub Pages from `main` `/docs`, so there is no build step
-and nothing that can fail. Four questions are open at the bottom of that file.
+- [x] Static bilingual landing page in `docs/`, with `/` and `/ar/` routes.
+- [x] Drawn orb, voice states, local-only flow, setup proof and install path.
+- [x] GitHub Pages support via `docs/.nojekyll`, with no build step.
+
+The settled visual and content decisions are recorded in `docs/SITE.md`.
 
 ## Phase 6 — other platforms
 

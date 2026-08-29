@@ -1,6 +1,7 @@
 # The landing page — analysis and plan
 
-Planning only. Nothing here is built yet.
+Implemented in `docs/index.html` and `docs/ar/index.html`. This document remains
+the source of truth for the landing page's visual and content decisions.
 
 ## The brief
 
@@ -146,7 +147,7 @@ that cannot work.
 |---|---|
 | where | GitHub Pages, `main` branch, `/docs` folder |
 | why there | no workflow, no build, nothing that can fail — the objection to CI applies here too |
-| files | `docs/index.html`, `docs/.nojekyll` |
+| files | `docs/index.html`, `docs/ar/index.html`, `docs/.nojekyll` |
 | domain | `nabria.sbarah.com` via CNAME, later |
 | assets | inline SVG, inline CSS. No framework, no image files |
 | script | none. The hero animates with CSS keyframes |
