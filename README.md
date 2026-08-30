@@ -35,7 +35,7 @@ sudo dnf install https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/downl
 wget https://github.com/M7MMAD-OMAR/nabria-app/releases/latest/download/nabria.deb && sudo apt install ./nabria.deb
 ```
 
-**Arch** — not in the AUR yet. The `PKGBUILD` is in this repository:
+**Arch** — the `PKGBUILD` is in this repository, rather than in the AUR:
 
 ```sh
 git clone https://github.com/M7MMAD-OMAR/nabria-app.git

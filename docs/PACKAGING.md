@@ -6,10 +6,23 @@ How Nabria reaches a machine, and why in that order.
 
 | | command | updates arrive |
 |---|---|---|
-| `.rpm` | `sudo dnf install …/nabria.rpm` | on the next release, once Copr is set up (below) |
-| `.deb` | `sudo apt install ./nabria.deb` | by downloading the new one, until there is an apt repo |
-| AUR | `yay -S nabria` | with every other AUR package |
+| `.rpm` | `sudo dnf install …/nabria.rpm` | by re-running the same line |
+| `.deb` | `sudo apt install ./nabria.deb` | by re-running the same line |
+| `PKGBUILD` | `makepkg -si` in `packaging/` | by pulling and re-running it |
 | `curl … \| sh` | anything else | by re-running the same line |
+
+Each of those URLs is `releases/latest/download/…`, so none of the four lines
+ever changes. Updating is re-running the line you installed with.
+
+There is no Copr project, no AUR package and no apt repository, and that is a
+decision rather than a gap — the sections below are kept because they are what
+setting one up would take, not because it is planned. Each buys exactly one
+thing, `dnf upgrade` or `yay` noticing a release on its own, and each costs a
+hosted identity that has to stay alive: a Fedora account, an AUR account with a
+registered SSH key, a GPG signing key sitting wherever the apt repo is built.
+The `.spec` and the `PKGBUILD` are kept correct regardless, and
+`scripts/release.sh` still rewrites the `PKGBUILD` checksums on every release,
+so none of this rots while it is unused.
 
 **Do not run two of them on the same machine.** A user install shadows a
 packaged one at every point — the launcher on `PATH`, the unit in
@@ -86,11 +99,11 @@ about, only run — every packaging bug it has ever had came from a container.
 Ubuntu 24.04 is in that matrix specifically because it is the machine that
 proves the layer-shell dependency is soft.
 
-## Copr — the Fedora update channel
+## Copr — what it would take
 
-Not set up yet; it needs a Fedora account, which is a person, not a script.
-`packaging/nabria.spec` is already suitable as-is: both its sources are URLs,
-which is what Copr fetches.
+Not set up, by the decision above. Written down so the option stays open at the
+cost of reading it, not because it is queued. `packaging/nabria.spec` is
+suitable as-is: both its sources are URLs, which is what Copr fetches.
 
 1. Sign in at <https://copr.fedorainfracloud.org> and make a project called
    `nabria`, targeting the current Fedora releases, `x86_64` only.
@@ -106,7 +119,7 @@ sudo dnf copr enable <account>/nabria
 sudo dnf install nabria
 ```
 
-## Debian: why there is no apt repository yet
+## Debian: why there is no apt repository
 
 An apt repository needs a signed `InRelease`, which means a GPG private key
 living wherever the repository is built. Doing that in GitHub Actions puts a
@@ -115,9 +128,10 @@ signing key in CI, which is the dependency this project is deliberately without
 it. Copr sidesteps signing entirely by doing it itself; Debian has no free
 equivalent that does.
 
-So the `.deb` is a release asset for now. The openSUSE Build Service could host
-a signed apt repository for Debian and Ubuntu and is the obvious next step if
-enough people want one.
+So the `.deb` is a release asset, and `apt install ./nabria.deb` against a
+stable URL is the answer. The openSUSE Build Service could host a signed apt
+repository for Debian and Ubuntu, and is where to start if this is ever
+revisited.
 
 ## When the version changes
 

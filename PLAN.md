@@ -232,13 +232,15 @@ way to bind a global hotkey on Wayland.
       `gtk4-layer-shell` has to be a recommendation rather than a dependency.
 - [x] **Stable download names.** `releases/latest/download/nabria.rpm` and
       `.deb`, so the install lines in the README never need editing.
-- [ ] **Copr**, which is what turns the `.rpm` into automatic updates. Needs a
-      Fedora account; the spec is already suitable and the steps are in
-      `docs/PACKAGING.md`.
-- [ ] **AUR submission** — likewise a person with an account, not a script.
-- [ ] An apt repository. Deliberately last: it needs a GPG signing key
-      wherever it is built, and putting one in CI is the dependency this
-      project is without. OBS is the candidate.
+Not doing: Copr, an AUR submission, an apt repository. Each is a hosted
+identity — a Fedora account, an AUR account with a registered SSH key, a GPG
+signing key — held by a person rather than by this repository, and each buys
+one thing: `dnf upgrade` picking the release up on its own. The release URLs
+above are stable and the install lines never change, so the cost of not having
+them is re-running one command. That is a smaller cost than three accounts to
+keep alive. The spec and the `PKGBUILD` stay correct and their checksums are
+still rewritten on every release, so if any of this is ever wanted the steps in
+`docs/PACKAGING.md` still work — this is a decision not to, not a gap.
 
 No self-update code, and none wanted. A packaged install is updated by the
 same machinery that updates everything else on the machine, and that is a
