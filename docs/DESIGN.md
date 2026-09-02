@@ -217,6 +217,40 @@ so Hyprland, sway and niri are each asked in their own language and the list
 ends where knowledge does. Where nothing can say, the answer is Ctrl+V — right
 everywhere except a terminal, and the safer of the two guesses.
 
+### Sending the paste key, and why the order is inverted
+
+The paste keystroke goes through **ydotool first and wtype second**, the
+reverse of the order used for typing. Measured into a real focused text entry
+on Hyprland 0.56.2: `wtype -M ctrl -k v -m ctrl` landed **0 times out of 15**
+while exiting 0 every time, and ydotool landed 12 out of 12. The daemon was
+therefore logging `typed via paste` for transcripts that never arrived
+anywhere, which is precisely the misdiagnosis the log exists to prevent, one
+layer up. A sender that reports success for work it did not do goes last.
+
+wtype stays as the fallback because it needs no daemon: on a machine with no
+`ydotoold` it is the only thing that can send the key at all.
+
+A 120 ms settle precedes the key. The clipboard offer and the keystroke are
+two separate trips through the compositor, and firing immediately after
+`wl-copy` measured 11 in 12 against 12 in 12 with the pause: the target has to
+have processed the offer before the key arrives, or it pastes what was there
+before.
+
+### XWayland is served by typing, not by pasting
+
+An XWayland client reads the **X11** selection, which the compositor bridges
+from Wayland. Where that bridge is broken the paste cannot work by any amount
+of retrying: measured here, `wl-copy` followed by `xclip -o` returned nothing
+forty times out of forty while `wl-paste` read the same value back fine, so a
+paste into such a window inserts whatever X11 happened to hold before.
+
+So `_paste` asks the compositor whether the focused window is XWayland and
+refuses if it is, which drops the take through to `wtype`/`ydotool`. Those
+type the characters and never touch the clipboard, so they are unaffected by
+the bridge. Only Hyprland is asked, and anything that cannot answer is treated
+as native: a wrong True would send every dictation down the slow typing path
+on every other desktop.
+
 ## Arabic
 
 **Tell it the language.** Auto-detection runs per 30-second window, and a

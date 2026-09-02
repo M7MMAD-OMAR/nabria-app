@@ -15,6 +15,21 @@ of speech is well over a thousand keystrokes, which is seconds of watching text
 crawl across the screen, and every one of them is a round trip through the
 compositor. One paste is one event no matter how long the transcript is.
 
+**The paste keystroke goes through ydotool first, and wtype only as a
+fallback** -- the reverse of the order used for typing, and measured rather
+than assumed. Into a real focused text entry on Hyprland 0.56.2,
+`wtype -M ctrl -k v -m ctrl` landed 0 times out of 15 while exiting 0 every
+time, so the daemon logged "typed via paste" for transcripts that never
+arrived anywhere. ydotool landed 12 out of 12 once given PASTE_SETTLE. A tool
+that reports success for work it did not do is the exact failure this whole
+application exists to prevent, so the sender that cannot be trusted to report
+its own failure is tried last.
+
+XWayland clients are a separate matter and cannot be fixed from here: where
+the compositor's X11 clipboard bridge is broken, `wl-copy` never reaches an
+XWayland window at all and no keystroke can paste what is not offered. Those
+windows are served by typing instead, which is why the fallbacks stay.
+
 If everything fails the text is still on the clipboard, so a dictation is never
 simply lost.
 """
@@ -25,6 +40,7 @@ import json
 import shutil
 import subprocess
 import threading
+import time
 
 TIMEOUT = 30
 
@@ -38,6 +54,28 @@ TIMEOUT = 30
 # because window classes are not consistently capitalised.
 TERMINAL_CLASSES = ("kitty", "foot", "alacritty", "wezterm", "org.wezfurlong.wezterm",
                     "com.mitchellh.ghostty", "konsole", "org.gnome.Console", "xterm")
+
+# How long to let the focused window settle before the paste keystroke.
+#
+# Measured on Hyprland 0.56.2 into a real focused text entry: firing the key
+# immediately after wl-copy landed 11 times in 12, with a 120 ms pause 12 in
+# 12. The clipboard offer and the key are two separate trips through the
+# compositor, and the target has to have processed the first before the
+# second arrives or it pastes what was there before, or nothing.
+PASTE_SETTLE = 0.12
+
+# Order in which the paste keystroke is attempted.
+#
+# ydotool first, which is the reverse of the typing order below, and measured
+# rather than assumed: `wtype -M ctrl -k v -m ctrl` landed 0 times in 15 into
+# a focused GTK entry on this compositor while EXITING 0 every time, so the
+# app reported "typed via paste" for a transcript that never arrived. That is
+# the failure this whole tool exists to prevent, so the sender that cannot be
+# trusted to report its own failure goes last.
+#
+# wtype is kept as the fallback because it needs no daemon: on a machine with
+# no ydotoold it is the only thing that can send the key at all.
+PASTE_SENDERS = ("ydotool", "wtype")
 
 # How long the pasted text stays on the clipboard before the previous contents
 # come back. Long enough for the target application to have read the offer --
@@ -179,26 +217,54 @@ def is_terminal(window_class: str, extra: tuple[str, ...] = ()) -> bool:
     return window_class.casefold() in known
 
 
-def _send_paste_key(terminals: tuple[str, ...] = ()) -> None:
+def _paste_with_ydotool(shift: bool) -> None:
+    # Linux input event codes: 29 ctrl, 42 shift, 47 v. `:1` press, `:0`
+    # release, and they have to unwind in reverse or the modifier sticks.
+    keys = ["29:1"] + (["42:1"] if shift else []) + ["47:1", "47:0"]
+    keys += (["42:0"] if shift else []) + ["29:0"]
+    subprocess.run(
+        ["ydotool", "key", *keys], check=True, timeout=TIMEOUT, capture_output=True
+    )
+
+
+def _paste_with_wtype(shift: bool) -> None:
+    modifiers = ["-M", "ctrl"] + (["-M", "shift"] if shift else [])
+    release = ["-m", "ctrl"] + (["-m", "shift"] if shift else [])
+    subprocess.run(
+        ["wtype", *modifiers, "-k", "v", *release],
+        check=True, timeout=TIMEOUT, capture_output=True,
+    )
+
+
+PASTE_KEY_SENDERS = {"ydotool": _paste_with_ydotool, "wtype": _paste_with_wtype}
+
+
+def _send_paste_key(terminals: tuple[str, ...] = ()) -> str:
+    """Send the paste keystroke. Returns the tool that sent it.
+
+    Both senders exit 0 whether or not the compositor delivered anything, so
+    the return value says which tool ran, not that the text arrived. Ordering
+    is what buys reliability here rather than checking: measured into a real
+    focused entry on Hyprland 0.56.2, wtype landed 0 of 15 while reporting
+    success every time, and ydotool 12 of 12 once given PASTE_SETTLE.
+    """
     shift = is_terminal(_focused_class(), terminals)
-    if shutil.which("wtype"):
-        modifiers = ["-M", "ctrl"] + (["-M", "shift"] if shift else [])
-        release = ["-m", "ctrl"] + (["-m", "shift"] if shift else [])
-        subprocess.run(
-            ["wtype", *modifiers, "-k", "v", *release],
-            check=True, timeout=TIMEOUT, capture_output=True,
-        )
-        return
-    if shutil.which("ydotool"):
-        # Linux input event codes: 29 ctrl, 42 shift, 47 v. `:1` press, `:0`
-        # release, and they have to unwind in reverse or the modifier sticks.
-        keys = ["29:1"] + (["42:1"] if shift else []) + ["47:1", "47:0"]
-        keys += (["42:0"] if shift else []) + ["29:0"]
-        subprocess.run(
-            ["ydotool", "key", *keys], check=True, timeout=TIMEOUT, capture_output=True
-        )
-        return
-    raise InjectionError("no way to send a paste keystroke")
+    # The focus query above already costs a round trip to the compositor, so
+    # part of the settle is usually paid before this sleep. It is kept
+    # unconditional because the query is skipped when no probe is installed.
+    time.sleep(PASTE_SETTLE)
+    failures: list[str] = []
+    for name in PASTE_SENDERS:
+        if not shutil.which(name):
+            failures.append(f"{name}: not installed")
+            continue
+        try:
+            PASTE_KEY_SENDERS[name](shift)
+            return name
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            detail = getattr(exc, "stderr", b"") or b""
+            failures.append(f"{name}: {detail.decode('utf-8', 'replace').strip() or exc}")
+    raise InjectionError("; ".join(failures) or "no way to send a paste keystroke")
 
 
 def _restore_clipboard(previous: tuple[str, bytes], pasted: str) -> None:
@@ -216,9 +282,38 @@ def _restore_clipboard(previous: tuple[str, bytes], pasted: str) -> None:
         pass
 
 
+def _focused_is_xwayland() -> bool:
+    """Whether the focused window is an XWayland client.
+
+    Only Hyprland is asked, because it is the only compositor here that
+    reports it directly and a wrong guess is worse than no guess: answering
+    True for a native Wayland window would send it down the slow typing path
+    for no reason. Anything unknown is treated as native, which keeps the
+    fast paste for every case this cannot prove otherwise.
+    """
+    if not shutil.which("hyprctl"):
+        return False
+    try:
+        result = subprocess.run(
+            ["hyprctl", "activewindow", "-j"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return bool(json.loads(result.stdout).get("xwayland"))
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        return False
+
+
 def _paste(text: str, terminals: tuple[str, ...] = ()) -> None:
     if not shutil.which("wl-copy"):
         raise InjectionError("wl-copy is not installed")
+    # An XWayland window reads the X11 selection, which the compositor has to
+    # bridge from Wayland. Measured on this machine that bridge is dead in
+    # both directions (`wl-copy` then `xclip -o` returns nothing, forty times
+    # out of forty), so pasting into such a window silently inserts whatever
+    # X11 held before. Refusing here hands the take to `wtype`/`ydotool`,
+    # which type the characters and do not depend on the bridge at all.
+    if _focused_is_xwayland():
+        raise InjectionError("focused window is XWayland; the clipboard does not bridge")
     previous = _clipboard_snapshot()
     subprocess.run(["wl-copy", "--", text], check=True, timeout=TIMEOUT)
     _send_paste_key(terminals)

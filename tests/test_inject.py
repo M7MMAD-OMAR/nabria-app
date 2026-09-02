@@ -95,7 +95,99 @@ def test_missing_backend_is_reported_by_name(monkeypatch):
 def test_terminals_get_ctrl_shift_v(monkeypatch, recorder):
     monkeypatch.setattr(inject, "_focused_class", lambda: "kitty")
     inject._send_paste_key()
-    assert recorder[0] == ["wtype", "-M", "ctrl", "-M", "shift", "-k", "v", "-m", "ctrl", "-m", "shift"]
+    # ydotool is tried first, so this is its shape: 42 is shift, and it is
+    # pressed with ctrl and released after the key.
+    assert recorder[0] == ["ydotool", "key",
+                           "29:1", "42:1", "47:1", "47:0", "42:0", "29:0"]
+
+
+def test_wtype_sends_ctrl_shift_v_when_ydotool_is_absent(monkeypatch, recorder):
+    # The fallback has to carry the terminal's modifier too, or a machine
+    # without ydotoold pastes a control character into its shell.
+    monkeypatch.setattr(inject, "_focused_class", lambda: "kitty")
+    monkeypatch.setattr(
+        inject.shutil, "which",
+        lambda name: None if name == "ydotool" else "/usr/bin/x",
+    )
+    inject._send_paste_key()
+    assert recorder[0] == ["wtype", "-M", "ctrl", "-M", "shift", "-k", "v",
+                           "-m", "ctrl", "-m", "shift"]
+
+
+def test_the_paste_key_prefers_ydotool_over_wtype(monkeypatch, recorder):
+    """Order is the fix, and it is the reverse of the typing order.
+
+    Measured into a real focused entry on Hyprland 0.56.2: wtype's Ctrl+V
+    landed 0 times in 15 while exiting 0 every time, so the daemon logged
+    "typed via paste" for transcripts that never arrived. ydotool landed 12
+    in 12. A sender that reports success for work it did not do has to go
+    last, or the log lies about the one thing it exists to report.
+    """
+    monkeypatch.setattr(inject, "_focused_class", lambda: "firefox")
+    assert inject._send_paste_key() == "ydotool"
+    assert recorder[0][0] == "ydotool"
+
+
+def test_a_dead_ydotool_falls_back_to_wtype(monkeypatch):
+    # ydotoold not running is the ordinary case on a fresh machine, and it
+    # must degrade to the other sender rather than losing the paste.
+    monkeypatch.setattr(inject, "_focused_class", lambda: "firefox")
+    sent: list[list[str]] = []
+
+    def fake_run(command, *args, **kwargs):
+        if command[0] == "ydotool":
+            raise subprocess.CalledProcessError(1, command, stderr=b"no socket")
+        sent.append(command)
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr(inject.subprocess, "run", fake_run)
+    monkeypatch.setattr(inject.shutil, "which", lambda name: "/usr/bin/x")
+
+    assert inject._send_paste_key() == "wtype"
+    assert sent[0][0] == "wtype"
+
+
+def test_both_paste_senders_failing_is_reported(monkeypatch):
+    # Not silently swallowed: deliver falls through to typing, and the reason
+    # both senders failed is what tells a reader why.
+    monkeypatch.setattr(inject, "_focused_class", lambda: "firefox")
+    monkeypatch.setattr(inject.shutil, "which", lambda name: None)
+    with pytest.raises(inject.InjectionError) as raised:
+        inject._send_paste_key()
+    assert "ydotool" in str(raised.value) and "wtype" in str(raised.value)
+
+
+def test_an_xwayland_window_is_not_pasted_into(monkeypatch):
+    """Paste cannot reach an XWayland client through a broken bridge.
+
+    An XWayland window reads the X11 selection, which the compositor has to
+    bridge from Wayland. Measured on this machine that bridge is dead in both
+    directions: `wl-copy` followed by `xclip -o` returned nothing, forty times
+    out of forty, while `wl-paste` read the value back fine. Pasting there
+    inserts whatever X11 held before, so `_paste` refuses and `deliver` falls
+    through to typing, which does not use the clipboard at all.
+    """
+    monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: True)
+    monkeypatch.setattr(inject.shutil, "which", lambda name: "/usr/bin/x")
+    with pytest.raises(inject.InjectionError, match="XWayland"):
+        inject._paste("the words I said")
+
+
+def test_a_native_window_is_still_pasted_into(monkeypatch, recorder):
+    # The guard must not cost the fast path everywhere else: typing a minute
+    # of speech one keystroke at a time is the outcome it exists to avoid.
+    monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: False)
+    monkeypatch.setattr(inject, "_clipboard_snapshot", lambda: None)
+    monkeypatch.setattr(inject, "_focused_class", lambda: "firefox")
+    inject._paste("the words I said")
+    assert any(command[0] == "wl-copy" for command in recorder)
+
+
+def test_an_unknown_compositor_is_treated_as_native(monkeypatch):
+    # Answering True for a window this cannot ask about would send every
+    # dictation down the slow typing path on every desktop but Hyprland.
+    monkeypatch.setattr(inject.shutil, "which", lambda name: None)
+    assert inject._focused_is_xwayland() is False
 
 
 def test_ordinary_windows_get_ctrl_v(monkeypatch, recorder):
