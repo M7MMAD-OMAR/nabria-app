@@ -200,7 +200,7 @@ def test_a_muted_input_is_named_rather_than_described(daemon, sent, monkeypatch)
     from nabria import app as app_module
 
     monkeypatch.setattr(app_module, "_default_input", lambda: ("Test Mic", True))
-    daemon._warn_unheard(14.0, -70.0, -42.0)
+    daemon._warn_unheard(14.0, -42.0)
 
     summary, body = sent[0]
     assert "muted" in body, "the one cause that can be named outright"
@@ -213,7 +213,7 @@ def test_an_unknown_mute_state_is_not_guessed_at(daemon, sent, monkeypatch):
     from nabria import app as app_module
 
     monkeypatch.setattr(app_module, "_default_input", lambda: ("the default input", None))
-    daemon._warn_unheard(14.0, -70.0, -42.0)
+    daemon._warn_unheard(14.0, -42.0)
 
     assert "muted" not in sent[0][1].split(".")[0]
 
@@ -257,11 +257,26 @@ def test_the_warning_can_be_switched_off(daemon, fresh_config):
     # to arm the timer at all.
     daemon.settings["silence_warning_seconds"] = 0
     assert daemon._silence_warning_seconds() == 0.0
-    # A hand-edited word must not raise inside _start, which is the one place
-    # a failure costs the take the user was about to speak.
-    daemon.settings["silence_warning_seconds"] = "soon"
-    assert daemon._silence_warning_seconds() == float(
+
+
+def test_a_hand_edited_delay_is_repaired_by_config_not_by_the_call_site(fresh_config):
+    """The guard belongs in one place, and config.py is it.
+
+    A typo here used to raise inside the take, file the audio into failed/
+    and report a broken transcriber. `_coerce_numbers` fixed that class of
+    bug for every numeric setting at once by reading types from DEFAULTS, so
+    a new setting is covered without anybody remembering to guard its reader.
+    This asserts the general mechanism covers the new key, which is what lets
+    the reader stay a plain float().
+    """
+    settings = {**fresh_config.DEFAULTS, "silence_warning_seconds": "soon"}
+    warnings = fresh_config._coerce_numbers(settings)
+
+    assert settings["silence_warning_seconds"] == float(
         fresh_config.DEFAULTS["silence_warning_seconds"]
+    )
+    assert any("silence_warning_seconds" in line for line in warnings), (
+        "the repair happened silently; the log has to say what it could not read"
     )
 
 
@@ -287,3 +302,27 @@ def test_nothing_is_said_while_the_gpu_is_working(daemon, sent):
     daemon.whisper.gpu_failed = False
     daemon._note_gpu_fallback()
     assert sent == []
+
+
+def test_both_silence_notices_word_a_muted_input_identically(daemon):
+    """One fault, one sentence, whichever path reports it.
+
+    The mid-take warning and the finished-take notice used to hold their own
+    copy of these eight lines. A change to the muted wording then had to be
+    made twice, and the copy that got missed would stay wrong until somebody
+    actually muted their microphone, which is the hardest kind of bug to
+    notice.
+    """
+    mid = daemon._unheard_notice("Test Mic", True, 14.0, -42.0)
+    finished = daemon._unheard_notice("Test Mic", True, 30.0, -42.0)
+
+    assert mid == finished, "the two notices worded the same fault differently"
+    assert "muted" in mid[1]
+
+
+def test_an_unknown_mute_state_never_claims_the_microphone_is_muted(daemon):
+    # None means wpctl could not say. Claiming "muted" there sends the user to
+    # fix something that may be perfectly fine.
+    _, body = daemon._unheard_notice("Test Mic", None, 14.0, -42.0)
+    assert "muted" not in body.split(".")[0]
+    assert "14" in body, "the weaker sentence still reports the take"

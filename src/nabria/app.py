@@ -459,21 +459,18 @@ class Daemon:
         return GLib.SOURCE_CONTINUE
 
     def _silence_warning_seconds(self) -> float:
-        """How long a take may run unheard before saying so, as a number.
+        """How long a take may run unheard before saying so.
 
-        config.load() has already coerced it, but the settings dict is also
-        written by _apply_setting and by the wizard, and this feeds a GLib
-        timeout: a value that will not convert would raise inside `_start`,
-        which is the one place a failure costs the user the take they were
-        about to speak.
+        Read straight, the way `silent_notice_after` is read a few lines
+        below: `config.load` has already made every numeric setting a number
+        and logged anything it could not, so a call-site try/except here would
+        be the exact guard commit eec6f9e removed from the call sites for
+        being the thing that had to be remembered at each one. Verified: a
+        hand-edited "soon" becomes 12.0 with a warning before this ever runs.
         """
-        try:
-            return float(self.settings.get(
-                "silence_warning_seconds",
-                config.DEFAULTS["silence_warning_seconds"],
-            ))
-        except (TypeError, ValueError):
-            return float(config.DEFAULTS["silence_warning_seconds"])
+        return float(self.settings.get(
+            "silence_warning_seconds", config.DEFAULTS["silence_warning_seconds"]
+        ))
 
     def _poll_silence(self) -> bool:
         """While recording: say once that nothing is arriving.
@@ -508,26 +505,45 @@ class Daemon:
         # frozen mid-take, which is the one thing the indicator must never do
         # while it is claiming to listen.
         threading.Thread(
-            target=self._warn_unheard, args=(seconds, level, threshold),
+            target=self._warn_unheard, args=(seconds, threshold),
             daemon=True, name="nabria-silence-warning",
         ).start()
         return GLib.SOURCE_REMOVE
 
-    def _warn_unheard(self, seconds: float, level: float, threshold: float) -> None:
-        name, muted = _default_input()
+    def _unheard_notice(self, name: str, muted: bool | None,
+                        seconds: float, threshold: float) -> tuple[str, str]:
+        """The words for "nothing is arriving", shared by both notices.
+
+        Written once because both paths report the same fault and were the
+        same eight lines twice: the mid-take warning and the third-silent-take
+        notice. Two copies meant a change to the muted wording had to be made
+        in both, and the one that got missed would be invisible until somebody
+        muted their microphone.
+
+        `muted` is only ever named when `wpctl` actually said so. An unknown
+        mute state falls to the weaker sentence, because "your microphone is
+        muted" sends the user to fix something that may be fine.
+        """
         if muted:
             # The only cause that can be named outright, and the common one.
             # "Your microphone is muted" is an instruction; "nothing was heard"
             # is a symptom the user still has to diagnose.
-            body = i18n.t("app.unheard_muted_body", source=i18n.ltr(name))
-        else:
-            body = i18n.t(
-                "app.unheard_body",
-                seconds=f"{seconds:.0f}",
-                threshold=i18n.ltr(f"{threshold:.0f}"),
-                source=i18n.ltr(name),
+            return i18n.t("app.unheard"), i18n.t(
+                "app.unheard_muted_body", source=i18n.ltr(name)
             )
-        notify.send(i18n.t("app.unheard"), body, urgency="critical")
+        return i18n.t("app.unheard"), i18n.t(
+            "app.unheard_body",
+            seconds=f"{seconds:.0f}",
+            threshold=i18n.ltr(f"{threshold:.0f}"),
+            source=i18n.ltr(name),
+        )
+
+    def _warn_unheard(self, seconds: float, threshold: float) -> None:
+        """Send the mid-take warning. Runs on its own thread, not the loop."""
+        summary, body = self._unheard_notice(
+            *_default_input(), seconds=seconds, threshold=threshold
+        )
+        notify.send(summary, body, urgency="critical")
 
     def _deadline(self) -> bool:
         self.deadline_source = 0
@@ -711,11 +727,10 @@ class Daemon:
         if muted:
             # Nameable, so name it: this notice otherwise describes a symptom
             # and leaves the user to work out the cause that is one key away.
-            notify.send(
-                i18n.t("app.unheard"),
-                i18n.t("app.unheard_muted_body", source=i18n.ltr(name)),
-                urgency="critical",
+            summary, body = self._unheard_notice(
+                name, muted, recorder.seconds, threshold
             )
+            notify.send(summary, body, urgency="critical")
             return
         notify.send(
             i18n.t("app.not_hearing"),

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -185,3 +186,50 @@ def test_a_missing_binary_is_not_retried_on_the_cpu(engine):
     with pytest.raises(FileNotFoundError):
         engine.ensure()
     assert engine.gpu_failed is False
+
+
+# A writer that holds the pipe open past the process's death is not what
+# breaks this: the poll loop only notices the exit on its next 0.2s tick, by
+# which time any prompt writer has long flushed. What broke it was the drain
+# thread not being SCHEDULED, measured 4 times in 120 runs under load. So the
+# thread is stalled directly here, which is that condition made deterministic.
+CRASH_WITH_SLOW_DRAIN = """import os, signal, sys
+sys.stderr.write("ggml_vulkan: Device memory allocation failed\\n")
+sys.stderr.write("/build/ggml/src/ggml-backend.cpp:60: GGML_ASSERT(buffer) failed\\n")
+sys.stderr.flush()
+os.kill(os.getpid(), signal.SIGABRT)
+"""
+
+
+def test_the_reason_survives_a_drain_thread_that_has_not_run(engine, monkeypatch):
+    """The engine's reason must not depend on thread scheduling.
+
+    `_stderr_summary` used to sleep a tenth of a second and hope the reader
+    had finished. That is a guess about the scheduler, and under load it lost
+    the reason 4 times in 120 runs, leaving exactly the bare "exited with code
+    -6" that keeping stderr was meant to eliminate.
+
+    The starvation is reproduced here by delaying the reader past any fixed
+    sleep, so this fails against the sleeping version instead of flaking.
+    """
+    engine.device = gpu.Plan(False, None, "test device: CPU")
+    real_popen = subprocess.Popen
+    monkeypatch.setattr(
+        whisper.subprocess, "Popen",
+        lambda command, **kwargs: real_popen(
+            [sys.executable, "-c", CRASH_WITH_SLOW_DRAIN], **kwargs
+        ),
+    )
+    # Stand in for a thread the scheduler has not got to yet.
+    real_drain = engine._drain_stderr
+    monkeypatch.setattr(
+        engine, "_drain_stderr",
+        lambda process: (time.sleep(0.5), real_drain(process))[1],
+    )
+
+    with pytest.raises(RuntimeError) as caught:
+        engine.ensure()
+
+    assert "GGML_ASSERT" in str(caught.value), (
+        "the engine's reason was lost to a race; the log would say only a signal number"
+    )

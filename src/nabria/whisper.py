@@ -95,6 +95,10 @@ class WhisperServer:
         # The pipe holds 64 KiB, and whisper-server writes to it for as long as
         # it runs, so an undrained pipe eventually blocks the engine mid-take.
         self.stderr_tail: deque[str] = deque(maxlen=STDERR_TAIL_LINES)
+        # The thread draining the above, kept so a failed start can join it
+        # rather than sleep at it: the abort message is still in flight when
+        # the process is first seen to be dead.
+        self.drain: threading.Thread | None = None
         # Set when a GPU start died, and honoured for the rest of this server's
         # life. Retrying the card on every take would cost a crash and its
         # startup timeout each time, to reach the same CPU fallback. A daemon
@@ -210,10 +214,11 @@ class WhisperServer:
             stderr=subprocess.PIPE,
             start_new_session=True,
         )
-        threading.Thread(
+        self.drain = threading.Thread(
             target=self._drain_stderr, args=(self.process,),
             daemon=True, name="nabria-engine-stderr",
-        ).start()
+        )
+        self.drain.start()
 
         deadline = time.monotonic() + STARTUP_TIMEOUT
         while time.monotonic() < deadline:
@@ -244,11 +249,23 @@ class WhisperServer:
                 self.stderr_tail.append(line.decode("utf-8", "replace"))
 
     def _stderr_summary(self) -> str:
-        """The tail of the engine's own output, for an exception message."""
-        # A short pause, because the process has only just been seen to exit
-        # and the reader thread may not have drained the last of the pipe --
-        # which is exactly the abort message that makes this worth having.
-        time.sleep(0.1)
+        """The tail of the engine's own output, for an exception message.
+
+        Joins the reader rather than sleeping at it. The process has only just
+        been seen to exit, so the last of the pipe -- which is exactly the
+        abort message this exists to capture -- may still be in flight. A
+        fixed sleep is a guess about scheduling, and measured under load it
+        lost the reason 4 times in 120: the log then said only "exited with
+        code -6", the unattributable message this change existed to remove.
+
+        The join is bounded because the pipe is closed by the dead process, so
+        the reader sees EOF and ends on its own; the timeout is there for the
+        case where it does not, and losing the text is better than hanging the
+        take behind it.
+        """
+        drain = self.drain
+        if drain is not None:
+            drain.join(timeout=2.0)
         tail = "".join(self.stderr_tail).strip()
         if not tail:
             return ""
