@@ -103,6 +103,30 @@ loaded, so a successful connection is a sufficient readiness check. The model
 is unloaded after `idle_unload_seconds` to give back its VRAM, and reloaded
 while you are still speaking, so the cost is usually invisible.
 
+### When the GPU will not start
+
+A card that cannot be used is not a reason to lose a take. Measured here: the
+discrete GPU was busy, `whisper-server` aborted inside `whisper_model_load` on
+an allocation that came back null, and the recording went to `failed/` with
+`whisper server exited with code -6` as the only account of it anywhere.
+
+So a GPU start that dies is retried once on the CPU, and the decision is then
+kept for the rest of the session. Retrying the card per take would pay for the
+crash and its startup timeout again to reach the same answer; a daemon restart
+tries it afresh, which is right, because the usual cause is something else on
+the machine holding the memory and that clears.
+
+The fallback is announced, once. Keeping the take is the point, but every take
+afterwards is slower than the user has any reason to expect, and a tool that
+quietly halves its own speed is the same misdiagnosis this log exists to
+prevent, one layer up.
+
+The engine's stderr is **kept and drained**, not sent to `/dev/null`. `-6` is
+the same answer for a busy GPU, a missing driver and an unreadable model; the
+engine says which, and discarding that left the log recording a failure it
+could not explain. Drained on a thread for the same reason `pw-record`'s is:
+the pipe holds 64 KiB and the engine writes to it for as long as it runs.
+
 ## Levels, and the 0.6-second warm-up
 
 Opening the ALSA capture device pops. The first fraction of a second comes back

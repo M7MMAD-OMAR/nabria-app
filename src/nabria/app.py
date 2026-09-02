@@ -144,6 +144,7 @@ class Daemon:
         self.jobs_lock = threading.Lock()
         self.takes = 0
         self.silent_run = 0
+        self.gpu_fallback_noticed = False
         self.level_source = 0
         self.deadline_source = 0
         self.silence_source = 0
@@ -616,6 +617,7 @@ class Daemon:
             # Audio came through, so whatever the input is, it is working.
             self.silent_run = 0
             text = self.whisper.transcribe(wav_path)
+            self._note_gpu_fallback()
             elapsed = time.monotonic() - started
             # The recording is filed before the transcript is, so a history
             # entry never names a WAV that is not there yet -- but only when
@@ -724,6 +726,26 @@ class Daemon:
                 level=i18n.ltr(f"{level:.0f}"),
                 source=i18n.ltr(name),
             ),
+        )
+
+    def _note_gpu_fallback(self) -> None:
+        """Say once that the engine is on the CPU when the GPU was meant to run.
+
+        The fallback keeps the take, which is the point, but it also makes
+        every take afterwards slower than the user has any reason to expect.
+        A tool that quietly halves its own speed and says nothing is the same
+        misdiagnosis this project's log exists to prevent, one layer up.
+
+        Once per daemon, not once per take: the condition holds for the rest
+        of the session by design, so a notice per take would be the same
+        sentence on every dictation until the daemon is restarted.
+        """
+        if not self.whisper.gpu_failed or self.gpu_fallback_noticed:
+            return
+        self.gpu_fallback_noticed = True
+        notify.send(
+            i18n.t("app.gpu_fallback"),
+            i18n.t("app.gpu_fallback_body", log=i18n.ltr(config.LOG_PATH)),
         )
 
     def _retain(self, wav_path) -> str:

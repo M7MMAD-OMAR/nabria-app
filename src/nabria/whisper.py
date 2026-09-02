@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,11 @@ from . import gpu
 
 STARTUP_TIMEOUT = 90.0
 POLL_INTERVAL = 0.2
+# How much of the engine's stderr to keep. It is the only place the engine
+# explains itself, and the interesting part is always the end -- the abort
+# message, not the model header above it.
+STDERR_TAIL_LINES = 40
+STDERR_TAIL_CHARS = 2000
 
 # Whisper produces these out of near-silence or room tone -- they are training
 # data bleeding through, never something the user said, and typing them into a
@@ -85,6 +91,16 @@ class WhisperServer:
         self.last_used = 0.0
         self.device: gpu.Plan | None = None
         self._reaper: threading.Thread | None = None
+        # pw-record's stderr is drained for the same reason -- see recorder.py.
+        # The pipe holds 64 KiB, and whisper-server writes to it for as long as
+        # it runs, so an undrained pipe eventually blocks the engine mid-take.
+        self.stderr_tail: deque[str] = deque(maxlen=STDERR_TAIL_LINES)
+        # Set when a GPU start died, and honoured for the rest of this server's
+        # life. Retrying the card on every take would cost a crash and its
+        # startup timeout each time, to reach the same CPU fallback. A daemon
+        # restart tries the GPU again, which is right: the usual cause is
+        # something else on the machine holding the VRAM, and that clears.
+        self.gpu_failed = False
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -100,6 +116,22 @@ class WhisperServer:
             self._start_locked()
 
     def _start_locked(self) -> None:
+        """Start the engine, and fall back to the CPU if the GPU start dies.
+
+        A GPU that cannot be used is not a reason to lose the take. The card
+        can be out of memory because something else on the machine has it, the
+        driver can be mid-upgrade, or the model can simply not fit beside
+        whatever else is resident -- measured here as `ggml_abort` inside
+        `whisper_model_load`, which is an allocation that came back null. All
+        of those end with a dead process and a signal number, and every one of
+        them transcribes perfectly well on the CPU, more slowly.
+
+        The old behaviour was to report "whisper server exited with code -6"
+        and file the audio into failed/. That is the correct answer to a
+        missing binary and the wrong one to a busy GPU, and the two were
+        indistinguishable because the engine's own explanation went to
+        DEVNULL.
+        """
         binary = Path(self.settings["server_binary"])
         model = Path(self.settings["model"])
         if not binary.exists():
@@ -107,6 +139,32 @@ class WhisperServer:
         if not model.exists():
             raise FileNotFoundError(f"model missing: {model}")
 
+        # Asked once and remembered: the answer cannot change while the machine
+        # is running, and it costs a subprocess.
+        if self.device is None:
+            self.device = gpu.plan(str(self.settings.get("gpu_select") or "auto"))
+            self.log(f"engine device: {self.device.reason}")
+
+        on_gpu = self.device.use_gpu and not self.gpu_failed
+        try:
+            self._spawn(binary, model, on_gpu)
+            return
+        except (RuntimeError, TimeoutError) as exc:
+            if not on_gpu:
+                raise
+            # Reported at the point of the decision rather than left to the
+            # caller: from the far end this is a take that worked, and the one
+            # sign that it is running slower than it should is this line.
+            self.gpu_failed = True
+            self.log(
+                f"the GPU start failed ({exc}); falling back to the CPU for the "
+                "rest of this session. Restart nabria to try the GPU again."
+            )
+            self._stop_locked()
+        self._spawn(binary, model, on_gpu=False)
+
+    def _spawn(self, binary: Path, model: Path, on_gpu: bool) -> None:
+        """One attempt at starting the server, blocking until it accepts."""
         self.port = int(self.settings.get("server_port") or 0) or _free_port()
 
         command = [
@@ -118,15 +176,11 @@ class WhisperServer:
             "-l", str(self.settings.get("language", "auto")),
         ]
 
-        # Which device to compute on. Asked once and remembered: the answer
-        # cannot change while the machine is running, and it costs a
-        # subprocess. The environment override belongs to this subprocess only
-        # -- exporting it would drag the GTK UI onto the discrete card too.
+        # The environment override belongs to this subprocess only -- exporting
+        # it would drag the GTK UI onto the discrete card too.
         env = dict(os.environ)
-        if self.device is None:
-            self.device = gpu.plan(str(self.settings.get("gpu_select") or "auto"))
-            self.log(f"engine device: {self.device.reason}")
-        if not self.device.use_gpu:
+        assert self.device is not None
+        if not on_gpu:
             # Without this ggml would happily pick an integrated GPU, which is
             # slower than the CPU it is standing in for and crashes besides.
             command.append("-ng")
@@ -140,20 +194,33 @@ class WhisperServer:
             # a long dictation keeps spelling the same terms consistently
             # instead of drifting after the first window.
             command += ["--prompt", vocabulary, "--carry-initial-prompt"]
-        self.log(f"starting whisper server on 127.0.0.1:{self.port}")
+        self.log(
+            f"starting whisper server on 127.0.0.1:{self.port} "
+            f"on the {'GPU' if on_gpu else 'CPU'}"
+        )
+        self.stderr_tail.clear()
         self.process = subprocess.Popen(
             command,
             env=env,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            # Kept, not discarded. This is the only place the engine says why
+            # it died: a Vulkan allocation failure, a missing driver, a model
+            # it cannot read. Sending it to DEVNULL turned every one of those
+            # into the bare signal number that a reader then has to guess at.
+            stderr=subprocess.PIPE,
             start_new_session=True,
         )
+        threading.Thread(
+            target=self._drain_stderr, args=(self.process,),
+            daemon=True, name="nabria-engine-stderr",
+        ).start()
 
         deadline = time.monotonic() + STARTUP_TIMEOUT
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
                 raise RuntimeError(
                     f"whisper server exited with code {self.process.returncode}"
+                    f"{self._stderr_summary()}"
                 )
             with contextlib.suppress(OSError):
                 with socket.create_connection(("127.0.0.1", self.port), timeout=1):
@@ -164,6 +231,28 @@ class WhisperServer:
             time.sleep(POLL_INTERVAL)
         self.stop()
         raise TimeoutError("whisper server did not become ready")
+
+    def _drain_stderr(self, process: subprocess.Popen[bytes]) -> None:
+        # Bound to the process it was started for rather than reading
+        # `self.process`: the fallback start replaces that attribute while this
+        # thread may still be finishing the previous pipe, and a thread reading
+        # the live attribute would drain the new server into the old one's tail.
+        if process.stderr is None:
+            return
+        with contextlib.suppress(ValueError, OSError):
+            for line in process.stderr:
+                self.stderr_tail.append(line.decode("utf-8", "replace"))
+
+    def _stderr_summary(self) -> str:
+        """The tail of the engine's own output, for an exception message."""
+        # A short pause, because the process has only just been seen to exit
+        # and the reader thread may not have drained the last of the pipe --
+        # which is exactly the abort message that makes this worth having.
+        time.sleep(0.1)
+        tail = "".join(self.stderr_tail).strip()
+        if not tail:
+            return ""
+        return f": {tail[-STDERR_TAIL_CHARS:]}"
 
     def _start_reaper(self) -> None:
         idle_seconds = float(self.settings.get("idle_unload_seconds") or 0)
@@ -200,6 +289,13 @@ class WhisperServer:
                 self.process.kill()
                 with contextlib.suppress(subprocess.TimeoutExpired):
                     self.process.wait(timeout=5)
+        # Closed explicitly, because stderr is a pipe now. The reaper stops and
+        # restarts this server for the life of the daemon, and a descriptor
+        # left behind on each cycle is a leak that only shows up after hours of
+        # dictation -- which is the hardest kind to attribute to its cause.
+        if self.process.stderr is not None:
+            with contextlib.suppress(OSError):
+                self.process.stderr.close()
         self.process = None
 
     # -- inference ---------------------------------------------------------

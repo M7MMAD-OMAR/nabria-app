@@ -263,3 +263,27 @@ def test_the_warning_can_be_switched_off(daemon, fresh_config):
     assert daemon._silence_warning_seconds() == float(
         fresh_config.DEFAULTS["silence_warning_seconds"]
     )
+
+
+def test_running_on_the_cpu_after_a_gpu_failure_is_reported_once(daemon, sent):
+    """A tool that silently halves its own speed is the same misdiagnosis.
+
+    The fallback keeps the take, which is the point, but every take after it
+    is slower than the user has any reason to expect and nothing on screen
+    says why.
+    """
+    daemon.whisper.gpu_failed = True
+
+    daemon._note_gpu_fallback()
+    daemon._note_gpu_fallback()  # a second take, same session
+
+    assert len(sent) == 1, "one notice per daemon, not one per take"
+    # It has to name the log, because the log is where the engine's own reason
+    # for refusing the card now lands.
+    assert "nabria.log" in sent[0][1]
+
+
+def test_nothing_is_said_while_the_gpu_is_working(daemon, sent):
+    daemon.whisper.gpu_failed = False
+    daemon._note_gpu_fallback()
+    assert sent == []

@@ -239,6 +239,20 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "مضت {seconds} ثانية دون أن يتجاوز أي صوت {threshold} ديسيبل على "
               "{source}. تأكّد أنه غير مكتوم وأن جهاز الإدخال المختار صحيح.",
     },
+    # The take was kept, so this is not a failure. It is the one warning that
+    # dictation is now slower than it should be, which is otherwise invisible.
+    "app.gpu_fallback": {
+        "en": "Dictation is running on the CPU",
+        "ar": "الإملاء يعمل على المعالج",
+    },
+    "app.gpu_fallback_body": {
+        "en": "The graphics card could not be used, so transcription is slower "
+              "than usual. Your words were kept. Restart Nabria to try the "
+              "card again; the reason is in {log}.",
+        "ar": "تعذّر استخدام بطاقة الرسوميات، فصار التفريغ أبطأ من المعتاد. لم "
+              "يضِع كلامك. أعد تشغيل نبرة لتجربة البطاقة من جديد، والسبب "
+              "مذكور في {log}.",
+    },
 
     # -- the model catalogue -----------------------------------------------
     "model.base.summary": {
