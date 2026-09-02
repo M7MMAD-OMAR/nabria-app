@@ -142,13 +142,13 @@ def test_odd_byte_counts_do_not_crash_the_reader(tmp_path):
 
 def test_unheard_reports_a_long_take_with_nothing_in_it(tmp_path):
     take = drive(tmp_path, pcm([0] * (LEVEL_WARMUP_FRAMES + 10 * RATE)))
-    assert take.unheard(threshold=-42.0, after=5.0) is True
+    assert take.unheard(threshold=-42.0, after=5.0)[0] is True
 
 
 def test_unheard_stays_quiet_before_the_delay_is_up(tmp_path):
     # The delay is the whole guard against interrupting an ordinary pause.
     take = drive(tmp_path, pcm([0] * (LEVEL_WARMUP_FRAMES + 2 * RATE)))
-    assert take.unheard(threshold=-42.0, after=5.0) is False
+    assert take.unheard(threshold=-42.0, after=5.0)[0] is False
 
 
 def test_unheard_cannot_fire_inside_the_warmup(tmp_path):
@@ -162,20 +162,20 @@ def test_unheard_cannot_fire_inside_the_warmup(tmp_path):
     assert frames < LEVEL_WARMUP_FRAMES
     take = drive(tmp_path, pcm([0] * frames))
     assert take.measured is False
-    assert take.unheard(threshold=-42.0, after=0.01) is False
+    assert take.unheard(threshold=-42.0, after=0.01)[0] is False
 
 
 def test_unheard_says_nothing_about_a_take_it_can_hear(tmp_path):
     body = [8_000 if index % 2 else -8_000 for index in range(10 * RATE)]
     take = drive(tmp_path, pcm([0] * LEVEL_WARMUP_FRAMES + body))
     assert take.rms_dbfs > -42.0
-    assert take.unheard(threshold=-42.0, after=1.0) is False
+    assert take.unheard(threshold=-42.0, after=1.0)[0] is False
 
 
 def test_unheard_is_disabled_by_a_zero_delay(tmp_path):
     # 0 is the documented off switch, and it must not read as "immediately".
     take = drive(tmp_path, pcm([0] * (LEVEL_WARMUP_FRAMES + 10 * RATE)))
-    assert take.unheard(threshold=-42.0, after=0.0) is False
+    assert take.unheard(threshold=-42.0, after=0.0)[0] is False
 
 
 def test_unheard_and_the_gate_read_the_same_number(tmp_path):
@@ -189,5 +189,36 @@ def test_unheard_and_the_gate_read_the_same_number(tmp_path):
     quiet = [40 if index % 2 else -40 for index in range(10 * RATE)]
     take = drive(tmp_path, pcm([0] * LEVEL_WARMUP_FRAMES + quiet))
     level = take.rms_dbfs
-    assert take.unheard(threshold=level + 0.1, after=1.0) is True
-    assert take.unheard(threshold=level - 0.1, after=1.0) is False
+    assert take.unheard(threshold=level + 0.1, after=1.0)[0] is True
+    assert take.unheard(threshold=level - 0.1, after=1.0)[0] is False
+
+
+def test_unheard_hands_back_the_numbers_its_verdict_came_from(tmp_path):
+    """The caller must not have to re-read what the lock already knew.
+
+    Re-reading `seconds` and `rms_dbfs` afterwards takes the lock again, at a
+    different instant: one 0.256 s chunk of speech arriving in that gap is
+    enough for the notification to say "nothing has risen above -42 dBFS"
+    while its own body reports a level above the threshold it claims nothing
+    passed, and for the log to record that contradiction.
+    """
+    body = [0] * (LEVEL_WARMUP_FRAMES + 10 * RATE)
+    take = drive(tmp_path, pcm(body))
+
+    unheard, seconds, level = take.unheard(threshold=-42.0, after=5.0)
+
+    assert unheard is True
+    # The same numbers the verdict was reached from, not a later reading.
+    assert seconds == take.seconds
+    assert level == take.rms_dbfs
+    assert level <= -42.0, "the level handed back must support the verdict"
+
+
+def test_unheard_reports_the_numbers_even_when_it_stays_quiet(tmp_path):
+    # The log line is written from these, so they have to be real readings
+    # rather than placeholders on the not-yet-due path.
+    take = drive(tmp_path, pcm([0] * (LEVEL_WARMUP_FRAMES + 2 * RATE)))
+    unheard, seconds, level = take.unheard(threshold=-42.0, after=5.0)
+    assert unheard is False
+    assert seconds == take.seconds and seconds > 2.0
+    assert level == take.rms_dbfs

@@ -154,7 +154,9 @@ class SilentTake:
         self.warned_unheard = False
 
     def unheard(self, threshold, after):
-        return self._unheard
+        # The verdict travels with the readings it came from, so the caller
+        # never has to take the lock again for numbers it already has.
+        return self._unheard, self.seconds, self.rms_dbfs
 
 
 @pytest.fixture
@@ -243,7 +245,99 @@ def test_the_finished_take_does_not_repeat_what_was_already_said(daemon, sent):
     daemon._note_silent_take(take, -70.0, -42.0)
 
     assert sent == []
-    assert daemon.silent_run == 1, "the run is still counted"
+
+
+def test_a_mid_take_warning_does_not_consume_the_runs_notice(daemon, sent):
+    """A suppressed notice must not spend the count that triggers it.
+
+    The trigger is an equality, so advancing `silent_run` for a take whose
+    notice was suppressed walks the run past `silent_notice_after` and it can
+    never fire again. Measured before the fix: with after=3, a mid-take
+    warning on exactly the third take silenced all eight that followed, on a
+    microphone that was genuinely dead the whole time.
+    """
+    daemon.settings["silent_notice_after"] = 3
+
+    for index in range(1, 9):
+        take = SilentTake()
+        take.warned_unheard = index == 3  # the one that warned mid-recording
+        daemon._note_silent_take(take, -70.0, -42.0)
+
+    assert len(sent) == 1, (
+        "a dead microphone went unreported for eight takes because one of them "
+        "had already warned mid-recording"
+    )
+
+
+def test_the_warning_reports_the_instant_its_verdict_came_from(daemon, monkeypatch):
+    """The caller must not re-read what the lock already handed it.
+
+    A recorder is live while this runs: re-reading `seconds` and `rms_dbfs`
+    after `unheard()` has released the lock samples a different instant, and
+    one chunk of speech landing in that gap makes the notification say
+    "nothing has risen above -42 dBFS" while the log line beside it reports a
+    level above that threshold.
+
+    The recorder here moves on every property read, which is what a real one
+    does while the capture thread is running.
+    """
+    class MovingTake:
+        """Values change on each read, the way a live recording does."""
+
+        def __init__(self):
+            self.warned_unheard = False
+            self._reads = 0
+
+        def unheard(self, threshold, after):
+            return True, 14.0, -70.0
+
+        @property
+        def seconds(self):
+            self._reads += 1
+            return 14.0 + self._reads
+
+        @property
+        def rms_dbfs(self):
+            self._reads += 1
+            return -29.2  # a chunk of speech arrived after the verdict
+
+    logged: list[str] = []
+    monkeypatch.setattr(daemon, "log", logged.append)
+    monkeypatch.setattr(daemon, "_silence_warning_seconds", lambda: 12.0)
+    daemon.recording = MovingTake()
+    daemon.takes = 1
+
+    daemon._poll_silence()
+
+    line = [text for text in logged if "warning while still recording" in text][0]
+    assert "14s in at -70.0 dBFS" in line, (
+        f"the log reported a different instant than the verdict: {line}"
+    )
+
+
+def test_a_wedged_notification_daemon_is_logged_not_swallowed(daemon, monkeypatch):
+    """The warning thread has no other net.
+
+    Every other notification path sits inside `_worker`'s except; this one is
+    a bare thread. `notify.send` shells out with a timeout, and
+    `TimeoutExpired` is raised whatever `check=False` says, so an unhandled
+    one would kill the thread with its traceback going to stderr instead of
+    to nabria.log: a silent failure inside the feature that exists to stop a
+    silent failure.
+    """
+    from nabria import app as app_module
+
+    logged: list[str] = []
+    monkeypatch.setattr(daemon, "log", logged.append)
+    monkeypatch.setattr(
+        app_module.notify, "send",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("notification daemon wedged")),
+    )
+    monkeypatch.setattr(app_module, "_default_input", lambda: ("Test Mic", False))
+
+    daemon._warn_unheard(14.0, -42.0)  # must not raise
+
+    assert any("could not send the unheard warning" in line for line in logged)
 
 
 def test_the_finished_take_notice_still_fires_when_nothing_warned(daemon, sent):

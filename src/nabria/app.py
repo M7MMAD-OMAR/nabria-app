@@ -491,19 +491,24 @@ class Daemon:
             self.silence_source = 0
             return GLib.SOURCE_REMOVE
         threshold = config.silence_threshold(self.settings)
-        if not recorder.unheard(threshold, self._silence_warning_seconds()):
+        # Length and level come back with the verdict, from the one lock
+        # acquisition that produced it. Re-reading them here would take the
+        # lock twice more and describe a different instant of the recording.
+        unheard, seconds, level = recorder.unheard(
+            threshold, self._silence_warning_seconds()
+        )
+        if not unheard:
             return GLib.SOURCE_CONTINUE
 
         recorder.warned_unheard = True
         self.silence_source = 0
-        seconds, level = recorder.seconds, recorder.rms_dbfs
         self.log(
             f"take {self.takes}: {seconds:.0f}s in at {level:.1f} dBFS RMS, "
             "warning while still recording"
         )
-        # wpctl, twice, with a timeout each: on the main loop that is the orb
-        # frozen mid-take, which is the one thing the indicator must never do
-        # while it is claiming to listen.
+        # wpctl, with a timeout: on the main loop that is the orb frozen
+        # mid-take, which is the one thing the indicator must never do while
+        # it is claiming to listen.
         threading.Thread(
             target=self._warn_unheard, args=(seconds, threshold),
             daemon=True, name="nabria-silence-warning",
@@ -539,11 +544,23 @@ class Daemon:
         )
 
     def _warn_unheard(self, seconds: float, threshold: float) -> None:
-        """Send the mid-take warning. Runs on its own thread, not the loop."""
-        summary, body = self._unheard_notice(
-            *_default_input(), seconds=seconds, threshold=threshold
-        )
-        notify.send(summary, body, urgency="critical")
+        """Send the mid-take warning. Runs on its own thread, not the loop.
+
+        Wrapped, because nothing else catches for it. Every other notification
+        path sits inside `_worker`'s except, while this one is a bare thread:
+        `notify.send` shells out with a timeout, and `TimeoutExpired` is
+        raised whatever `check=False` says, so a wedged notification daemon
+        would kill this thread with its traceback going to stderr rather than
+        to nabria.log. That is a silent failure inside the feature whose whole
+        purpose is to stop a silent failure.
+        """
+        try:
+            summary, body = self._unheard_notice(
+                *_default_input(), seconds=seconds, threshold=threshold
+            )
+            notify.send(summary, body, urgency="critical")
+        except Exception as exc:  # noqa: BLE001 - a bare thread has no other net
+            self.log(f"could not send the unheard warning: {exc}")
 
     def _deadline(self) -> bool:
         self.deadline_source = 0
@@ -705,21 +722,27 @@ class Daemon:
         takes separates the two without guessing at levels: any successful take
         clears the count.
 
-        The run is counted even when the take already warned mid-recording --
-        the evidence is the same either way, and zeroing it there would let a
-        genuinely dead microphone stay under this notice forever.
+        The run is not advanced by a take that already warned mid-recording.
+        The trigger below is an equality, so spending the count on a take
+        whose notice was suppressed walks the run past `after` and the notice
+        can never fire again: measured, with after=3, a mid-take warning on
+        exactly the third take silenced all eight that followed.
         """
         # config.load() has already made this a number, and said so in the log
         # if it could not: a hand-edited "three" here used to raise inside the
         # take, file the audio into failed/ and report a broken transcriber,
         # turning a typo into what looked like a broken engine.
         after = int(self.settings.get("silent_notice_after", 3) or 0)
-        self.silent_run += 1
         if recorder.warned_unheard:
-            # Already said, to this face, about this take. Repeating it as the
-            # take finishes is the same sentence twice about one recording.
+            # Already said, to this face, about this take. Returning before the
+            # counter moves, not after: the trigger below is an equality, so a
+            # warned take that spent the count would walk the run past `after`
+            # and the notice could never fire again for that microphone.
+            # Measured: with after=3, a mid-take warning on exactly the third
+            # take silenced all eight that followed.
             self.log("silent take already reported while recording, not notifying again")
             return
+        self.silent_run += 1
         if not after or self.silent_run != after:
             return
         self.log(f"{self.silent_run} silent takes in a row, notifying")

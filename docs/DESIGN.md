@@ -164,16 +164,23 @@ not three, so the notice does not even fire.
 
 So the same judgement is made **while the take is still running**.
 `recorder.unheard` reads the take's length and its RMS under one lock, and
-after `silence_warning_seconds` (12 s) with nothing above the gate, the daemon
-says so once. Twelve, because the cost of being wrong is an interruption while
-somebody is talking: long enough that gathering a thought or waiting for
-someone else to finish never reaches it, short enough that the sentence is
-still worth repeating. It cannot fire inside the warm-up whatever it is set to,
-for the reason above: an unmeasured take is not evidence.
+returns both alongside its verdict, so the caller never re-reads them at a
+later instant: one chunk of speech arriving in that gap is enough for the
+notification to claim nothing rose above the gate while the log line beside it
+reports a level that did. After `silence_warning_seconds` (12 s) with nothing
+above the gate, the daemon says so once. Twelve, because the cost of being
+wrong is an interruption while somebody is talking: long enough that gathering
+a thought or waiting for someone else to finish never reaches it, short enough
+that the sentence is still worth repeating. It cannot fire inside the warm-up
+whatever it is set to, for the reason above: an unmeasured take is not
+evidence.
 
 The two never both speak about one recording. A take that carried the live
 warning is flagged, and the finished-take notice stands down rather than
-repeating it.
+repeating it. That take also does not advance the consecutive-silence count:
+the count triggers on equality, so spending it on a suppressed notice walks
+the run past the threshold and the notice can never fire again. Measured, a
+mid-take warning on exactly the third take silenced all eight that followed.
 
 Both name the device, and both say **muted** only when `wpctl` reports it
 muted. That is the one cause this tool can name outright rather than describe,

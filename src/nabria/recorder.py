@@ -129,29 +129,31 @@ class Recorder:
             return SILENT_DBFS
         return dbfs(math.sqrt(self.energy / self.samples) / 32768.0)
 
-    def unheard(self, threshold: float, after: float) -> bool:
+    def unheard(self, threshold: float, after: float) -> tuple[bool, float, float]:
         """Whether the take has run `after` seconds without hearing anything.
+
+        Returns the verdict together with the length and level it was reached
+        from, because a caller that re-reads those afterwards takes the lock
+        again and gets a different instant: one chunk of speech landing in the
+        gap is enough for the notification to say "nothing has risen above -42
+        dBFS" while its own body reports -29. The log line then records that
+        contradiction in the one file this project tells people to read first.
 
         Read while the recording is still going, which is the whole point:
         the silent-take notice can only speak once a take is finished, and by
         then the sentence has already been said into a muted microphone. This
         is the same judgement made in time to do something about it.
 
-        Both readings come from one acquisition of the lock. Taken separately
-        they can straddle a chunk arriving, which is how a length measured
-        before it and a level measured after it end up describing different
-        recordings.
-
         It cannot fire inside the warm-up however small `after` is set:
         `samples` stays zero until the device-open transient is past, and a
         take with no measured level is not evidence about the microphone.
         """
-        if after <= 0:
-            return False
         with self.lock:
-            if self.samples == 0 or self.total_frames < after * RATE:
-                return False
-            return self._rms_dbfs() <= threshold
+            seconds = self.total_frames / RATE
+            level = self._rms_dbfs()
+            if after <= 0 or self.samples == 0 or self.total_frames < after * RATE:
+                return False, seconds, level
+            return level <= threshold, seconds, level
 
     def start(self) -> None:
         # Checked by name rather than left to Popen, whose FileNotFoundError
