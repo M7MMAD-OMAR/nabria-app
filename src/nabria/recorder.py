@@ -80,6 +80,13 @@ class Recorder:
         self.samples = 0
         self.total_frames = 0
         self.error = ""
+        # Set by the daemon when it has already warned, mid-take, that nothing
+        # is arriving. It rides on the take rather than on the daemon because
+        # takes overlap -- a new one starts while the last is still being
+        # transcribed -- so a single flag on the daemon would describe the
+        # wrong recording. Read at the far end to keep the finished-take
+        # notice from repeating what the user was already told.
+        self.warned_unheard = False
 
     @property
     def seconds(self) -> float:
@@ -108,9 +115,43 @@ class Recorder:
         exactly what whisper turns into a confident "شكرا للمشاهدة".
         """
         with self.lock:
-            if self.samples == 0:
-                return SILENT_DBFS
-            return dbfs(math.sqrt(self.energy / self.samples) / 32768.0)
+            return self._rms_dbfs()
+
+    def _rms_dbfs(self) -> float:
+        """`rms_dbfs` with the lock already held.
+
+        `self.lock` is a plain Lock, not a reentrant one, so anything that
+        holds it cannot go back through the property -- and a second copy of
+        this arithmetic is exactly how the microphone test and the gate that
+        throws takes away came to disagree about one recording.
+        """
+        if self.samples == 0:
+            return SILENT_DBFS
+        return dbfs(math.sqrt(self.energy / self.samples) / 32768.0)
+
+    def unheard(self, threshold: float, after: float) -> bool:
+        """Whether the take has run `after` seconds without hearing anything.
+
+        Read while the recording is still going, which is the whole point:
+        the silent-take notice can only speak once a take is finished, and by
+        then the sentence has already been said into a muted microphone. This
+        is the same judgement made in time to do something about it.
+
+        Both readings come from one acquisition of the lock. Taken separately
+        they can straddle a chunk arriving, which is how a length measured
+        before it and a level measured after it end up describing different
+        recordings.
+
+        It cannot fire inside the warm-up however small `after` is set:
+        `samples` stays zero until the device-open transient is past, and a
+        take with no measured level is not evidence about the microphone.
+        """
+        if after <= 0:
+            return False
+        with self.lock:
+            if self.samples == 0 or self.total_frames < after * RATE:
+                return False
+            return self._rms_dbfs() <= threshold
 
     def start(self) -> None:
         # Checked by name rather than left to Popen, whose FileNotFoundError

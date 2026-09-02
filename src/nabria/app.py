@@ -30,11 +30,16 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from . import config, history, i18n, inject, notify
+from . import audio, config, history, i18n, inject, notify
 from .orb import Orb
 from .recorder import MissingRecorder, Recorder
 
 LEVEL_POLL_MS = 50
+# How often the live silence check runs once a take is under way. A second is
+# far finer than the shortest sensible warning delay and costs one lock and a
+# square root, so the notice lands when it is due rather than at the next
+# multiple of something coarse.
+SILENCE_POLL_MS = 1000
 # config.py owns every path; these two are named here only for brevity below.
 FAILED_DIR = config.FAILED_DIR
 TAKES_DIR = config.TAKES_DIR
@@ -81,6 +86,30 @@ def _default_source_name() -> str:
     return "the default input"
 
 
+def _default_input() -> tuple[str, bool | None]:
+    """The capture device's name, and whether it is muted -- None if unknown.
+
+    Muted is the one cause of silence this tool can name outright rather than
+    describe, and it is also the common one: the mute key on a headset, or the
+    button in a meeting application, silences the source system-wide while
+    every indicator here goes on saying "recording". Naming it turns "nothing
+    was heard" into an instruction.
+
+    Never guessed at. `wpctl` may be absent or PipeWire wedged -- which is
+    itself a fault worth reporting -- so an unknown mute state stays unknown
+    and the caller says the weaker, true thing instead.
+
+    Shells out twice, so it belongs off the main loop.
+    """
+    try:
+        source = audio.default_source()
+    except audio.AudioError:
+        source = None
+    if source is None:
+        return _default_source_name(), None
+    return source.get("name") or _default_source_name(), bool(source.get("muted"))
+
+
 class Daemon:
     def __init__(self) -> None:
         self.settings = config.load()
@@ -117,6 +146,7 @@ class Daemon:
         self.silent_run = 0
         self.level_source = 0
         self.deadline_source = 0
+        self.silence_source = 0
 
     def log(self, message: str) -> None:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -406,6 +436,9 @@ class Daemon:
         assert self.orb
         self.orb.show("recording")
         self.level_source = GLib.timeout_add(LEVEL_POLL_MS, self._poll_level)
+        warn_after = self._silence_warning_seconds()
+        if warn_after > 0:
+            self.silence_source = GLib.timeout_add(SILENCE_POLL_MS, self._poll_silence)
         limit = int(self.settings.get("max_seconds", 0))
         if limit > 0:
             self.deadline_source = GLib.timeout_add_seconds(limit, self._deadline)
@@ -424,6 +457,77 @@ class Daemon:
         self.orb.set_level(level)
         return GLib.SOURCE_CONTINUE
 
+    def _silence_warning_seconds(self) -> float:
+        """How long a take may run unheard before saying so, as a number.
+
+        config.load() has already coerced it, but the settings dict is also
+        written by _apply_setting and by the wizard, and this feeds a GLib
+        timeout: a value that will not convert would raise inside `_start`,
+        which is the one place a failure costs the user the take they were
+        about to speak.
+        """
+        try:
+            return float(self.settings.get(
+                "silence_warning_seconds",
+                config.DEFAULTS["silence_warning_seconds"],
+            ))
+        except (TypeError, ValueError):
+            return float(config.DEFAULTS["silence_warning_seconds"])
+
+    def _poll_silence(self) -> bool:
+        """While recording: say once that nothing is arriving.
+
+        The finished-take notice cannot help the case this exists for. Somebody
+        who mutes their microphone, speaks for a minute and then stops has
+        already lost the minute by the time anything can be said about it --
+        and `silent_notice_after` waits for three such takes before it speaks
+        at all, which is right for a habit forming and useless for the sentence
+        currently being spoken.
+
+        Once per take, never repeated: a notification that keeps arriving while
+        somebody is talking is worse than the silence it is reporting. The
+        source is left running afterwards only long enough to be removed here.
+        """
+        recorder = self.recording
+        if recorder is None:
+            self.silence_source = 0
+            return GLib.SOURCE_REMOVE
+        threshold = config.silence_threshold(self.settings)
+        if not recorder.unheard(threshold, self._silence_warning_seconds()):
+            return GLib.SOURCE_CONTINUE
+
+        recorder.warned_unheard = True
+        self.silence_source = 0
+        seconds, level = recorder.seconds, recorder.rms_dbfs
+        self.log(
+            f"take {self.takes}: {seconds:.0f}s in at {level:.1f} dBFS RMS, "
+            "warning while still recording"
+        )
+        # wpctl, twice, with a timeout each: on the main loop that is the orb
+        # frozen mid-take, which is the one thing the indicator must never do
+        # while it is claiming to listen.
+        threading.Thread(
+            target=self._warn_unheard, args=(seconds, level, threshold),
+            daemon=True, name="nabria-silence-warning",
+        ).start()
+        return GLib.SOURCE_REMOVE
+
+    def _warn_unheard(self, seconds: float, level: float, threshold: float) -> None:
+        name, muted = _default_input()
+        if muted:
+            # The only cause that can be named outright, and the common one.
+            # "Your microphone is muted" is an instruction; "nothing was heard"
+            # is a symptom the user still has to diagnose.
+            body = i18n.t("app.unheard_muted_body", source=i18n.ltr(name))
+        else:
+            body = i18n.t(
+                "app.unheard_body",
+                seconds=f"{seconds:.0f}",
+                threshold=i18n.ltr(f"{threshold:.0f}"),
+                source=i18n.ltr(name),
+            )
+        notify.send(i18n.t("app.unheard"), body, urgency="critical")
+
     def _deadline(self) -> bool:
         self.deadline_source = 0
         if self.recording is not None:
@@ -432,7 +536,7 @@ class Daemon:
         return GLib.SOURCE_REMOVE
 
     def _clear_timers(self) -> None:
-        for attribute in ("level_source", "deadline_source"):
+        for attribute in ("level_source", "deadline_source", "silence_source"):
             source = getattr(self, attribute)
             if source:
                 GLib.source_remove(source)
@@ -505,7 +609,7 @@ class Daemon:
             threshold = config.silence_threshold(self.settings)
             if recorder.rms_dbfs <= threshold:
                 self.log(f"silent take ({recorder.rms_dbfs:.1f} dBFS RMS), skipped")
-                self._note_silent_take(recorder.rms_dbfs, threshold)
+                self._note_silent_take(recorder, recorder.rms_dbfs, threshold)
                 GLib.idle_add(self._done, "")
                 return
 
@@ -570,7 +674,7 @@ class Daemon:
             else:
                 wav_path.unlink(missing_ok=True)
 
-    def _note_silent_take(self, level: float, threshold: float) -> None:
+    def _note_silent_take(self, recorder: Recorder, level: float, threshold: float) -> None:
         """Speak up about silence only once it stops looking like a choice.
 
         One silent take is the ordinary case: the key gets pressed and then the
@@ -582,6 +686,10 @@ class Daemon:
         nothing wired to it is silent *every* time. Counting consecutive silent
         takes separates the two without guessing at levels: any successful take
         clears the count.
+
+        The run is counted even when the take already warned mid-recording --
+        the evidence is the same either way, and zeroing it there would let a
+        genuinely dead microphone stay under this notice forever.
         """
         # config.load() has already made this a number, and said so in the log
         # if it could not: a hand-edited "three" here used to raise inside the
@@ -589,9 +697,24 @@ class Daemon:
         # turning a typo into what looked like a broken engine.
         after = int(self.settings.get("silent_notice_after", 3) or 0)
         self.silent_run += 1
+        if recorder.warned_unheard:
+            # Already said, to this face, about this take. Repeating it as the
+            # take finishes is the same sentence twice about one recording.
+            self.log("silent take already reported while recording, not notifying again")
+            return
         if not after or self.silent_run != after:
             return
         self.log(f"{self.silent_run} silent takes in a row, notifying")
+        name, muted = _default_input()
+        if muted:
+            # Nameable, so name it: this notice otherwise describes a symptom
+            # and leaves the user to work out the cause that is one key away.
+            notify.send(
+                i18n.t("app.unheard"),
+                i18n.t("app.unheard_muted_body", source=i18n.ltr(name)),
+                urgency="critical",
+            )
+            return
         notify.send(
             i18n.t("app.not_hearing"),
             i18n.t(
@@ -599,7 +722,7 @@ class Daemon:
                 takes=self.silent_run,
                 threshold=i18n.ltr(f"{threshold:.0f}"),
                 level=i18n.ltr(f"{level:.0f}"),
-                source=i18n.ltr(_default_source_name()),
+                source=i18n.ltr(name),
             ),
         )
 

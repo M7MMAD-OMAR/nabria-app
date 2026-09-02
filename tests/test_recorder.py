@@ -130,3 +130,64 @@ def test_odd_byte_counts_do_not_crash_the_reader(tmp_path):
     # A pipe read can split a 16-bit sample down the middle.
     take = drive(tmp_path, pcm([1000] * 5000)[:-1])
     assert take.error == ""
+
+
+# -- the mid-take silence check --------------------------------------------
+#
+# `unheard` is read while the recording is still running, which is the whole
+# reason it exists: the finished-take notice cannot help somebody who has just
+# spoken a minute into a muted microphone. These pin the two ways it must not
+# misfire -- too early, and on audio it can actually hear.
+
+
+def test_unheard_reports_a_long_take_with_nothing_in_it(tmp_path):
+    take = drive(tmp_path, pcm([0] * (LEVEL_WARMUP_FRAMES + 10 * RATE)))
+    assert take.unheard(threshold=-42.0, after=5.0) is True
+
+
+def test_unheard_stays_quiet_before_the_delay_is_up(tmp_path):
+    # The delay is the whole guard against interrupting an ordinary pause.
+    take = drive(tmp_path, pcm([0] * (LEVEL_WARMUP_FRAMES + 2 * RATE)))
+    assert take.unheard(threshold=-42.0, after=5.0) is False
+
+
+def test_unheard_cannot_fire_inside_the_warmup(tmp_path):
+    """However short the delay is set, an unmeasured take is not evidence.
+
+    `after=0.01` is past in real time within one chunk, so only the
+    `samples == 0` branch stands between a stray double-press and a
+    notification accusing a perfectly healthy microphone.
+    """
+    frames = recorder.CHUNK_BYTES // 2
+    assert frames < LEVEL_WARMUP_FRAMES
+    take = drive(tmp_path, pcm([0] * frames))
+    assert take.measured is False
+    assert take.unheard(threshold=-42.0, after=0.01) is False
+
+
+def test_unheard_says_nothing_about_a_take_it_can_hear(tmp_path):
+    body = [8_000 if index % 2 else -8_000 for index in range(10 * RATE)]
+    take = drive(tmp_path, pcm([0] * LEVEL_WARMUP_FRAMES + body))
+    assert take.rms_dbfs > -42.0
+    assert take.unheard(threshold=-42.0, after=1.0) is False
+
+
+def test_unheard_is_disabled_by_a_zero_delay(tmp_path):
+    # 0 is the documented off switch, and it must not read as "immediately".
+    take = drive(tmp_path, pcm([0] * (LEVEL_WARMUP_FRAMES + 10 * RATE)))
+    assert take.unheard(threshold=-42.0, after=0.0) is False
+
+
+def test_unheard_and_the_gate_read_the_same_number(tmp_path):
+    """One measurement, or the warning and the discard disagree about a take.
+
+    Two copies of this arithmetic is how the microphone test and the silence
+    gate came to describe one recording differently, which is this project's
+    most expensive misdiagnosis. The live warning is a third caller and must
+    not become a third answer.
+    """
+    quiet = [40 if index % 2 else -40 for index in range(10 * RATE)]
+    take = drive(tmp_path, pcm([0] * LEVEL_WARMUP_FRAMES + quiet))
+    level = take.rms_dbfs
+    assert take.unheard(threshold=level + 0.1, after=1.0) is True
+    assert take.unheard(threshold=level - 0.1, after=1.0) is False

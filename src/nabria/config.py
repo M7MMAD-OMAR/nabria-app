@@ -132,6 +132,20 @@ DEFAULTS: dict[str, Any] = {
     # input produces silence *every* time, which is what this actually catches.
     # 0 disables the notification entirely.
     "silent_notice_after": 3,
+    # Seconds into a take, still recording, before saying that nothing is
+    # arriving. The notice above can only speak once a take is finished, and
+    # three of them deep -- which is the right shape for a habit and the wrong
+    # one for a meeting: by the time it fires the words have already been said
+    # into a muted microphone and cannot be said again. This is the same
+    # judgement made in time to act on it.
+    #
+    # Twelve seconds, not two: the cost of being wrong is an interruption
+    # while somebody is talking, so it has to be long enough that no ordinary
+    # pause reaches it -- gathering a thought, a sip of water, waiting for
+    # someone else to finish -- and short enough that a sentence spoken into a
+    # dead input is still worth repeating. It cannot fire inside the level
+    # warm-up whatever it is set to; see `recorder.unheard`. 0 disables it.
+    "silence_warning_seconds": 12.0,
     # Keep every take's WAV instead of deleting it once transcribed. Off by
     # default because a day of dictation is a lot of audio, but it is the only
     # way to judge a transcript: without the recording there is nothing to

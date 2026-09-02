@@ -220,6 +220,25 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "{takes} تسجيلات متتالية لم يتجاوز أيٌّ منها {threshold} ديسيبل — "
               "آخرها {level} ديسيبل من {source}. تحقّق من جهاز الإدخال.",
     },
+    # Said while the take is still running, which is the only time it can
+    # still save the sentence being spoken.
+    "app.unheard": {
+        "en": "Still recording, but hearing nothing",
+        "ar": "التسجيل مستمر، لكن لا يصل أي صوت",
+    },
+    "app.unheard_muted_body": {
+        "en": "{source} is muted. Unmute it and say that again: nothing so far "
+              "has been recorded.",
+        "ar": "الميكروفون {source} مكتوم. أعد تفعيله وأعد ما قلته، فلم يُسجَّل شيء "
+              "حتى الآن.",
+    },
+    "app.unheard_body": {
+        "en": "{seconds} seconds in and nothing has risen above {threshold} dBFS "
+              "on {source}. Check that it is not muted, and that the right "
+              "input is selected.",
+        "ar": "مضت {seconds} ثانية دون أن يتجاوز أي صوت {threshold} ديسيبل على "
+              "{source}. تأكّد أنه غير مكتوم وأن جهاز الإدخال المختار صحيح.",
+    },
 
     # -- the model catalogue -----------------------------------------------
     "model.base.summary": {

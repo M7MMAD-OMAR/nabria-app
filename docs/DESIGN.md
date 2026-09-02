@@ -126,6 +126,38 @@ stray double-presses accuse a healthy input.
 The gate reads the RMS, not the peak: one keyboard click pushes the peak well
 above any threshold while the take as a whole is still room tone.
 
+### Saying so in time to matter
+
+The gate discards a silent take, and after three in a row the daemon says why.
+That is the right shape for a habit going wrong: a microphone pinned to a dead
+input is silent every time, while pressing the key and then not speaking is
+ordinary and must stay quiet.
+
+It is the wrong shape for the case that actually costs something. Somebody who
+mutes their input, talks for a minute into a meeting and then stops has already
+lost the minute by the time any of this can be said, and on the count of one,
+not three, so the notice does not even fire.
+
+So the same judgement is made **while the take is still running**.
+`recorder.unheard` reads the take's length and its RMS under one lock, and
+after `silence_warning_seconds` (12 s) with nothing above the gate, the daemon
+says so once. Twelve, because the cost of being wrong is an interruption while
+somebody is talking: long enough that gathering a thought or waiting for
+someone else to finish never reaches it, short enough that the sentence is
+still worth repeating. It cannot fire inside the warm-up whatever it is set to,
+for the reason above: an unmeasured take is not evidence.
+
+The two never both speak about one recording. A take that carried the live
+warning is flagged, and the finished-take notice stands down rather than
+repeating it.
+
+Both name the device, and both say **muted** only when `wpctl` reports it
+muted. That is the one cause this tool can name outright rather than describe,
+and naming it turns a symptom into an instruction, but only when it is known.
+Where `wpctl` is absent or PipeWire is wedged the mute state stays unknown and
+the weaker, true sentence is sent instead, because "your microphone is muted"
+sends the user to fix something that may be fine.
+
 ### Why the gate has to exist
 
 Two seconds of digital silence — actual zeroes — came back from `base` as
