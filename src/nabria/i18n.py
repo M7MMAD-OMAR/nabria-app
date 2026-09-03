@@ -207,8 +207,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "تعذّرت كتابة النص",
     },
     "app.type_failed_body": {
-        "en": "The text is on the clipboard — paste it with {key}",
-        "ar": "النص في الحافظة — الصقه بـ {key}",
+        "en": "The text is on the clipboard, paste it with {key}",
+        "ar": "النص في الحافظة، الصقه بـ {key}",
     },
     "app.not_hearing": {
         "en": "Dictation is not hearing the microphone",

@@ -327,8 +327,13 @@ BACKENDS = {"paste": _paste, "wtype": _wtype, "ydotool": _ydotool}
 
 
 def deliver(text: str, preference: str = "auto",
-            terminals: tuple[str, ...] = ()) -> str:
-    """Type the text; returns the backend that actually did it."""
+            terminals: tuple[str, ...] = (), log=None) -> str:
+    """Type the text; returns the backend that actually did it.
+
+    `log`, when given, receives one English line per backend failure, so a
+    fall-through explains itself in nabria.log instead of the reader seeing
+    only "via wtype" and having to guess why the paste never happened.
+    """
     if not text:
         return "none"
 
@@ -336,7 +341,26 @@ def deliver(text: str, preference: str = "auto",
         to_clipboard(text)
         return "clipboard"
 
-    order = ["paste", "wtype", "ydotool"] if preference == "auto" else [preference]
+    def note(message: str) -> None:
+        if log is not None:
+            log(message)
+
+    # Typing is only safe for pure ASCII. wtype and ydotool synthesize
+    # keystrokes on the active layout, so a toolkit that is sitting on a
+    # Latin layout turns every Arabic character into the key it shares with
+    # -- measured 2026-09-03 into a native (not XWayland) Electron window:
+    # 796 characters went out as "123456783590-=-3-6q39q1..." and exited 0,
+    # while the same text landed intact in a GTK entry. There is no way to
+    # ask a window what layout it is on, so the safe policy is not to type
+    # non-ASCII at all: auto narrows to paste, and if the paste cannot be
+    # sent the text is left on the clipboard behind a notification rather
+    # than mangled into the focused window. An explicit `inject: wtype` in
+    # the config is the user's call and is honoured as asked.
+    if preference == "auto" and not text.isascii():
+        note("paste only: non-ASCII text would be garbled by typing")
+        order = ["paste"]
+    else:
+        order = ["paste", "wtype", "ydotool"] if preference == "auto" else [preference]
     failures: list[str] = []
     for name in order:
         backend = BACKENDS.get(name)
@@ -354,8 +378,10 @@ def deliver(text: str, preference: str = "auto",
         except subprocess.CalledProcessError as exc:
             detail = (exc.stderr or b"").decode("utf-8", "replace").strip()
             failures.append(f"{name}: {detail or exc.returncode}")
+            note(f"{name} failed: {detail or exc.returncode}")
         except (subprocess.TimeoutExpired, OSError, InjectionError) as exc:
             failures.append(f"{name}: {exc}")
+            note(f"{name} failed: {exc}")
 
     to_clipboard(text)
     raise InjectionError("; ".join(failures))

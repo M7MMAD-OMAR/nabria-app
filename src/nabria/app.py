@@ -675,6 +675,7 @@ class Daemon:
                         text,
                         str(self.settings.get("inject", "auto")),
                         tuple(self.settings.get("terminal_classes") or ()),
+                        log=self.log,
                     )
                 except inject.InjectionError as exc:
                     self.log(f"injection failed: {exc}")

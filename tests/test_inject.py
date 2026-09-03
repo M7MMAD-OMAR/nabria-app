@@ -260,3 +260,75 @@ def test_terminal_matching_is_case_insensitive_and_extensible():
 
 def test_an_unknown_focus_is_not_treated_as_a_terminal():
     assert inject.is_terminal("") is False
+
+
+def test_arabic_is_never_typed_in_auto_mode(monkeypatch, recorder):
+    """Non-ASCII narrows auto to paste alone.
+
+    wtype and ydotool synthesize keystrokes on the focused window's active
+    layout, and a toolkit sitting on a Latin layout turns every Arabic
+    character into the key it shares with -- measured 2026-09-03 into a
+    native Electron window: 796 characters landed as
+    "123456783590-=-3-6q39q1..." while exiting 0, the same text landing
+    intact in a GTK entry. A window cannot be asked what layout it is on,
+    so auto must not type what typing can corrupt.
+    """
+    typed: list[str] = []
+    monkeypatch.setattr(inject, "_focused_class", lambda: "Hermes")
+    monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: False)
+    monkeypatch.setattr(inject, "_clipboard_snapshot", lambda: None)
+    monkeypatch.setitem(inject.BACKENDS, "wtype",
+                        lambda text, terminals=(): typed.append(text))
+    monkeypatch.setitem(inject.BACKENDS, "ydotool",
+                        lambda text, terminals=(): typed.append(text))
+
+    assert inject.deliver("نص عربي", "auto") == "paste"
+    assert typed == []  # not one keystroke of Arabic was synthesized
+
+
+def test_arabic_survives_a_dead_paste_instead_of_being_typed(monkeypatch):
+    """The old code's fall-through is the bug: paste fails, wtype garbles.
+
+    The text must end up on the clipboard behind a notification instead of
+    being typed into the focused window as keyboard mush.
+    """
+    monkeypatch.setattr(inject.shutil, "which", lambda name: None)
+    copied: list[str] = []
+    monkeypatch.setattr(inject, "to_clipboard", lambda text: copied.append(text))
+
+    with pytest.raises(inject.InjectionError):
+        inject.deliver("نص عربي", "auto")
+    assert copied == ["نص عربي"]
+
+
+def test_a_fallen_through_paste_records_its_reason(monkeypatch):
+    """deliver explains itself: "via wtype" with no reason is unreadable."""
+    notes: list[str] = []
+    monkeypatch.setitem(inject.BACKENDS, "paste",
+                        lambda text, terminals=(): (_ for _ in ()).throw(
+                            inject.InjectionError("no paste key sender")))
+    monkeypatch.setitem(inject.BACKENDS, "wtype", lambda text, terminals=(): None)
+    monkeypatch.setattr(inject.shutil, "which", lambda name: "/usr/bin/x")
+
+    assert inject.deliver("hello", "auto", log=notes.append) == "wtype"
+    assert any("paste" in note and "failed" in note for note in notes)
+
+
+def test_ascii_still_falls_through_normally(monkeypatch):
+    # The paste-only rule is about corruption, not about ASCII: an English
+    # transcript keeps the whole ladder, typing included.
+    monkeypatch.setitem(inject.BACKENDS, "paste",
+                        lambda text, terminals=(): (_ for _ in ()).throw(
+                            inject.InjectionError("no wl-copy")))
+    monkeypatch.setitem(inject.BACKENDS, "wtype", lambda text, terminals=(): None)
+    monkeypatch.setattr(inject.shutil, "which", lambda name: "/usr/bin/x")
+
+    assert inject.deliver("hello", "auto") == "wtype"
+
+
+def test_an_explicit_typing_preference_is_honoured_even_for_arabic(recorder):
+    # `inject: wtype` in the config is the user's own call, and it is the
+    # documented escape hatch -- second-guessing it would break the machine
+    # where typing is the only mechanism that works at all.
+    assert inject.deliver("نص عربي", "wtype") == "wtype"
+    assert recorder[0][0] == "wtype"
