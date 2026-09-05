@@ -7,7 +7,7 @@
 # pkgver is checked against src/nabria/__init__.py by tests/test_packaging.py.
 
 pkgname=nabria
-pkgver=0.4.4
+pkgver=0.4.6
 pkgrel=1
 _engine=engine-v1.9.3-1
 pkgdesc="Local voice dictation for Wayland — press a key, speak, the words are typed"
@@ -25,7 +25,9 @@ depends=('python' 'python-gobject' 'python-cairo' 'gtk4'
 # An optional dependency, not a hard one. Without it the indicator falls back
 # to an ordinary window that a fullscreen application can cover: worse, but
 # working, and not worth refusing to install over.
-optdepends=('gtk4-layer-shell: lets the indicator float above other windows')
+optdepends=('gtk4-layer-shell: lets the indicator float above other windows'
+            'xsel: pastes into XWayland windows, which read the X11 clipboard'
+            'xclip: same, where xsel is not wanted')
 
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/nabria.tar.gz"
         "whisper-server-$pkgver::$url/releases/download/$_engine/whisper-server-linux-x86_64")

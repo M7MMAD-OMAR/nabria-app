@@ -216,6 +216,19 @@ else
   echo "      $(hint curl curl curl)"
 fi
 
+# A warning rather than fatal, because it only matters for XWayland windows.
+# Those read the X11 CLIPBOARD selection, which is not the one wl-copy takes,
+# and on a compositor that does not bridge the two a pasted transcript never
+# reaches them: measured on Hyprland 0.56.2, no X11 client could read a
+# wl-copy'd selection at all. Without one of these, dictating into an XWayland
+# window still works but ends on the clipboard to be pasted by hand.
+if command -v xsel >/dev/null 2>&1 || command -v xclip >/dev/null 2>&1; then
+  ok "a way to reach XWayland windows ($(command -v xsel >/dev/null 2>&1 && echo xsel || echo xclip))"
+else
+  warn "neither xsel nor xclip: pasting into XWayland windows will fall back to the clipboard"
+  echo "      $(hint xsel xsel xsel)"
+fi
+
 if command -v wtype >/dev/null 2>&1 || command -v ydotool >/dev/null 2>&1; then
   ok "a way to send keystrokes ($(command -v wtype >/dev/null 2>&1 && echo wtype || echo ydotool))"
 else

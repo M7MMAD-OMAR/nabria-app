@@ -6,7 +6,7 @@ Architecture: amd64
 Maintainer: Nabria <noreply@github.com>
 Homepage: https://github.com/M7MMAD-OMAR/nabria-app
 Depends: python3 (>= 3.10), python3-gi, python3-cairo, python3-gi-cairo, gir1.2-gtk-4.0, pipewire-bin, wl-clipboard, wtype, libvulkan1
-Recommends: libgtk4-layer-shell0, gir1.2-gtk4layershell-1.0
+Recommends: libgtk4-layer-shell0, gir1.2-gtk4layershell-1.0, xsel | xclip
 Description: Local voice dictation - press a key, speak, the words are typed
  Press a key, say what you mean, press it again, and the words appear in
  whatever you were typing into. Everything happens on your machine: no

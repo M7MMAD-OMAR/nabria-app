@@ -12,7 +12,7 @@
 %global debug_package %{nil}
 
 Name:           nabria
-Version:        0.4.4
+Version:        0.4.6
 Release:        1%{?dist}
 Summary:        Local voice dictation — press a key, speak, the words are typed
 
@@ -44,6 +44,15 @@ Requires:       vulkan-loader
 # and there are distributions that do not package it at all. A hard dependency
 # would make the package uninstallable there rather than merely degraded.
 Recommends:     gtk4-layer-shell
+
+# Likewise a Recommends. Only XWayland targets need it, and only where the
+# compositor does not bridge the X11 clipboard: measured on Hyprland 0.56.2,
+# a wl-copy'd transcript could not be read by any X11 client, so pasting into
+# an XWayland window means taking the X11 selection with one of these. A
+# desktop with no XWayland at all needs neither, so refusing to install
+# without them would be wrong.
+Recommends:     xsel
+Recommends:     xclip
 
 %description
 Press a key, say what you mean, press it again, and the words appear in

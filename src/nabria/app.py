@@ -682,7 +682,12 @@ class Daemon:
                     GLib.idle_add(
                         self._fail,
                         i18n.t("app.type_failed"),
-                        i18n.t("app.type_failed_body", key=i18n.ltr("Ctrl+V")),
+                        i18n.t(
+                            "app.type_failed_body",
+                            key=i18n.ltr(inject.paste_key(
+                                tuple(self.settings.get("terminal_classes") or ())
+                            )),
+                        ),
                     )
                     return
             self.log(

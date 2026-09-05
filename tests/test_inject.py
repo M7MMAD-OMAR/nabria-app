@@ -157,20 +157,156 @@ def test_both_paste_senders_failing_is_reported(monkeypatch):
     assert "ydotool" in str(raised.value) and "wtype" in str(raised.value)
 
 
-def test_an_xwayland_window_is_not_pasted_into(monkeypatch):
-    """Paste cannot reach an XWayland client through a broken bridge.
+def test_an_xwayland_window_is_pasted_into_through_x11(monkeypatch):
+    """The X11 selection is what an XWayland window actually reads.
 
-    An XWayland window reads the X11 selection, which the compositor has to
-    bridge from Wayland. Measured on this machine that bridge is dead in both
-    directions: `wl-copy` followed by `xclip -o` returned nothing, forty times
-    out of forty, while `wl-paste` read the value back fine. Pasting there
-    inserts whatever X11 held before, so `_paste` refuses and `deliver` falls
-    through to typing, which does not use the clipboard at all.
+    Measured on Hyprland 0.56.2, with the `wl-copy` owner alive and serving
+    `wl-paste` fine, an X11 client could not convert the selection even to
+    TARGETS, ten times out of ten -- so a wl-copy'd transcript is offered to a
+    selection the target never looks at. Taking the X11 selection instead was
+    measured landing an Arabic transcript into a focused XWayland entry.
+
+    Before this, `_paste` refused outright and `deliver` fell through to
+    typing; for Arabic, which is never typed, that left no path at all.
+    """
+    taken: list[str] = []
+    monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: True)
+    monkeypatch.setattr(inject, "_x11_clipboard_text", lambda: None)
+    monkeypatch.setattr(inject, "_to_x11_clipboard", lambda text: taken.append(text))
+    monkeypatch.setattr(inject, "_send_paste_key", lambda terminals=(): "ydotool")
+
+    inject._paste("the words I said")
+    assert taken == ["the words I said"]
+
+
+def test_an_xwayland_paste_never_uses_wl_copy(monkeypatch, recorder):
+    # wl-copy takes a selection this window cannot read, so sending it there
+    # would be the silent no-op the whole XWayland branch exists to remove.
+    monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: True)
+    monkeypatch.setattr(inject, "_x11_clipboard_text", lambda: None)
+    monkeypatch.setattr(inject, "_x11_display", lambda: ":0")
+    monkeypatch.setattr(inject, "_focused_class", lambda: "firefox")
+
+    inject._paste("the words I said")
+    assert not any(command[0] == "wl-copy" for command in recorder)
+
+
+def test_no_x_display_falls_through_instead_of_pretending(monkeypatch):
+    """A daemon with no DISPLAY must fail loudly enough to fall through.
+
+    The systemd unit starts before Hyprland imports DISPLAY into the user
+    manager, so the daemon's own environment has none: measured, the running
+    unit carried WAYLAND_DISPLAY and no DISPLAY at all. `_x11_display` looks
+    at the socket directory for that reason, and when even that is empty the
+    only honest answer is that the window cannot be reached.
     """
     monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: True)
-    monkeypatch.setattr(inject.shutil, "which", lambda name: "/usr/bin/x")
-    with pytest.raises(inject.InjectionError, match="XWayland"):
+    monkeypatch.setattr(inject, "_x11_display", lambda: "")
+    with pytest.raises(inject.InjectionError, match="X display"):
         inject._paste("the words I said")
+
+
+def test_arabic_reaches_an_xwayland_window(monkeypatch):
+    """The whole bug, end to end.
+
+    Auto narrows to paste for non-ASCII, paste used to refuse XWayland, and
+    so an Arabic transcript dictated into an XWayland window had no delivery
+    path whatsoever and was left on the clipboard to be pasted by hand.
+    """
+    taken: list[str] = []
+    monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: True)
+    monkeypatch.setattr(inject, "_x11_clipboard_text", lambda: None)
+    monkeypatch.setattr(inject, "_to_x11_clipboard", lambda text: taken.append(text))
+    monkeypatch.setattr(inject, "_send_paste_key", lambda terminals=(): "ydotool")
+
+    assert inject.deliver("نص عربي", "auto") == "paste"
+    assert taken == ["نص عربي"]
+
+
+def test_an_x11_selection_that_is_not_text_is_not_restored(monkeypatch):
+    """A copied image must not come back as mojibake.
+
+    The Wayland snapshot carries a MIME type for exactly this reason. The X11
+    side keeps the same rule by refusing to snapshot what does not decode as
+    text, so the worst case is a transcript left on the clipboard rather than
+    a destroyed image.
+    """
+    monkeypatch.setattr(inject, "_x11_display", lambda: ":0")
+    monkeypatch.setattr(inject.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        inject, "_x11_run",
+        lambda command, display, text=None: subprocess.CompletedProcess(
+            command, 0, stdout=b"\xff\xd8\xff\xe0 not utf-8", stderr=b"",
+        ),
+    )
+    assert inject._x11_clipboard_text() is None
+
+
+def test_the_x11_setter_is_never_asked_to_capture_output(monkeypatch):
+    """xclip forks a child that inherits the pipes and holds them open.
+
+    Measured: `subprocess.run(..., capture_output=True)` hung for the full
+    timeout while the text had in fact landed on the selection. A paste that
+    blocks for thirty seconds is worse than one that fails.
+    """
+    seen: list[dict] = []
+
+    def fake_run(command, *args, **kwargs):
+        seen.append(kwargs)
+        return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(inject.subprocess, "run", fake_run)
+    monkeypatch.setattr(inject.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(inject, "_x11_display", lambda: ":0")
+
+    inject._to_x11_clipboard("the words I said")
+    assert seen and seen[0].get("capture_output") is not True
+    assert seen[0].get("stdout") is subprocess.DEVNULL
+    assert seen[0].get("stderr") is subprocess.DEVNULL
+
+
+def test_the_x11_setter_is_given_a_display(monkeypatch):
+    # The daemon has none of its own, so inheriting the environment is not
+    # enough and this is the difference between working and "Can't open
+    # display" in production.
+    seen: list[dict] = []
+
+    def fake_run(command, *args, **kwargs):
+        seen.append(kwargs)
+        return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(inject.subprocess, "run", fake_run)
+    monkeypatch.setattr(inject.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(inject, "_x11_display", lambda: ":7")
+
+    inject._to_x11_clipboard("the words I said")
+    assert seen[0]["env"]["DISPLAY"] == ":7"
+
+
+def test_a_display_is_found_when_the_environment_has_none(monkeypatch, tmp_path):
+    # `X0_` and friends share the socket directory with real displays, so this
+    # cannot be a startswith.
+    (tmp_path / "X0_").touch()
+    (tmp_path / "X1").touch()
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.setattr(inject, "Path", lambda _: tmp_path)
+    assert inject._x11_display() == ":1"
+
+
+def test_the_clipboard_fallback_reaches_an_xwayland_window(monkeypatch, recorder):
+    """`to_clipboard` is the net under every failure, so it has the same problem.
+
+    On an XWayland target a wl-copy'd transcript cannot be pasted even by
+    hand, which is precisely what the user reported.
+    """
+    taken: list[str] = []
+    monkeypatch.setattr(inject, "_focused_is_xwayland", lambda: True)
+    monkeypatch.setattr(inject, "_to_x11_clipboard", lambda text: taken.append(text))
+
+    inject.to_clipboard("the words I said")
+    assert taken == ["the words I said"]
+    # Both selections, because the user may well paste it somewhere else.
+    assert any(command[0] == "wl-copy" for command in recorder)
 
 
 def test_a_native_window_is_still_pasted_into(monkeypatch, recorder):
@@ -332,3 +468,20 @@ def test_an_explicit_typing_preference_is_honoured_even_for_arabic(recorder):
     # where typing is the only mechanism that works at all.
     assert inject.deliver("نص عربي", "wtype") == "wtype"
     assert recorder[0][0] == "wtype"
+
+
+def test_the_paste_key_named_to_the_user_matches_the_window(monkeypatch):
+    """A fallen-through transcript is only recoverable if the key is right.
+
+    Ctrl+V in a terminal inserts nothing, and the user is being told this
+    about text they cannot see, so a wrong key reads as the whole take having
+    been lost.
+    """
+    monkeypatch.setattr(inject, "_focused_class", lambda: "kitty")
+    assert inject.paste_key() == "Ctrl+Shift+V"
+    monkeypatch.setattr(inject, "_focused_class", lambda: "firefox")
+    assert inject.paste_key() == "Ctrl+V"
+    # The user's own additions to the terminal list have to count here too,
+    # or the setting fixes the keystroke and not the sentence about it.
+    monkeypatch.setattr(inject, "_focused_class", lambda: "st-256color")
+    assert inject.paste_key(("st-256color",)) == "Ctrl+Shift+V"

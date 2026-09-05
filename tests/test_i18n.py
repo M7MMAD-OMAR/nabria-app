@@ -142,3 +142,27 @@ def test_every_string_renders_in_both_languages():
             assert "{{" not in rendered and "}}" not in rendered, (
                 f"{key} in {language} rendered its escaped braces literally"
             )
+
+
+def test_every_field_name_can_actually_be_passed():
+    """No field name may collide with `t()`'s own signature.
+
+    `app.type_failed_body` has a field called `key`, and while `t` took its
+    lookup argument as a normal named parameter that string was impossible to
+    fill: `t("app.type_failed_body", key="Ctrl+V")` raised TypeError rather
+    than returning a sentence. It raised inside the handler that tells the
+    user their transcript is on the clipboard, so the notification never
+    arrived and a take that had transcribed fine was filed as a failure.
+
+    Passing each string its own fields is what distinguishes this from
+    `test_every_string_renders_in_both_languages`, which renders with none.
+    """
+    for key, entry in i18n.STRINGS.items():
+        for language, text in entry.items():
+            i18n.use(language)
+            fields = {name: "x" for name in FIELDS.findall(text)}
+            rendered = i18n.t(key, **fields)
+            for name in fields:
+                assert "{" + name + "}" not in rendered, (
+                    f"{key} in {language} did not fill {name}"
+                )

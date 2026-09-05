@@ -146,8 +146,18 @@ def label(text: str = "", **properties: object):
     return Gtk.Label(label=text, **properties)
 
 
-def t(key: str, **fields: object) -> str:
+def t(key: str, /, **fields: object) -> str:
     """Look up a string and fill in its fields.
+
+    The lookup argument is positional-only, and that slash is load-bearing.
+    Field names come from the strings themselves, so a string containing
+    `{key}` has a field called `key` -- and with a named parameter of the same
+    name, `t("app.type_failed_body", key="Ctrl+V")` raised TypeError instead of
+    returning a sentence. It did so inside the handler that tells the user
+    where their transcript went, so a delivery that failed politely became a
+    crash, the notification never arrived, and the take was filed as failed
+    although it had transcribed perfectly. Any word can be a field name; none
+    of them may collide with this signature.
 
     An unknown key returns the key. That is deliberately not an exception: a
     missing translation must degrade to something legible in the interface, not

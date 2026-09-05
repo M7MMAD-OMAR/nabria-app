@@ -25,10 +25,19 @@ that reports success for work it did not do is the exact failure this whole
 application exists to prevent, so the sender that cannot be trusted to report
 its own failure is tried last.
 
-XWayland clients are a separate matter and cannot be fixed from here: where
-the compositor's X11 clipboard bridge is broken, `wl-copy` never reaches an
-XWayland window at all and no keystroke can paste what is not offered. Those
-windows are served by typing instead, which is why the fallbacks stay.
+XWayland clients read the X11 CLIPBOARD selection, which is not the selection
+`wl-copy` takes. Where the compositor bridges the two this is invisible; where
+it does not, a pasted transcript never reaches those windows. Measured on
+Hyprland 0.56.2 with the `wl-copy` owner still alive and serving `wl-paste`
+fine, an X11 client could not convert the selection even to TARGETS, ten times
+out of ten. So for an XWayland target the selection is taken from the X11 side
+instead, with `xclip` or `xsel`, and that was measured landing an Arabic
+transcript into a focused XWayland entry through the ordinary paste keystroke.
+
+The previous version of this file refused to paste into XWayland at all and
+fell through to typing. For Arabic that left no path whatsoever, since typing
+non-ASCII is refused too, so every dictation into such a window ended on the
+clipboard for the user to paste by hand.
 
 If everything fails the text is still on the clipboard, so a dictation is never
 simply lost.
@@ -37,10 +46,12 @@ simply lost.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 TIMEOUT = 30
 
@@ -84,8 +95,151 @@ PASTE_SENDERS = ("ydotool", "wtype")
 RESTORE_DELAY = 1.5
 
 
+# How the X11 CLIPBOARD selection is taken, for an XWayland target.
+#
+# Both read the text on stdin and both fork a process that stays alive to serve
+# the selection, because X11 selections are owned rather than stored. xsel is
+# listed first for a measured reason, see `_to_x11_clipboard`.
+X11_SETTERS = (
+    ("xsel", ("xsel", "--clipboard", "--input")),
+    ("xclip", ("xclip", "-selection", "clipboard", "-i")),
+)
+
+# ...and how it is read back, to check our text is still there before restoring.
+X11_GETTERS = (
+    ("xsel", ("xsel", "--clipboard", "--output")),
+    ("xclip", ("xclip", "-selection", "clipboard", "-o")),
+)
+
+
 class InjectionError(RuntimeError):
     pass
+
+
+def _x11_display() -> str:
+    """The X display for the X11 clipboard tools, or "" when there is none.
+
+    Inheriting `DISPLAY` is not enough and this is the trap the whole XWayland
+    path turns on. The daemon is a systemd user unit, and it starts before
+    Hyprland imports DISPLAY into the user manager: measured on this machine,
+    the running unit's environment carries WAYLAND_DISPLAY and XDG_RUNTIME_DIR
+    and no DISPLAY at all, while `systemctl --user show-environment` has since
+    picked up DISPLAY=:0. So every xclip call would fail with "Can't open
+    display" in the daemon while working perfectly in a terminal.
+
+    The socket directory is used rather than asking systemd because it needs no
+    subprocess on a path that runs before every paste. XAUTHORITY is
+    deliberately not hunted for: measured, xclip authenticated to Xwayland with
+    DISPLAY alone and no XAUTHORITY set.
+    """
+    display = os.environ.get("DISPLAY", "")
+    if display:
+        return display
+    try:
+        names = sorted(entry.name for entry in Path("/tmp/.X11-unix").iterdir())
+    except OSError:
+        return ""
+    for name in names:
+        # `X0` is a display; `X0_` and friends are not, so this is not a
+        # `startswith` -- an Xwayland socket directory holds both.
+        if name.startswith("X") and name[1:].isdigit():
+            return ":" + name[1:]
+    return ""
+
+
+def _x11_run(command: tuple[str, ...], display: str,
+             text: str | None = None) -> subprocess.CompletedProcess:
+    """Run an X11 clipboard tool with a display it can actually open.
+
+    Writing discards both streams rather than capturing them, and that is not
+    tidiness. xclip forks a child to serve the selection, because an X11
+    selection is owned rather than stored, and that child inherits the pipes:
+    measured, `subprocess.run(..., capture_output=True)` hung for the full
+    timeout while the text had in fact landed. So a failed write reports its
+    exit status and not its message, which is why `_to_x11_clipboard` prefers
+    the tool that can be asked.
+    """
+    environment = {**os.environ, "DISPLAY": display}
+    if text is None:
+        # Reading does not fork, so its output can be collected normally.
+        return subprocess.run(
+            list(command), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=TIMEOUT, env=environment,
+        )
+    return subprocess.run(
+        list(command), input=text.encode("utf-8"),
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=TIMEOUT, env=environment,
+    )
+
+
+def _to_x11_clipboard(text: str) -> str:
+    """Take the X11 CLIPBOARD selection. Returns the tool that took it.
+
+    xsel is tried before xclip only because xclip cannot be asked why it
+    failed, per `_x11_run`. Both were measured serving the selection correctly,
+    including Arabic UTF-8, and both keep serving it after this returns.
+    """
+    display = _x11_display()
+    if not display:
+        raise InjectionError("no X display, so an XWayland window cannot be reached")
+    failures: list[str] = []
+    for name, command in X11_SETTERS:
+        if not shutil.which(name):
+            failures.append(f"{name}: not installed")
+            continue
+        try:
+            result = _x11_run(command, display, text)
+        except (OSError, subprocess.SubprocessError) as exc:
+            failures.append(f"{name}: {exc}")
+            continue
+        if result.returncode == 0:
+            return name
+        failures.append(f"{name}: exit {result.returncode}")
+    raise InjectionError("; ".join(failures) or "no X11 clipboard tool is installed")
+
+
+def _x11_clipboard_text() -> str | None:
+    """The X11 selection as text, or None when there is none to be had.
+
+    Text only, and deliberately. The Wayland snapshot carries a MIME type
+    because reading a copied image back as text and writing that back would
+    replace the image with mojibake; here the same rule is kept by refusing to
+    snapshot anything that does not come back as text at all. A selection this
+    cannot represent is left alone rather than guessed at, which costs a
+    transcript staying on the clipboard and destroys nothing.
+    """
+    display = _x11_display()
+    if not display:
+        return None
+    for name, command in X11_GETTERS:
+        if not shutil.which(name):
+            continue
+        try:
+            result = _x11_run(command, display)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if result.returncode != 0:
+            continue
+        try:
+            return result.stdout.decode("utf-8")
+        except UnicodeDecodeError:
+            # Not text. Restoring this would corrupt it, so there is nothing
+            # to snapshot and the caller must not restore.
+            return None
+    return None
+
+
+def _restore_x11_clipboard(previous: str, pasted: str) -> None:
+    # Same rule as the Wayland side: only if our own text is still there.
+    # Something copied in the meantime is newer than what we borrowed, and
+    # putting the old contents back would destroy it.
+    if _x11_clipboard_text() != pasted:
+        return
+    try:
+        _to_x11_clipboard(previous)
+    except (InjectionError, OSError, subprocess.SubprocessError):
+        pass
 
 
 def _wtype(text: str, terminals: tuple[str, ...] = ()) -> None:
@@ -108,8 +262,27 @@ def _ydotool(text: str, terminals: tuple[str, ...] = ()) -> None:
 
 
 def to_clipboard(text: str) -> None:
+    """Leave the text somewhere the user can paste it from by hand.
+
+    This is the net under every delivery failure, and what `always_copy` and
+    `inject: clipboard` use, so it has to answer the same question `_paste`
+    does: a wl-copy'd transcript is not reachable from an XWayland window on
+    this compositor, not even manually, so the fallback whose whole job is
+    that nothing is lost would leave the user unable to paste what they had
+    just dictated. Both selections are taken when the focused window is
+    XWayland, because the user is as likely to paste it somewhere else.
+
+    Wayland first, X11 second, so that where a bridge does work the X11
+    selection ends up owned by the tool measured to serve it rather than by
+    `wl-copy`. Failures are swallowed: this is already the last resort.
+    """
     if shutil.which("wl-copy"):
         subprocess.run(["wl-copy", "--", text], check=False, timeout=TIMEOUT)
+    if _focused_is_xwayland():
+        try:
+            _to_x11_clipboard(text)
+        except (InjectionError, OSError, subprocess.SubprocessError):
+            pass
 
 
 def _wl_paste(*args: str) -> bytes | None:
@@ -217,6 +390,17 @@ def is_terminal(window_class: str, extra: tuple[str, ...] = ()) -> bool:
     return window_class.casefold() in known
 
 
+def paste_key(terminals: tuple[str, ...] = ()) -> str:
+    """The keystroke that would paste into the focused window right now.
+
+    For telling the user, not for pressing. When delivery falls through, the
+    notification has to name the key they should actually press, and in a
+    terminal that is not Ctrl+V -- being told the wrong one, about a
+    transcript they cannot see, is the moment this tool looks broken.
+    """
+    return "Ctrl+Shift+V" if is_terminal(_focused_class(), terminals) else "Ctrl+V"
+
+
 def _paste_with_ydotool(shift: bool) -> None:
     # Linux input event codes: 29 ctrl, 42 shift, 47 v. `:1` press, `:0`
     # release, and they have to unwind in reverse or the modifier sticks.
@@ -286,10 +470,11 @@ def _focused_is_xwayland() -> bool:
     """Whether the focused window is an XWayland client.
 
     Only Hyprland is asked, because it is the only compositor here that
-    reports it directly and a wrong guess is worse than no guess: answering
-    True for a native Wayland window would send it down the slow typing path
-    for no reason. Anything unknown is treated as native, which keeps the
-    fast paste for every case this cannot prove otherwise.
+    reports it directly and a wrong guess is worse than no guess. It decides
+    which selection the transcript is put on, so answering True for a native
+    Wayland window would hand it to X11, where that window cannot read it.
+    Anything unknown is treated as native, which is the answer that needs no
+    extra tool installed and works wherever the two selections are bridged.
     """
     if not shutil.which("hyprctl"):
         return False
@@ -303,17 +488,33 @@ def _focused_is_xwayland() -> bool:
         return False
 
 
+def _paste_xwayland(text: str, terminals: tuple[str, ...] = ()) -> None:
+    """Paste into an XWayland window by way of the X11 selection.
+
+    That window reads X11's CLIPBOARD, and on this compositor nothing crosses
+    into it from Wayland, so `wl-copy` offers the text to a selection the
+    target never looks at and the paste keystroke inserts whatever X11 held
+    before. Taking the X11 selection directly is what reaches it, measured
+    landing an Arabic transcript into a focused XWayland entry.
+
+    Raising here is a real fallback and not a dead end: `deliver` moves on to
+    typing, which does not use the clipboard at all.
+    """
+    previous = _x11_clipboard_text()
+    _to_x11_clipboard(text)
+    _send_paste_key(terminals)
+    if previous is not None and previous != text:
+        timer = threading.Timer(RESTORE_DELAY, _restore_x11_clipboard, (previous, text))
+        timer.daemon = True
+        timer.start()
+
+
 def _paste(text: str, terminals: tuple[str, ...] = ()) -> None:
+    if _focused_is_xwayland():
+        _paste_xwayland(text, terminals)
+        return
     if not shutil.which("wl-copy"):
         raise InjectionError("wl-copy is not installed")
-    # An XWayland window reads the X11 selection, which the compositor has to
-    # bridge from Wayland. Measured on this machine that bridge is dead in
-    # both directions (`wl-copy` then `xclip -o` returns nothing, forty times
-    # out of forty), so pasting into such a window silently inserts whatever
-    # X11 held before. Refusing here hands the take to `wtype`/`ydotool`,
-    # which type the characters and do not depend on the bridge at all.
-    if _focused_is_xwayland():
-        raise InjectionError("focused window is XWayland; the clipboard does not bridge")
     previous = _clipboard_snapshot()
     subprocess.run(["wl-copy", "--", text], check=True, timeout=TIMEOUT)
     _send_paste_key(terminals)
