@@ -4,6 +4,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Automation;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -16,8 +17,8 @@ internal sealed partial class MainWindow : Window
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private JsonElement data;
     private string page = "home", state = "idle";
-    private bool closing, rebuilding, taskRunning;
-    private string taskText = "";
+    private bool closing, rebuilding, taskRunning, micTesting;
+    private string taskText = "", micText = "";
     private ContentControl content = new();
     private TextBlock? errorLabel;
     private string lastError = "";
@@ -31,9 +32,15 @@ internal sealed partial class MainWindow : Window
 
     public MainWindow()
     {
+        ThemeMode = ThemeMode.System;
+        var fluent = new ResourceDictionary { Source = new Uri("pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml") };
+        Resources.MergedDictionaries.Add(fluent);
+        foreach (Type type in new[] { typeof(Button), typeof(ComboBox), typeof(TextBox), typeof(ListBox), typeof(ListBoxItem), typeof(ProgressBar), typeof(CheckBox), typeof(ScrollViewer) })
+            Resources[type] = fluent[type];
         Title = "Nabria"; Width = 960; Height = 720; MinWidth = 800; MinHeight = 600;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        FontFamily = new FontFamily("Segoe UI"); FontSize = 14;
+        FontFamily = new FontFamily("Segoe UI"); FontSize = 15;
+        FlowDirection = Strings.IsRtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         var icon = Path.Combine(AppContext.BaseDirectory, "app", "nabria", "assets", "nabria.png");
         if (File.Exists(icon)) Icon = new BitmapImage(new Uri(icon));
         Content = new TextBlock { Text = Strings.T("desktop.loading"), Margin = new Thickness(40), FontSize = 20 };
@@ -100,14 +107,14 @@ internal sealed partial class MainWindow : Window
                 }
                 break;
             case "mic_level":
-                if (levelMeter != null && !taskRunning) levelMeter.Value = Math.Clamp(Number(message, "level") + 60, 0, 60);
+                if (levelMeter != null) levelMeter.Value = Math.Clamp(Number(message, "level") + 60, 0, 60);
                 break;
             case "mic_result":
-                taskText = Flag(message, "cancelled") ? T("cancelled") : T(Flag(message, "heard") ? "mic_good" : "mic_quiet");
-                if (micResult != null) micResult.Text = taskText;
+                micText = Flag(message, "cancelled") ? T("cancelled") : T(Flag(message, "heard") ? "mic_good" : "mic_quiet");
+                if (micResult != null) micResult.Text = micText;
                 break;
             case "task_done":
-                taskRunning = false;
+                taskRunning = false; micTesting = false;
                 if (progress != null) { progress.IsIndeterminate = false; progress.Value = 0; }
                 if (data.ValueKind != JsonValueKind.Undefined) Navigate(page);
                 break;
@@ -139,18 +146,28 @@ internal sealed partial class MainWindow : Window
             CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Background = new SolidColorBrush(Color.FromRgb(31, 42, 31)),
             Child = new Image { Source = new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "app/nabria/assets/sbarah-logo.png"))), Width = 70, Height = 37, Stretch = Stretch.Uniform, FlowDirection = FlowDirection.LeftToRight }
         });
+        attribution.Background = Brushes.Transparent; attribution.BorderThickness = new Thickness(0);
         attribution.Content = attributionContent;
+        attribution.SetResourceReference(StyleProperty, "DefaultButtonStyle");
+        AutomationProperties.SetName(attribution, Strings.T("brand.credit") + " sbarah.com");
         attribution.Click += (_, _) => Open("https://sbarah.com");
         DockPanel.SetDock(attribution, Dock.Bottom); sidebar.Children.Add(attribution);
         navigation = new ListBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent };
         foreach (var (id, glyph) in new[] { ("home", "\uE80F"), ("history", "\uE81C"), ("settings", "\uE713"), ("help", "\uE897") })
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 12, 8, 12) };
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition());
             row.Children.Add(new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center });
-            row.Children.Add(new TextBlock { Text = T(id), FontSize = 15 });
+            var label = new TextBlock { Text = T(id), TextWrapping = TextWrapping.Wrap, FontSize = 15 };
+            Grid.SetColumn(label, 1); row.Children.Add(label);
             var item = new ListBoxItem { Content = row, Tag = id, HorizontalContentAlignment = HorizontalAlignment.Stretch, IsSelected = id == page };
+            item.SetResourceReference(StyleProperty, "NavigationItem");
+            AutomationProperties.SetName(item, T(id));
+            AutomationProperties.SetAutomationId(item, "nav-" + id);
             navigation.Items.Add(item);
         }
+        navigation.SetResourceReference(StyleProperty, "DefaultListBoxStyle");
         navigation.SelectionChanged += (_, _) => { if (!rebuilding && navigation.SelectedItem is ListBoxItem selected) Navigate((string)selected.Tag); };
         sidebar.Children.Add(navigation);
         var sidebarBorder = new Border { Background = new SolidColorBrush(Color.FromArgb(12, 128, 128, 128)), Child = sidebar };
@@ -215,6 +232,19 @@ internal sealed partial class MainWindow : Window
         closing = true;
         await StopBackend();
         Close();
+    }
+    internal void CheckPages()
+    {
+        foreach (string language in new[] { "en", "ar" })
+        {
+            Strings.Language = language;
+            BuildShell();
+            foreach (string target in new[] { "home", "history", "settings", "help" })
+            { Navigate(target); UpdateLayout(); }
+            for (setupStep = 0; setupStep < 3; setupStep++) { Navigate("setup"); UpdateLayout(); }
+            if (FlowDirection != (language == "ar" ? FlowDirection.RightToLeft : FlowDirection.LeftToRight))
+                throw new InvalidOperationException("Desktop direction did not follow its language");
+        }
     }
     public async Task StopBackend() { closing = true; indicator.Close(); await backend.Stop(); IsClosed = true; }
 }

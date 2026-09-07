@@ -56,6 +56,9 @@ jobs:
           $version = (Select-String -Path src/nabria/__init__.py -Pattern '__version__ = "(.+)"').Matches.Groups[1].Value
           dotnet publish windows/Nabria.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true "-p:Version=$version" -o dist/Nabria
           if ($LASTEXITCODE -ne 0) { throw "Native desktop build failed" }
+      - name: Include .NET notices
+        shell: msys2 {0}
+        run: python scripts/stage-dotnet-notices.py
       - name: Build installer
         shell: pwsh
         run: |

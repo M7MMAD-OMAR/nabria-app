@@ -19,6 +19,8 @@ internal static class Native
     [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] internal static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
 
+    [DllImport("kernel32.dll")] internal static extern IntPtr GetConsoleWindow();
+
     internal sealed class Job : IDisposable
     {
         private IntPtr handle = CreateJobObject(IntPtr.Zero, null);

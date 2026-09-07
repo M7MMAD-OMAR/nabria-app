@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Automation;
 using System.Windows.Media;
 using Microsoft.Win32;
 
@@ -15,18 +16,22 @@ internal sealed partial class MainWindow
     private int setupStep;
     private sealed record Choice(string Id, string Label);
 
-    private TextBlock Heading(string text, double size = 28) => new() { Text = text, FontSize = size, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
-    private TextBlock Description(string text) => new() { Text = text, Opacity = .75, LineHeight = 22, Margin = new Thickness(0, 0, 0, 16) };
+    private TextBlock Heading(string text, double size = 28) => new() { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = size, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
+    private TextBlock Description(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Opacity = .85, LineHeight = 22, Margin = new Thickness(0, 0, 0, 16) };
     private StackPanel Card(StackPanel parent, string title)
     {
         var body = new StackPanel();
         if (title.Length > 0) body.Children.Add(Heading(title, 17));
-        parent.Children.Add(new Border { Child = body, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.FromArgb(45, 128, 128, 128)), Padding = new Thickness(20), Margin = new Thickness(0, 0, 0, 16) });
+        var card = new Border { Child = body, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Color.FromArgb(45, 128, 128, 128)), Padding = new Thickness(20), Margin = new Thickness(0, 0, 0, 16) };
+        card.SetResourceReference(BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        parent.Children.Add(card);
         return body;
     }
     private Button Action(string text, Func<Task> action, bool primary = false)
     {
         var button = new Button { Content = text, HorizontalAlignment = HorizontalAlignment.Left };
+        button.SetResourceReference(StyleProperty, primary ? "AccentButtonStyle" : "DefaultButtonStyle");
+        button.Padding = new Thickness(16, 9, 16, 9); button.Margin = new Thickness(0, 4, 8, 4); button.MinHeight = 38;
         if (primary) { button.Background = SystemColors.HighlightBrush; button.Foreground = SystemColors.HighlightTextBrush; button.FontWeight = FontWeights.SemiBold; }
         button.Click += async (_, _) => { try { await action(); } catch (Exception error) { ShowError(error.Message); } };
         return button;
@@ -35,6 +40,9 @@ internal sealed partial class MainWindow
     {
         parent.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.Medium });
         var box = new ComboBox { ItemsSource = choices.ToList(), DisplayMemberPath = "Label", SelectedValuePath = "Id", SelectedValue = selected };
+        box.SetResourceReference(StyleProperty, "DefaultComboBoxStyle");
+        box.MinHeight = 36; box.Margin = new Thickness(0, 6, 0, 14);
+        AutomationProperties.SetName(box, label);
         if (box.SelectedIndex < 0 && box.Items.Count > 0) box.SelectedIndex = 0;
         if (changed != null) box.SelectionChanged += async (_, _) =>
         {
@@ -54,10 +62,10 @@ internal sealed partial class MainWindow
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         recordButton = Action(T(state == "recording" ? "stop" : "start"), async () =>
         {
-            if (state == "recording") { await Send("stop"); return; }
+            string command = state == "recording" ? "stop" : "start";
             WindowState = WindowState.Minimized;
             await Task.Delay(300);
-            await Send("start");
+            await Send(command);
         }, primary: true);
         recordButton.MinWidth = 180;
         row.Children.Add(recordButton);
@@ -139,10 +147,10 @@ internal sealed partial class MainWindow
                 use.ToolTip = path; use.IsEnabled = !taskRunning; parent.Children.Add(use);
             }
         }
-        progress = new ProgressBar { Height = 6, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 12, 0, 8), IsIndeterminate = taskRunning };
+        progress = new ProgressBar { Height = 6, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 12, 0, 8), IsIndeterminate = taskRunning && !micTesting };
         parent.Children.Add(progress);
-        taskLabel = Description(taskRunning ? taskText : ""); parent.Children.Add(taskLabel);
-        if (taskRunning) parent.Children.Add(Action(T("cancel"), () => Send("cancel_task")));
+        taskLabel = Description(taskRunning && !micTesting ? taskText : ""); parent.Children.Add(taskLabel);
+        if (taskRunning && !micTesting) parent.Children.Add(Action(T("cancel"), () => Send("cancel_task")));
     }
 
     private void MicrophoneControls(StackPanel parent)
@@ -150,14 +158,18 @@ internal sealed partial class MainWindow
         var devices = data.GetProperty("devices").EnumerateArray().ToArray();
         string selected = Setting("input_device", devices.Where(item => Flag(item, "default")).Select(item => Text(item, "name")).FirstOrDefault() ?? "");
         if (devices.Length == 0) parent.Children.Add(Description(T("no_microphone")));
-        else Combo(parent, T("microphone"), devices.Select(item => new Choice(Text(item, "name"), Text(item, "name"))), selected, value => Set("input_device", value));
+        else
+        {
+            var device = Combo(parent, T("microphone"), devices.Select(item => new Choice(Text(item, "name"), Text(item, "name"))), selected, value => Set("input_device", value));
+            device.FlowDirection = FlowDirection.LeftToRight;
+        }
         var row = new WrapPanel();
-        var test = Action(T("test_microphone"), async () => { taskRunning = true; taskText = T("speak_test"); Navigate(page); await Send("mic_test"); });
+        var test = Action(T("test_microphone"), async () => { taskRunning = true; micTesting = true; micText = T("speak_test"); Navigate(page); await Send("mic_test"); });
         test.IsEnabled = !taskRunning && devices.Length > 0;
         row.Children.Add(test); row.Children.Add(Action(T("refresh_devices"), () => Send("refresh"))); parent.Children.Add(row);
         levelMeter = new ProgressBar { Minimum = 0, Maximum = 60, Height = 6, Margin = new Thickness(0, 12, 0, 8) };
         parent.Children.Add(levelMeter);
-        micResult = Description(taskText); parent.Children.Add(micResult);
+        micResult = Description(micText); parent.Children.Add(micResult);
     }
 
     private void SettingsPage(StackPanel body)
@@ -192,7 +204,7 @@ internal sealed partial class MainWindow
         }));
         foreach (var item in historyItems.EnumerateArray())
         {
-            string date = DateTime.TryParse(Text(item, "at"), out var when) ? when.ToString("dd MMM yyyy · h:mm tt", CultureInfo.CurrentCulture) : Text(item, "at");
+            string date = DateTime.TryParse(Text(item, "at"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var when) ? when.ToString("dd MMM yyyy · h:mm tt", CultureInfo.CurrentCulture) : Text(item, "at");
             var entry = Card(body, date);
             string text = Text(item, "text");
             entry.Children.Add(new TextBox { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, MaxHeight = 180, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0), Background = Brushes.Transparent, FontSize = 16 });

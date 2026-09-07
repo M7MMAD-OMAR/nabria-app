@@ -79,17 +79,18 @@ public partial class App : Application
                 await Task.WhenAll(output, errors);
                 if (process.ExitCode != 0) { Shutdown(process.ExitCode); return; }
             }
+            if (Native.GetConsoleWindow() != IntPtr.Zero) throw new InvalidOperationException("Desktop attached a console");
             var window = new MainWindow();
             MainWindow = window;
             window.Show();
             await window.Ready.WaitAsync(TimeSpan.FromSeconds(45));
-            foreach (string page in new[] { "home", "history", "settings", "help", "setup" })
-            { window.Navigate(page); window.UpdateLayout(); await Task.Delay(100); }
+            window.CheckPages();
             string? report = Environment.GetEnvironmentVariable("NABRIA_TEST_REPORT");
             if (!string.IsNullOrEmpty(report))
             {
                 var data = JsonSerializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(report))!;
-                data["native_desktop_pages"] = "passed";
+                data["native_desktop_pages"] = "passed in English and Arabic";
+                data["console_window"] = "absent";
                 File.WriteAllText(report, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
             }
             await window.StopBackend();

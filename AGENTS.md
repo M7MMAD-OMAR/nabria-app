@@ -355,3 +355,20 @@ a comment recorded the bug that produced them.
 
 User-facing strings go through `i18n.py` in both languages; log lines are
 English only, and are never translated -- they are read alongside the source.
+
+## Native Windows desktop
+
+Windows uses `windows/Nabria.Desktop`, a self-contained WPF WinExe. The normal
+launcher opens a desktop window and owns a hidden Python child running
+`nabria.windows.backend`. Their inherited pipes carry UTF-8 JSON lines. Linux
+keeps the GTK windows. All visible wording still comes from `i18n.py`; staging
+exports that catalogue to `strings.json` for WPF and localized installer messages.
+
+Closing the main window exits; minimizing leaves hotkeys active. Starting or
+stopping dictation from the main window minimizes it before sending the command,
+so paste goes to the previous application. The floating indicator must never
+activate. A Windows Job Object owns the backend and its engine children.
+
+The Windows workflow builds the Python runtime, publishes the .NET desktop,
+then builds and tests the installer. An executable with only the runtime staged
+is incomplete until the desktop publish step has run.

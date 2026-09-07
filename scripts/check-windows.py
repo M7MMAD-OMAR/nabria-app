@@ -12,7 +12,7 @@ root = Path(__file__).resolve().parent.parent
 subprocess.run([
     sys.executable, "-m", "pytest", "-q", "tests/test_config.py",
     "tests/test_history.py", "tests/test_whisper.py", "tests/test_i18n.py",
-    "tests/test_windows_paths.py", "tests/test_recorder.py", "tests/test_windows_audio.py",
+    "tests/test_windows_paths.py", "tests/test_recorder.py", "tests/test_windows_audio.py", "tests/test_desktop_backend.py",
 ], cwd=root, check=True)
 bundle = Path(sys.argv[1]).resolve()
 target = root / "build/Windows runtime test with spaces نبرة"

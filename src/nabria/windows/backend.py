@@ -102,7 +102,14 @@ class Backend(Daemon):
     def _inventory(self):
         try:
             self.has_gpu = gpu.plan("auto").use_gpu
+        except Exception as exc:
+            self.log(f"desktop GPU inventory: {exc}")
+        try:
             self.device_list = audio.sources()
+        except audio.AudioError as exc:
+            self.device_list = []
+            self.log(f"desktop microphone inventory: {exc}")
+        try:
             self.found_models = [
                 {"path": str(item.path), "name": item.path.name}
                 for item in models.search(model_dir=config.MODEL_DIR)
@@ -168,7 +175,7 @@ class Backend(Daemon):
             elif command == "cancel_task":
                 self.task_cancel.set()
             elif command == "finish_setup":
-                if not Path(self.settings["model"]).exists():
+                if not Path(self.settings["model"]).is_file():
                     raise ValueError(i18n.t("desktop.setup_required"))
                 self._apply_setting("setup_done", True)
                 self._ready()
