@@ -18,3 +18,5 @@ Added a portable Windows path import test and started full distribution checks.
 Second Windows run: 34109470772. First failed at engine tag parsing, fixed.
 Added a real Win32 EDIT paste/restore check and a checksum-verified base model
 transcription of the upstream speech sample to the installed-runtime suite.
+Ubuntu container passed: 246 tests, 8 skips. Debian and Fedora checks continue.
+Documented the implemented Windows architecture and explicit release gates.

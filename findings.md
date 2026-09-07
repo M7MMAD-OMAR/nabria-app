@@ -18,3 +18,10 @@
   is still outstanding and must not be described as completed.
 - Clipboard restoration uses OLE IDataObject to preserve non-text formats.
 - Windows build/test workflow is isolated on the implementation branch.
+
+## Native packaging checks
+- Windows compilation found a missing SPIRV-Headers package; the dependency
+  is now explicit rather than assuming shaderc brings development headers.
+- Launcher uses a Windows Job Object so abrupt exit cannot orphan the engine.
+- Capture filenames are unique across restarts, protecting unfinished WAVs.
+- Windows shortcut text now describes Windows behavior in both UI languages.
