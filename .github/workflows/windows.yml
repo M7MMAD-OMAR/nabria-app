@@ -38,7 +38,7 @@ jobs:
         id: engine-cache
         with:
           path: build/whisper-windows
-          key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh') }}
+          key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh', 'packaging/windows/engine.rc', 'packaging/windows/utf8.manifest') }}
       - name: Build application and engine
         shell: msys2 {0}
         run: scripts/build-windows.sh
@@ -46,7 +46,7 @@ jobs:
         if: steps.engine-cache.outputs.cache-hit != 'true'
         with:
           path: build/whisper-windows
-          key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh') }}
+          key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh', 'packaging/windows/engine.rc', 'packaging/windows/utf8.manifest') }}
       - name: Build installer
         shell: pwsh
         run: |

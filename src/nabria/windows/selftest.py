@@ -44,6 +44,9 @@ def main() -> int:
         if run.returncode:
             raise RuntimeError(run.stderr.decode("utf-8", "replace"))
         results["engine_starts"] = "passed"
+        run = subprocess.run([str(engine), "--prompt", "نبرة", "--help"], capture_output=True, timeout=30)
+        assert run.returncode == 0 and "نبرة".encode() in run.stderr, "Engine command line is not UTF-8"
+        results["arabic_engine_arguments"] = "passed"
         first, second = Instance(), Instance()
         assert first.primary and not second.primary
         second.close()
@@ -119,7 +122,7 @@ def main() -> int:
         sample = os.environ.get("NABRIA_TEST_WAV")
         if sample:
             from .. import models, whisper
-            with tempfile.TemporaryDirectory(prefix="nabria-model-check-") as directory:
+            with tempfile.TemporaryDirectory(prefix="nabria-فحص-model-") as directory:
                 model = models.download(models.CATALOG["base"], Path(directory))
                 settings = {**config.DEFAULTS, "model": str(model), "language": "en", "gpu_select": "cpu", "threads": 2}
                 engine_log = []

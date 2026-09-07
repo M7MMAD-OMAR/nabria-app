@@ -68,3 +68,6 @@ record/cancel hotkeys; silence produced no transcript. A DIB image and a newer
 clipboard copy both survived the native clipboard checks. Corrected Arabic
 start alignment against GTK's actual layout behavior, with a rendered-position
 regression test. Repositioning the mapped indicator fixed its Windows corner.
+Windows run 34118430060 passed, but a subsequent explicit Arabic argument test
+exposed ANSI conversion in the engine. Added a UTF-8 engine manifest and expanded
+native validation to cover non-ASCII installation and model paths before release.

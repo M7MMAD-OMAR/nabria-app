@@ -14,7 +14,7 @@ subprocess.run([
     "tests/test_windows_paths.py", "tests/test_recorder.py", "tests/test_windows_audio.py",
 ], cwd=root, check=True)
 bundle = Path(sys.argv[1]).resolve()
-target = root / "build/Windows runtime test with spaces"
+target = root / "build/Windows runtime test with spaces نبرة"
 if target.exists():
     shutil.rmtree(target)
 shutil.copytree(bundle, target)

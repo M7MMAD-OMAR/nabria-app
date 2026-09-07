@@ -30,3 +30,8 @@
   System32/WindowsPowerShell/v1.0, so bare powershell.exe breaks notifications
   in the installed app. Resolve its system path explicitly and include a native
   toast host check in the runtime suite.
+
+- Native engine argument validation found Arabic vocabulary becoming question
+  marks under the legacy Windows ANSI code page. Embed a per-process UTF-8
+  manifest and require Windows 10 1903 or later. Runtime checks now include
+  Arabic engine arguments, installation paths and model paths.
