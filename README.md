@@ -275,11 +275,14 @@ scripts/check.sh --quick   # lint and tests only, a few seconds
 scripts/build-engine.sh    # rebuild the engine from the pinned whisper.cpp tag
 ```
 
-`check.sh` is the real check, not a wrapper around CI — it runs the installer
+`check.sh` is the real check, not a wrapper around CI. It runs the installer
 inside clean Ubuntu, Debian and Fedora containers, which is how every
 packaging bug so far was found. CI runs the same script, so a green tick
 confirms what you already know rather than being the only place the truth
 exists. Everything works offline with `podman` or `docker` installed.
+
+What changed in each version is in [CHANGELOG.md](CHANGELOG.md), and a release
+cannot be published without its entry.
 
 ## Support the work
 

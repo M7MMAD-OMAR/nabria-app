@@ -33,6 +33,34 @@ version=$(git show "$tag:src/nabria/__init__.py" | sed -n 's/^__version__ = "\(.
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 tarball=$work/nabria.tar.gz
+notes=$work/notes.md
+
+# The release notes are CHANGELOG.md's section for this version, and a tag
+# without one is refused here rather than published empty. Every release before
+# this check existed carries a body that says nothing but its own number, which
+# is what a note nobody is forced to write looks like. Checked next to the
+# __version__ rule, before anything is built: failing at `gh release create`
+# would have burned the build, and a re-run then takes the "release exists"
+# branch below and never writes the notes at all.
+#
+# There is deliberately no Unreleased section. A heading with no release behind
+# it is a claim the repository cannot prove, and the entry belongs in the same
+# commit as the version bump.
+# `|| true` because a tag from before CHANGELOG.md existed has no such file,
+# and pipefail would end the script on git's error rather than on the message
+# below, which says what to do about it. The bare date under each heading is
+# dropped: GitHub already shows when a release was published.
+changelog=$(git show "$tag:CHANGELOG.md" 2>/dev/null || true)
+printf '%s\n' "$changelog" |
+  awk -v v="${tag#v}" '
+    $0 == "## " v { found = 1; next }
+    found && /^## / { exit }
+    found && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ { next }
+    found { print }
+  ' | sed -e '/./,$!d' > "$notes"
+[ -s "$notes" ] ||
+  { bad "CHANGELOG.md has no \"## ${tag#v}\" section at $tag"; exit 1; }
+ok "release notes: $(grep -c '^- ' "$notes" || true) bullets"
 
 say "Building $tag"
 # From the tag, not the working tree: a release must be reproducible from what
@@ -99,10 +127,13 @@ say "Publishing"
 if gh release view "$tag" >/dev/null 2>&1; then
   ok "release $tag exists"
 else
-  gh release create "$tag" --title "Nabria $tag" --notes-from-tag ||
-    gh release create "$tag" --title "Nabria $tag" --generate-notes
+  gh release create "$tag" --title "Nabria $tag" --notes-file "$notes"
   ok "release created"
 fi
+# Unconditionally, for the same reason as --latest below: the branch above runs
+# on every re-publish of an existing tag, so notes set only at creation would be
+# whatever the first attempt happened to have.
+gh release edit "$tag" --notes-file "$notes" >/dev/null
 # Unconditionally, and after the create rather than as a flag on it, so the
 # same line covers both branches: releases/latest/download/... is the URL in
 # the install command, and GitHub decides "latest" by publish date otherwise.
