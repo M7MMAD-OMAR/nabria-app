@@ -25,7 +25,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
-from . import audio, config, gpu, i18n, models, shortcut, theme  # noqa: E402
+from . import branding, audio, config, gpu, i18n, models, shortcut, theme  # noqa: E402
 
 # The window's width, and the only dimension of it that is fixed. The pages
 # differ in length and not in measure, so a width that moves between steps
@@ -363,7 +363,11 @@ class Wizard(Gtk.ApplicationWindow):
         self.stack.set_margin_bottom(24)
         self.stack.set_margin_start(24)
         self.stack.set_margin_end(24)
-        self.set_child(self.stack)
+        column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.stack.set_vexpand(True)
+        column.append(self.stack)
+        column.append(branding.footer())
+        self.set_child(column)
 
         self.stack.add_named(self._welcome_page(), "welcome")
         self.stack.add_named(self._language_page(), "language")

@@ -31,7 +31,7 @@ def main() -> int:
                      "windows.audio", "windows.control", "windows.desktop", "windows.inject"):
             importlib.import_module("nabria." + name)
         results["imports"] = "passed"
-        from gi.repository import Gio, GLib, Gtk
+        from gi.repository import Gdk, Gio, GLib, Gtk
         from .. import config, i18n
         from ..orb import Orb
         from .desktop import Hotkeys, Instance
@@ -65,6 +65,9 @@ def main() -> int:
         application = Gtk.Application(application_id="com.sbarah.NabriaCheck", flags=Gio.ApplicationFlags.NON_UNIQUE)
         application.register()
         assert Gtk.init_check()
+        logo = Path(__file__).parent.parent / "assets/sbarah-logo.png"
+        assert Gdk.Texture.new_from_filename(str(logo)).get_width() > 0
+        results["bundled_branding"] = "passed"
         orb = Orb(application, config.DEFAULTS)
         orb.show("recording")
         context = GLib.MainContext.default()

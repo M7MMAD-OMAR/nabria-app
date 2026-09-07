@@ -201,6 +201,7 @@ class _Placeholders(dict):
 # --------------------------------------------------------------------------
 
 STRINGS: dict[str, dict[str, str]] = {
+    "brand.credit": {"en": "Made by Sbarah", "ar": "صنعته صبارة"},
     "windows.shortcut_lede": {
         "en": "Press the recording shortcut, speak, then press it again. Your words appear in the focused window.",
         "ar": "اضغط اختصار التسجيل وتكلّم، ثم اضغطه مجددًا. تظهر كلماتك في النافذة النشطة.",

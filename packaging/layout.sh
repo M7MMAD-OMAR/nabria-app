@@ -26,6 +26,9 @@ stage_nabria() {
   install -d "$destdir/usr/lib/nabria/nabria"
   install -m 644 "$source_tree"/src/nabria/*.py "$destdir/usr/lib/nabria/nabria/"
 
+  install -d "$destdir/usr/lib/nabria/nabria/assets"
+  install -m 644 "$source_tree"/src/nabria/assets/* "$destdir/usr/lib/nabria/nabria/assets/"
+
   # Beside the code, because run.sh sources it for layer_shell_library --
   # the lookup that decides whether the indicator floats above other windows
   # or is covered by them.

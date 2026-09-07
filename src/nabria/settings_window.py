@@ -27,7 +27,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk, Pango  # noqa: E402
 
-from . import audio, config, history, i18n, models
+from . import branding, audio, config, history, i18n, models
 
 # Both lists come from the modules that own them rather than being restated
 # here. They used to be restated, and both copies had gone stale: the model
@@ -144,6 +144,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
                              Gtk.Label(label=i18n.t("settings.tab.history")))
         notebook.set_vexpand(True)
         column.append(notebook)
+        column.append(branding.footer())
 
     # -- dictating from the window ------------------------------------------
 

@@ -22,7 +22,7 @@ desktop's language unless you tell it otherwise.
 
 ### Windows x64
 
-[Download the Windows installer](https://github.com/M7MMAD-OMAR/nabria-app/releases/download/v0.5.0/Nabria-0.5.0-windows-x64-setup.exe).
+[Download the Windows installer](https://github.com/M7MMAD-OMAR/nabria-app/releases/download/v0.5.1/Nabria-0.5.1-windows-x64-setup.exe).
 It includes Python, GTK and the local transcription engine. Install for your
 user, open Nabria, and follow setup. No administrator account is needed.
 The wizard shows the recording, cancel and settings shortcuts available on
@@ -30,7 +30,7 @@ your computer. They also work with an Arabic keyboard layout.
 
 This first Windows release is a prerelease and the installer is unsigned.
 See [Windows validation and limitations](docs/WINDOWS.md) and the SHA-256
-checksum in the [release](https://github.com/M7MMAD-OMAR/nabria-app/releases/tag/v0.5.0).
+checksum in the [release](https://github.com/M7MMAD-OMAR/nabria-app/releases/tag/v0.5.1).
 
 ### Linux
 
