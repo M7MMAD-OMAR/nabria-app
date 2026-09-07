@@ -236,10 +236,11 @@ Buy Me a Coffee's button and cup ship as their own files, unmodified, and their
 terms are noted in `docs/assets/BMC-BRAND.txt`. Two rules follow from that and
 neither is cosmetic:
 
-- **Their yellow is not in the palette.** `#FFDD00` and `#0D0C22` appear only
-  inside the support section's rules. The block at the top of `site.css` is the
-  application's colours, from `theme.py`, and that claim stops being true the
-  moment a second brand's values are filed next to them.
+- **Their yellow is not in the palette.** `#FFDD00` is written once, inside the
+  support section's own rules, and their ink never leaves their files. The
+  block at the top of `site.css` is the application's colours, from `theme.py`,
+  and that claim stops being true the moment a second brand's values are filed
+  next to them.
 - **The button is not redrawn.** It is their mark, so it is their file. It also
   never mirrors: the Arabic page tilts the panel the other way, as the hero
   window does, and leaves the button alone.
