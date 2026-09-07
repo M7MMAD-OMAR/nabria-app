@@ -146,10 +146,6 @@
     } else {
       start();
     }
-
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) running = false;
-    });
   });
 
   document.querySelectorAll("[data-install-tabs]").forEach((group) => {
