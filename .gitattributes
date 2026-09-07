@@ -1,5 +1,3 @@
-# The release tarball is `git archive` (see release_tarball in scripts/common.sh),
-# so anything at the repository root lands in every user's install. The Worker
-# config for the landing page is not part of running Nabria.
-wrangler.jsonc export-ignore
-.gitattributes export-ignore
+*.sh text eol=lf
+*.py text eol=lf
+engine/VERSION text eol=lf

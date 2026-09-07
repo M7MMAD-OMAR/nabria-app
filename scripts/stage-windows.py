@@ -2,6 +2,7 @@
 
 import shutil
 import subprocess
+import ssl
 import sys
 from pathlib import Path
 
@@ -31,3 +32,7 @@ shutil.copy2(ROOT / "build/whisper-windows/LICENSE", DEST / "engine/LICENSE")
 shutil.copy2(ROOT / "LICENSE", DEST / "LICENSE")
 # Exact runtime package versions accompany the build for reproducibility.
 (DEST / "runtime-packages.txt").write_bytes(subprocess.check_output(["pacman", "-Q"]))
+
+certificate = ssl.get_default_verify_paths().cafile
+if certificate:
+    shutil.copy2(certificate, DEST / "runtime/cert.pem")

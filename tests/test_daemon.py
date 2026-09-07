@@ -420,3 +420,19 @@ def test_an_unknown_mute_state_never_claims_the_microphone_is_muted(daemon):
     _, body = daemon._unheard_notice("Test Mic", None, 14.0, -42.0)
     assert "muted" not in body.split(".")[0]
     assert "14" in body, "the weaker sentence still reports the take"
+
+
+def test_stop_ends_capture_before_a_busy_worker_can_dequeue_it(daemon):
+    from types import SimpleNamespace
+
+    events = []
+    recorder = SimpleNamespace(stop=lambda: events.append("capture stopped"))
+    daemon.recording = recorder
+    daemon.orb = SimpleNamespace(show=lambda state: None)
+    # A prior transcription is still running. The recording must finish at
+    # this keypress, not whenever that earlier engine request completes.
+    daemon.jobs = 1
+    daemon._stop()
+    assert events == ["capture stopped"]
+    assert daemon.pending.get_nowait() is recorder
+    assert daemon.recording is None

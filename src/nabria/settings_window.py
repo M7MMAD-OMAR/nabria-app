@@ -433,6 +433,9 @@ class SettingsWindow(Gtk.ApplicationWindow):
         def work() -> None:
             try:
                 audio.set_default(node_id)
+                if config.WINDOWS:
+                    selected = config.load().get("input_device")
+                    GLib.idle_add(self.on_change, "input_device", selected)
                 text = i18n.t("settings.switched")
             except audio.AudioError as exc:
                 text = i18n.t("settings.switch_failed", error=i18n.ltr(exc))

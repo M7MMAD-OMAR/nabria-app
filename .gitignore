@@ -8,3 +8,6 @@ dist/
 
 # wrangler deploy scratch; nothing here is worth a commit.
 .wrangler/
+
+# Native Windows runtime staging and engine compilation.
+build/

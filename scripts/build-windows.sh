@@ -6,7 +6,8 @@ if [[ ${MSYSTEM:-} != UCRT64 ]]; then
   echo "Run this script in the MSYS2 UCRT64 shell." >&2
   exit 1
 fi
-version=$(cat engine/VERSION)
+version=$(sed -n 's/^WHISPER_CPP_VERSION=//p' engine/VERSION | tr -d '\r')
+[[ -n "$version" ]]
 mkdir -p build
 if [[ ! -d build/whisper-windows/.git ]]; then
   git clone --depth 1 --branch "$version" https://github.com/ggml-org/whisper.cpp.git build/whisper-windows

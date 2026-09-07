@@ -14,6 +14,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int
     SetEnvironmentVariableW(L"NABRIA_INSTALL_DIR", root);
     swprintf(runtime, 32768, L"%ls\\runtime", root);
     SetEnvironmentVariableW(L"PYTHONHOME", runtime);
+    swprintf(path, 32768, L"%ls\\cert.pem", runtime);
+    if (GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) SetEnvironmentVariableW(L"SSL_CERT_FILE", path);
     swprintf(path, 32768, L"%ls\\app", root);
     SetEnvironmentVariableW(L"PYTHONPATH", path);
     swprintf(path, 32768, L"%ls\\lib\\girepository-1.0", runtime);

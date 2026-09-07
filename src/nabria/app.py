@@ -615,6 +615,12 @@ class Daemon:
         self._clear_timers()
         with self.jobs_lock:
             self.jobs += 1
+        # Capture must stop at the keypress, even when an earlier take is
+        # still transcribing. Otherwise the queue also queues microphone stop.
+        try:
+            recorder.stop()
+        except Exception as exc:
+            recorder.error = str(exc)
         self.pending.put(recorder)
         assert self.orb
         self.orb.show("working")

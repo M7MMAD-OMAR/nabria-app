@@ -21,3 +21,7 @@ Run the baseline and establish a Windows build and test environment.
 
 ## Errors
 None recorded yet.
+
+## Build failures
+- Windows run 34109182876: treated engine/VERSION as a bare tag, but it is a
+  shell configuration file. Parse WHISPER_CPP_VERSION and normalize CRLF.

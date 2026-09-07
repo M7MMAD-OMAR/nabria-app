@@ -38,6 +38,7 @@ def main() -> int:
         second.close()
         first.close()
         results["single_instance"] = "passed"
+        saved_state = config.STATE_DIR
         with tempfile.TemporaryDirectory(prefix="nabria-check-") as temporary:
             config.STATE_DIR = Path(temporary)
             listener = control.serve(lambda text: "reply:" + text, lambda text: None)
@@ -46,6 +47,7 @@ def main() -> int:
             # The accept thread is process-scoped; its listener is reclaimed
             # on process exit, as in the daemon.
             del listener
+        config.STATE_DIR = saved_state
         application = Gtk.Application(application_id="com.sbarah.NabriaCheck", flags=Gio.ApplicationFlags.NON_UNIQUE)
         application.register()
         assert Gtk.init_check()

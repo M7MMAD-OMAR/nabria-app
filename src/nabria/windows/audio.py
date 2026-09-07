@@ -21,7 +21,8 @@ def sources() -> list[dict]:
     try:
         sd = _sd()
         saved = config.load().get("input_device")
-        default = sd.default.device[0]
+        wasapi = next(api for api in sd.query_hostapis() if api["name"] == "Windows WASAPI")
+        default = wasapi["default_input_device"]
         return [
             {"id": index, "name": device["name"],
              "default": device["name"] == saved if saved else index == default,
