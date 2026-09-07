@@ -25,6 +25,7 @@ characters are the fix.
 from __future__ import annotations
 
 import os
+import sys
 
 # First-strong isolate, and its terminator. Everything between them is laid out
 # on its own, then placed into the surrounding text as a single neutral object.
@@ -60,6 +61,12 @@ def resolve(setting: str) -> str:
         os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
         or os.environ.get("LANG") or ""
     ).lower()
+    if not locale and sys.platform == "win32":
+        import ctypes
+        import locale as system_locale
+        language = ctypes.WinDLL("kernel32").GetUserDefaultUILanguage
+        language.restype = ctypes.c_ushort
+        locale = system_locale.windows_locale.get(language(), "").lower()
     return next((code for code in LANGUAGES if locale.startswith(code)), "en")
 
 

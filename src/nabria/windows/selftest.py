@@ -68,9 +68,16 @@ def main() -> int:
             window = SettingsWindow(application, config.DEFAULTS.copy(), lambda *args: None)
             window.destroy()
         results["settings_both_languages"] = "passed"
-        keys = Hotkeys(lambda action: None, lambda text: None)
+        import threading
+        received = threading.Event()
+        keys = Hotkeys(lambda action: received.set(), lambda text: None)
         keys.start()
         assert len(keys.ids) == 3
+        from .desktop import api, user32
+        from ctypes import wintypes as W
+        post = api(user32, "PostThreadMessageW", W.BOOL, W.DWORD, W.UINT, W.WPARAM, W.LPARAM)
+        assert post(keys.thread.native_id, 0x0312, 1, 0)
+        assert received.wait(2), "Hotkey message was not dispatched"
         keys.stop()
         results["register_hotkeys"] = "passed"
         from .inject import Input, to_clipboard, user32, api

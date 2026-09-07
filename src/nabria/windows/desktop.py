@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes as C
+import threading
 from ctypes import wintypes as W
 
 user32 = C.WinDLL("user32", use_last_error=True)
@@ -47,44 +48,53 @@ class Hotkeys:
     def __init__(self, activated, log):
         self.activated, self.log = activated, log
         self.ids = {}
-        self.source = 0
+        self.ready = threading.Event()
+        self.stopping = threading.Event()
+        self.thread = None
 
     def start(self):
-        from gi.repository import GLib
-        from .. import i18n, notify
-        for index, (action, digit, fallback) in enumerate(
-            (("toggle", 0x39, 0x78), ("cancel", 0x30, 0x79), ("settings", 0x38, 0x7A)), 1
-        ):
-            if RegisterHotKey(None, index, 0x400C, digit):
-                label = f"Win+Shift+{chr(digit)}"
-            elif RegisterHotKey(None, index, 0x4003, fallback):
-                label = f"Ctrl+Alt+F{fallback - 0x6F}"
-            else:
-                self.log(f"Could not register hotkey for {action}")
-                notify.send(i18n.t("windows.shortcut_failed"), i18n.t("windows.shortcut_help"))
-                continue
-            HOTKEYS[action] = label
-            self.ids[index] = action
-            self.log(f"Hotkey {label}: {action}")
-        self.source = GLib.timeout_add(25, self._poll)
+        # GDK consumes messages from its GUI thread before a GLib timer can
+        # inspect them. Give hotkeys their own Win32 message queue instead.
+        self.thread = threading.Thread(target=self._run, daemon=True, name="nabria-hotkeys")
+        self.thread.start()
+        if not self.ready.wait(5):
+            raise RuntimeError("Windows hotkeys did not initialize")
 
-    def _poll(self):
-        message = W.MSG()
-        while PeekMessage(C.byref(message), None, 0x0312, 0x0312, 1):
-            action = self.ids.get(message.wParam)
-            if action:
-                self.activated(action)
-        return True
+    def _run(self):
+        from .. import i18n, notify
+        try:
+            for index, (action, digit, fallback) in enumerate(
+                (("toggle", 0x39, 0x78), ("cancel", 0x30, 0x79), ("settings", 0x38, 0x7A)), 1
+            ):
+                if RegisterHotKey(None, index, 0x400C, digit):
+                    label = f"Win+Shift+{chr(digit)}"
+                elif RegisterHotKey(None, index, 0x4003, fallback):
+                    label = f"Ctrl+Alt+F{fallback - 0x6F}"
+                else:
+                    self.log(f"Could not register hotkey for {action}")
+                    notify.send(i18n.t("windows.shortcut_failed"), i18n.t("windows.shortcut_help"))
+                    continue
+                HOTKEYS[action] = label
+                self.ids[index] = action
+                self.log(f"Hotkey {label}: {action}")
+            self.ready.set()
+            message = W.MSG()
+            while not self.stopping.wait(0.01):
+                while PeekMessage(C.byref(message), None, 0x0312, 0x0312, 1):
+                    action = self.ids.get(message.wParam)
+                    if action:
+                        self.activated(action)
+        finally:
+            self.ready.set()
+            for index in self.ids:
+                UnregisterHotKey(None, index)
+            self.ids.clear()
+            HOTKEYS.clear()
 
     def stop(self):
-        from gi.repository import GLib
-        if self.source:
-            GLib.source_remove(self.source)
-            self.source = 0
-        for index in self.ids:
-            UnregisterHotKey(None, index)
-        self.ids.clear()
-        HOTKEYS.clear()
+        self.stopping.set()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
 
 
 def configure_overlay(window, settings):

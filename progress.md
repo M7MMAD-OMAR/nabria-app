@@ -20,3 +20,7 @@ Added a real Win32 EDIT paste/restore check and a checksum-verified base model
 transcription of the upstream speech sample to the installed-runtime suite.
 Ubuntu container passed: 246 tests, 8 skips. Debian and Fedora checks continue.
 Documented the implemented Windows architecture and explicit release gates.
+Latest quick check: 297 passed, 2 skipped.
+Moved Win32 hotkey handling onto its own native message queue so GDK cannot
+consume WM_HOTKEY first; self-test verifies dispatch, not just registration.
+Added Windows UI language detection when Unix locale variables are absent.
