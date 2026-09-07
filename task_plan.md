@@ -9,8 +9,8 @@ support, and Sbarah attribution. Publish and validate the finished installer.
 1. Native UI architecture and console audit: complete.
 2. Shared backend bridge and Windows WPF frontend: complete.
 3. Native setup, recording, history, settings and help flows: complete.
-4. Build, interactive Windows QA, console and regression checks: in_progress.
-5. Publish the validated redesigned release: pending.
+4. Build, interactive Windows QA, console and regression checks: complete.
+5. Publish the validated redesigned release: complete.
 
 ## Decisions
 - The user's new direction supersedes the earlier shared GTK interface decision.

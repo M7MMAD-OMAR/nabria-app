@@ -119,3 +119,26 @@ Local checks pass with 305 tests and 2 skips. The Windows build and native
 English/Arabic page self-test passed at bcb3d98, and its full Linux workflow
 passed. Final copy and control-state fixes are being assembled into the
 release candidate for installation validation. No branding-only release shipped.
+
+Published the native Windows desktop as v0.6.0 from e95c611. The final CI
+installer passed installation and the full interactive self-test on Windows 11
+Arabic, including native paste and clipboard restoration without the CI focus
+exemption. Start menu launch opened the standalone WPF application. A fresh
+Arabic fixture passed through WASAPI into a separate editor; its text exactly
+matched history. Uninstall exited 0, removed the executable, and preserved
+identical config, history and model hashes. The dedicated VM and its virtual
+audio input are shut down.
+
+Windows build 34132946828 passed. Linux checks 34129967851 and final main checks
+34140442378 passed. Local quick checks: 305 passed, 2 skipped. RPM and DEB
+installation checks passed on Fedora 44, Debian trixie and Ubuntu 24.04. The
+Linux package payload is unchanged by the final two WPF-only source edits.
+
+Release: https://github.com/M7MMAD-OMAR/nabria-app/releases/tag/v0.6.0
+Installer SHA-256:
+2d08de3c59793549ceecf1f5b4f8d5b78b502fcb68330b719eaa9fd24319330e
+Release assets include validation, installed self-test results, an actual Arabic
+window screenshot and SHA256SUMS. Keep v0.4.6 as latest stable; v0.6.0 is an
+unsigned prerelease. Physical microphones, Windows 10, GPU hardware and multiple
+monitors remain explicitly untested. Updated the PKGBUILD source checksum to
+the immutable release archive.
