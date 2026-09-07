@@ -6,6 +6,7 @@
   --night: #17110f;
   --night-raised: #211916;
   --night-soft: #2b211d;
+  --night-pill: #1c1613;
   --cream: #f4e6e0;
   --paper: #fffaf6;
   --sand: #ead7cd;
@@ -574,11 +575,11 @@ html[dir="rtl"] .quick-install-command button {
   position: relative;
   inline-size: min(100%, 590px);
   min-block-size: 430px;
-  border: 1px solid #dac9c2;
+  border: 1px solid var(--line-dark);
   border-radius: 20px;
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.32);
+  background: var(--night-raised);
+  color: var(--cream);
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.45);
   transform: rotate(-1.25deg);
   overflow: hidden;
 }
@@ -593,8 +594,8 @@ html[dir="rtl"] .editor-window {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-block-end: 1px solid #e4d6d0;
-  background: #f7ede8;
+  border-block-end: 1px solid var(--line-dark);
+  background: var(--night-pill);
 }
 
 .window-dots {
@@ -606,7 +607,7 @@ html[dir="rtl"] .editor-window {
   inline-size: 9px;
   block-size: 9px;
   border-radius: 50%;
-  background: #d2bcb2;
+  background: var(--line-dark);
 }
 
 .window-dots i:first-child {
@@ -614,7 +615,7 @@ html[dir="rtl"] .editor-window {
 }
 
 .editor-title {
-  color: #76635b;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -625,7 +626,8 @@ html[dir="rtl"] .editor-window {
 
 .editor-label {
   margin: 0 0 18px;
-  color: #8a746b;
+  min-block-size: 16px;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -633,7 +635,7 @@ html[dir="rtl"] .editor-window {
 .typed-line {
   min-block-size: 132px;
   margin: 0;
-  color: var(--ink);
+  color: var(--cream);
   font-size: clamp(28px, 3.2vw, 42px);
   font-weight: 500;
   line-height: 1.2;
@@ -660,13 +662,121 @@ html[dir="rtl"] .typed-line {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #7f6c64;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 500;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+[data-phase="done"] .editor-note {
+  opacity: 1;
 }
 
 .editor-note .icon {
-  color: #a04f39;
+  color: var(--voice);
+}
+
+/* The three beats of a take, in order: the microphone waits and then hears a
+   voice, the indicator arrives as the key is pressed a second time, and only
+   then does the sentence land. The stage plays them slowly on purpose, because
+   the point being made is that the words arrive after you stop talking. */
+.mic-cue {
+  position: absolute;
+  inset-block-start: 46%;
+  inset-inline-start: 50%;
+  translate: -50% -50%;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  opacity: 0;
+  scale: 0.72;
+  pointer-events: none;
+  transition: opacity 520ms ease, scale 620ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+html[dir="rtl"] .mic-cue {
+  translate: 50% -50%;
+}
+
+[data-phase="ready"] .mic-cue,
+[data-phase="listening"] .mic-cue {
+  opacity: 1;
+  scale: 1;
+}
+
+.mic-badge {
+  position: relative;
+  inline-size: 96px;
+  block-size: 96px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-dark);
+  border-radius: 50%;
+  background: var(--night-pill);
+  color: var(--voice);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+.mic-badge .icon {
+  inline-size: 34px;
+  block-size: 34px;
+}
+
+.mic-ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--voice);
+  border-radius: 50%;
+  opacity: 0;
+}
+
+[data-phase="listening"] .mic-ring {
+  animation: mic-ring 2400ms ease-out infinite;
+}
+
+[data-phase="listening"] .mic-ring:last-of-type {
+  animation-delay: 1200ms;
+}
+
+.mic-wave {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  block-size: 34px;
+}
+
+.mic-wave i {
+  inline-size: 4px;
+  block-size: var(--bar-height);
+  border-radius: 99px;
+  background: var(--voice);
+  opacity: 0.4;
+  scale: 1 0.3;
+  transition: opacity 400ms ease, scale 400ms ease;
+}
+
+[data-phase="listening"] .mic-wave i {
+  opacity: 1;
+  scale: 1;
+  animation: voice 820ms ease-in-out infinite alternate;
+}
+
+.mic-wave i:nth-child(1),
+.mic-wave i:nth-child(5) {
+  --bar-height: 12px;
+  animation-delay: -280ms;
+}
+
+.mic-wave i:nth-child(2),
+.mic-wave i:nth-child(4) {
+  --bar-height: 25px;
+  animation-delay: -120ms;
+}
+
+.mic-wave i:nth-child(3) {
+  --bar-height: 36px;
 }
 
 .nabria-orb {
@@ -684,35 +794,57 @@ html[dir="rtl"] .typed-line {
   border-radius: 18px;
   background: var(--night-raised);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  scale: 0.62;
+  transition: opacity 420ms ease, scale 520ms cubic-bezier(0.2, 0.9, 0.3, 1.25);
 }
 
 html[dir="rtl"] .nabria-orb {
   translate: 50% 0;
 }
 
+[data-phase="thinking"] .nabria-orb,
+[data-phase="typing"] .nabria-orb,
+[data-phase="done"] .nabria-orb {
+  opacity: 1;
+  scale: 1;
+}
+
 .nabria-orb i {
   inline-size: 5px;
-  block-size: var(--bar-height);
+  block-size: 8px;
   border-radius: 99px;
   background: var(--voice);
-  animation: voice 820ms ease-in-out infinite alternate;
   transform-origin: center;
+  transition: block-size 320ms ease, background-color 320ms ease;
 }
 
-.nabria-orb i:nth-child(1),
-.nabria-orb i:nth-child(5) {
-  --bar-height: 12px;
-  animation-delay: -280ms;
+/* Amber is what the application shows while the engine is working, and this is
+   the same wait, so the page borrows the colour rather than inventing one. */
+[data-phase="thinking"] .nabria-orb i,
+[data-phase="typing"] .nabria-orb i {
+  background: var(--thinking);
+  animation: think 1200ms ease-in-out infinite;
 }
 
-.nabria-orb i:nth-child(2),
-.nabria-orb i:nth-child(4) {
-  --bar-height: 25px;
-  animation-delay: -120ms;
+[data-phase="thinking"] .nabria-orb i:nth-child(2),
+[data-phase="typing"] .nabria-orb i:nth-child(2) {
+  animation-delay: -160ms;
 }
 
-.nabria-orb i:nth-child(3) {
-  --bar-height: 36px;
+[data-phase="thinking"] .nabria-orb i:nth-child(3),
+[data-phase="typing"] .nabria-orb i:nth-child(3) {
+  animation-delay: -320ms;
+}
+
+[data-phase="thinking"] .nabria-orb i:nth-child(4),
+[data-phase="typing"] .nabria-orb i:nth-child(4) {
+  animation-delay: -480ms;
+}
+
+[data-phase="thinking"] .nabria-orb i:nth-child(5),
+[data-phase="typing"] .nabria-orb i:nth-child(5) {
+  animation-delay: -640ms;
 }
 
 .section {
@@ -1005,181 +1137,6 @@ html[dir="rtl"] .flow-arrow {
   font-size: 20px;
 }
 
-.setup-grid {
-  display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  gap: clamp(54px, 7vw, 92px);
-  align-items: center;
-}
-
-.setup-copy .section-title {
-  max-inline-size: 560px;
-}
-
-.setup-copy p {
-  max-inline-size: 500px;
-  margin: 26px 0 0;
-  color: var(--muted-dark);
-  font-size: 18px;
-}
-
-.setup-notes {
-  display: grid;
-  gap: 13px;
-  margin: 30px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.setup-notes li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #473a35;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.setup-notes .icon {
-  color: #9c4934;
-}
-
-.screenshot-carousel {
-  position: relative;
-  border: 1px solid var(--line-light);
-  border-radius: var(--radius-lg);
-  background: #eadbd4;
-  box-shadow: 0 24px 60px rgba(45, 27, 21, 0.14);
-  overflow: hidden;
-}
-
-.carousel-viewport {
-  position: relative;
-  aspect-ratio: 3 / 2;
-  background: var(--night-raised);
-  overflow: hidden;
-}
-
-.carousel-slide {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateX(5%);
-  transition: opacity 260ms ease, transform 360ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 360ms;
-}
-
-html[dir="rtl"] .carousel-slide {
-  transform: translateX(-5%);
-}
-
-.carousel-slide.is-active {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(0);
-  transition-delay: 0s;
-}
-
-.carousel-slide img {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: contain;
-}
-
-.carousel-toolbar {
-  padding: 18px 22px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border-block-start: 1px solid var(--line-light);
-  color: var(--muted-dark);
-  font-size: 14px;
-}
-
-.carousel-toolbar > div:first-child {
-  min-inline-size: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.carousel-toolbar strong {
-  color: var(--ink);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.carousel-toolbar [data-carousel-count] {
-  color: #6d5750;
-  font-size: 12px;
-}
-
-.carousel-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.carousel-controls > button {
-  inline-size: 42px;
-  block-size: 42px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: 1px solid #cbb6ad;
-  border-radius: 10px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 20px;
-  cursor: pointer;
-  transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 160ms ease;
-}
-
-.carousel-controls > button:hover,
-.carousel-controls > button:focus-visible {
-  border-color: #9c4934;
-  background: var(--sand);
-  color: #8c422f;
-  transform: translateY(-1px);
-}
-
-.carousel-dots {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.carousel-dot {
-  position: relative;
-  inline-size: 28px;
-  block-size: 42px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.carousel-dot::after {
-  content: "";
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 50%;
-  inline-size: 8px;
-  block-size: 8px;
-  border-radius: 999px;
-  background: #a38b81;
-  translate: -50% -50%;
-  transition: inline-size 180ms ease, background 180ms ease;
-}
-
-.carousel-dot[aria-current="true"]::after {
-  inline-size: 20px;
-  background: #9c4934;
-}
-
 .install-grid {
   display: grid;
   grid-template-columns: 0.7fr 1.3fr;
@@ -1464,6 +1421,29 @@ html[dir="rtl"] .closing .button {
   }
 }
 
+@keyframes mic-ring {
+  from {
+    scale: 1;
+    opacity: 0.5;
+  }
+  to {
+    scale: 1.95;
+    opacity: 0;
+  }
+}
+
+@keyframes think {
+  0%,
+  100% {
+    block-size: 8px;
+    opacity: 0.55;
+  }
+  50% {
+    block-size: 16px;
+    opacity: 1;
+  }
+}
+
 @keyframes blink {
   50% {
     opacity: 0;
@@ -1579,7 +1559,6 @@ html[dir="rtl"] .closing .button {
   .hero-grid,
   .privacy-grid,
   .language-grid,
-  .setup-grid,
   .install-grid {
     grid-template-columns: 1fr;
   }
@@ -1607,7 +1586,6 @@ html[dir="rtl"] .closing .button {
 
   .privacy-copy,
   .language-copy,
-  .setup-copy,
   .install-copy {
     max-inline-size: 720px;
   }
@@ -1616,7 +1594,6 @@ html[dir="rtl"] .closing .button {
     max-inline-size: 760px;
   }
 
-  .screenshot-carousel,
   .install-shell,
   .machine-panel {
     inline-size: 100%;
@@ -1712,7 +1689,6 @@ html[dir="rtl"] .closing .button {
   .section-intro,
   .privacy-copy p,
   .language-copy p,
-  .setup-copy p,
   .install-copy p {
     font-size: 17px;
   }
@@ -1765,16 +1741,6 @@ html[dir="rtl"] .closing .button {
   .arabic-sample {
     margin-block: 34px 26px;
     font-size: clamp(38px, 12vw, 54px);
-  }
-
-  .carousel-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .carousel-controls {
-    inline-size: 100%;
-    justify-content: space-between;
   }
 
   .install-shell {

@@ -20,9 +20,9 @@
   <link rel="alternate" hreflang="ar" href="https://nabria.sbarah.com/ar/">
   <link rel="alternate" hreflang="x-default" href="https://nabria.sbarah.com/">
   <link rel="icon" href="assets/nabria-mark.svg?v=2" type="image/svg+xml">
-  <link rel="preload" href="assets/site.css?v=17" as="style">
-  <link rel="stylesheet" href="assets/site.css?v=17">
-  <script src="assets/site.js?v=17" defer></script>
+  <link rel="preload" href="assets/site.css?v=18" as="style">
+  <link rel="stylesheet" href="assets/site.css?v=18">
+  <script src="assets/site.js?v=18" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -38,7 +38,6 @@
         <nav class="primary-nav" aria-label="Main navigation">
           <a href="#how">How it works</a>
           <a href="#privacy">Privacy</a>
-          <a href="#setup">Setup</a>
           <a href="#install">Install</a>
         </nav>
 
@@ -98,22 +97,31 @@
           </ul>
         </div>
 
-        <div class="dictation-stage" aria-label="Nabria typing a spoken sentence into a document">
+        <div class="dictation-stage" data-dictation data-phase="done" aria-label="Nabria typing a spoken sentence into a document">
           <div class="editor-window">
             <div class="editor-toolbar">
               <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="editor-title">Untitled note</span>
             </div>
             <div class="editor-body">
-              <p class="editor-label">Your cursor stays here</p>
-              <p class="typed-line">Send the updated notes before Friday.<span class="cursor" aria-hidden="true"></span></p>
+              <p class="editor-label" data-dictation-label data-ready="Press your key" data-listening="Listening" data-thinking="Transcribing" data-done="Your cursor stays here">Your cursor stays here</p>
+              <p class="typed-line"><span data-dictation-text>Send the updated notes before Friday.</span><span class="cursor" aria-hidden="true"></span></p>
               <p class="editor-note">
                 <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-shield-check"></use></svg>
                 Typed locally by Nabria
               </p>
             </div>
           </div>
-          <div class="nabria-orb" aria-label="Nabria is listening"><i></i><i></i><i></i><i></i><i></i></div>
+
+          <div class="mic-cue" aria-hidden="true">
+            <span class="mic-badge">
+              <span class="mic-ring"></span><span class="mic-ring"></span>
+              <svg class="icon"><use href="assets/icons.svg#icon-microphone"></use></svg>
+            </span>
+            <span class="mic-wave"><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
+
+          <div class="nabria-orb" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
       </div>
     </section>
@@ -194,44 +202,10 @@
       </div>
     </section>
 
-    <section class="section section-light" id="setup" aria-labelledby="setup-title">
-      <div class="wrap setup-grid">
-        <div class="setup-copy">
-          <span class="section-index">04</span>
-          <h2 class="section-title" id="setup-title">Set it up once. Then forget it.</h2>
-          <p>Choose a model, test the microphone and bind your shortcut. Then Nabria gets out of the way.</p>
-          <ul class="setup-notes">
-            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>Picks a model for your hardware</li>
-            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>Finds models already on your machine</li>
-            <li><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#icon-check-circle"></use></svg>Tests the microphone before you finish</li>
-          </ul>
-        </div>
-
-        <div class="screenshot-carousel" data-carousel aria-label="Nabria interface screenshots">
-          <div class="carousel-viewport">
-            <figure class="carousel-slide is-active" data-slide data-caption="Welcome" aria-hidden="false"><img src="screenshots/en/welcome.png" alt="Nabria welcome screen" width="746" height="341"></figure>
-            <figure class="carousel-slide" data-slide data-caption="Interface language" aria-hidden="true"><img src="screenshots/en/language.png" alt="Choosing the Nabria interface language" width="746" height="674" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="Model choice" aria-hidden="true"><img src="screenshots/en/model.png" alt="Choosing a transcription model" width="746" height="627" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="Shortcut setup" aria-hidden="true"><img src="screenshots/en/shortcut.png" alt="Setting the global dictation shortcut" width="746" height="613" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="Engine settings" aria-hidden="true"><img src="screenshots/en/settings-engine.png" alt="Nabria engine settings" width="1262" height="530" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="Microphone and history" aria-hidden="true"><img src="screenshots/en/settings-microphone.png" alt="Nabria microphone settings and transcript history" width="1262" height="489" loading="lazy"></figure>
-          </div>
-          <div class="carousel-toolbar">
-            <div><strong data-carousel-caption>Welcome</strong><span data-carousel-count>1 / 6</span></div>
-            <div class="carousel-controls">
-              <button type="button" data-carousel-prev aria-label="Previous screenshot"><span aria-hidden="true">←</span></button>
-              <div class="carousel-dots" data-carousel-dots aria-label="Choose screenshot"></div>
-              <button type="button" data-carousel-next aria-label="Next screenshot"><span aria-hidden="true">→</span></button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <section class="section section-gold" id="install" aria-labelledby="install-title">
       <div class="wrap install-grid">
         <div class="install-copy">
-          <span class="section-index">05</span>
+          <span class="section-index">04</span>
           <h2 class="section-title" id="install-title">Choose your distro.</h2>
           <p>The packages include the app and transcription engine. Setup downloads only the model that fits your machine.</p>
         </div>

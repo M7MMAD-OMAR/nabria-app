@@ -2,3 +2,7 @@
 # but they are written for the repository, not for a visitor. Keep them out of
 # the deployed site; GitHub still renders them at their source URLs.
 *.md
+
+# The site no longer shows the setup screenshots; README still does, so the
+# files stay in the repository but are not worth serving.
+screenshots/

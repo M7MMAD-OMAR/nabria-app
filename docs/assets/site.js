@@ -50,76 +50,106 @@
     });
   }
 
-  document.querySelectorAll("[data-carousel]").forEach((carousel) => {
-    const slides = [...carousel.querySelectorAll("[data-slide]")];
-    const previous = carousel.querySelector("[data-carousel-prev]");
-    const next = carousel.querySelector("[data-carousel-next]");
-    const dots = carousel.querySelector("[data-carousel-dots]");
-    const caption = carousel.querySelector("[data-carousel-caption]");
-    const count = carousel.querySelector("[data-carousel-count]");
-    const viewport = carousel.querySelector(".carousel-viewport");
-    const locale = document.documentElement.lang || "en";
-    const numbers = new Intl.NumberFormat(locale, {
-      useGrouping: false,
-      numberingSystem: locale.startsWith("ar") ? "arab" : "latn",
-    });
-    let active = 0;
-    let pointerStart = null;
+  /* The hero stage plays one take end to end: the microphone waits, hears a
+     voice, the indicator arrives with the second keypress, and the sentence is
+     typed only after that. The final sentence is what the markup contains, so a
+     search engine and a reader with no JavaScript both get the real text; the
+     animation reads it back out of the DOM before it starts. */
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-    if (!slides.length || !previous || !next || !dots || !caption || !count || !viewport) return;
+  document.querySelectorAll("[data-dictation]").forEach((stage) => {
+    const line = stage.querySelector(".typed-line");
+    const body = stage.querySelector("[data-dictation-text]");
+    const label = stage.querySelector("[data-dictation-label]");
+    if (!line || !body || !label) return;
 
-    const dotButtons = slides.map((slide, index) => {
-      const dot = document.createElement("button");
-      dot.type = "button";
-      dot.className = "carousel-dot";
-      dot.setAttribute("aria-label", slide.dataset.caption || `${index + 1}`);
-      dot.addEventListener("click", () => show(index));
-      dots.append(dot);
-      return dot;
-    });
+    const sentence = body.textContent.trim();
+    const characters = [...sentence];
 
-    const show = (index) => {
-      active = (index + slides.length) % slides.length;
-      slides.forEach((slide, slideIndex) => {
-        const selected = slideIndex === active;
-        slide.classList.toggle("is-active", selected);
-        slide.setAttribute("aria-hidden", String(!selected));
-      });
-      dotButtons.forEach((dot, dotIndex) => {
-        dot.setAttribute("aria-current", String(dotIndex === active));
-      });
-      caption.textContent = slides[active].dataset.caption || "";
-      count.textContent = `${numbers.format(active + 1)} / ${numbers.format(slides.length)}`;
-      const activeImage = slides[active].querySelector("img");
-      if (activeImage) activeImage.loading = "eager";
+    const setPhase = (phase) => {
+      stage.dataset.phase = phase;
+      label.textContent = label.dataset[phase] || label.dataset.done || "";
     };
 
-    previous.addEventListener("click", () => show(active - 1));
-    next.addEventListener("click", () => show(active + 1));
-    carousel.addEventListener("keydown", (event) => {
-      const rtl = document.documentElement.dir === "rtl";
-      if (event.key === "ArrowRight") show(active + (rtl ? -1 : 1));
-      else if (event.key === "ArrowLeft") show(active + (rtl ? 1 : -1));
-      else if (event.key === "Home") show(0);
-      else if (event.key === "End") show(slides.length - 1);
-      else return;
-      event.preventDefault();
-    });
-    viewport.addEventListener("pointerdown", (event) => {
-      pointerStart = event.clientX;
-    });
-    viewport.addEventListener("pointerup", (event) => {
-      if (pointerStart === null) return;
-      const distance = event.clientX - pointerStart;
-      pointerStart = null;
-      if (Math.abs(distance) < 44) return;
-      show(active + (distance < 0 ? 1 : -1));
-    });
-    viewport.addEventListener("pointercancel", () => {
-      pointerStart = null;
-    });
+    if (reducedMotion.matches) {
+      setPhase("done");
+      return;
+    }
 
-    show(0);
+    // Typed one character at a time it would be announced one character at a
+    // time, so the paragraph says the whole sentence once and the animating
+    // node says nothing.
+    line.setAttribute("role", "img");
+    line.setAttribute("aria-label", sentence);
+    body.setAttribute("aria-hidden", "true");
+
+    let running = false;
+    let playing = false;
+    const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+    const play = async () => {
+      while (running) {
+        setPhase("ready");
+        body.textContent = "";
+        await wait(1600);
+        if (!running) break;
+
+        setPhase("listening");
+        await wait(4200);
+        if (!running) break;
+
+        setPhase("thinking");
+        await wait(1700);
+        if (!running) break;
+
+        setPhase("typing");
+        for (let index = 1; index <= characters.length; index += 1) {
+          body.textContent = characters.slice(0, index).join("");
+          await wait(characters[index - 1] === " " ? 105 : 58);
+          if (!running) break;
+        }
+        if (!running) break;
+
+        setPhase("done");
+        await wait(5400);
+      }
+
+      playing = false;
+      // The stage can come back into view while the last take is still winding
+      // down; without this it would stop for good on the way back.
+      if (running) {
+        start();
+        return;
+      }
+      setPhase("done");
+      body.textContent = sentence;
+    };
+
+    const start = () => {
+      running = true;
+      if (playing) return;
+      playing = true;
+      play();
+    };
+
+    // Nothing animates while the reader is somewhere else on the page.
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) start();
+            else running = false;
+          });
+        },
+        { threshold: 0.35 },
+      ).observe(stage);
+    } else {
+      start();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) running = false;
+    });
   });
 
   document.querySelectorAll("[data-install-tabs]").forEach((group) => {

@@ -158,7 +158,7 @@ that cannot work.
 Not GitHub Pages, which was the earlier plan: `sbarah.com` is already on
 Cloudflare and every other subdomain of it is a Worker, so a Pages site would
 have been the one host in the account nobody else uses. The trade is the same
-either way — a directory of files goes up as it stands. `docs/.nojekyll` stays
+either way: a directory of files goes up as it stands. `docs/.nojekyll` stays
 for anyone who points Pages at this folder anyway.
 
 `docs/.assetsignore` keeps `*.md` out of the deployed site. `SITE.md` and
@@ -166,7 +166,7 @@ for anyone who points Pages at this folder anyway.
 publishes everything in it at a bare URL.
 
 The deploy is `wrangler deploy` from the repository root, and it ships the
-working tree — so commit first, exactly as `release_tarball` uses `git archive`
+working tree, so commit first, exactly as `release_tarball` uses `git archive`
 rather than `tar` for the same reason. Connecting the Worker to the repository
 in the Cloudflare dashboard (Workers Builds, `main`, deploy command
 `wrangler deploy`) removes that footgun; it cannot be done from the CLI.
@@ -186,18 +186,57 @@ became bilingual and grew screenshots. Recorded here rather than asked again.
    is not itself an example of. `dir="rtl"` and the same drawn components —
    the page has almost no words, which is exactly what makes the second
    language nearly free.
-3. **Screenshots, not a screen recording.** The all-drawn brief and real
-   pictures of the application are in tension, and this resolves toward the
-   pictures: `docs/screenshots/` now holds six per language, generated from a
-   clean profile. So the page is drawn *around* real screenshots rather than
-   drawn instead of them. That is a change to the brief and is written down as
-   one. A recording stays out — it is the one thing that could not be checked
-   into the repository and re-generated.
+3. **Screenshots, then no screenshots.** The all-drawn brief and real pictures
+   of the application were in tension, and the page first resolved that toward
+   the pictures: a setup section carrying a carousel of six per language. That
+   section is now cut, on the owner's call, as a stretch of page that earned
+   its length only by having images to show. `docs/screenshots/` stays in the
+   repository because the README uses it, and `docs/.assetsignore` keeps it out
+   of the deployed site. So the brief is back where it started: everything on
+   the page is drawn. A recording stays out either way, being the one thing
+   that could not be checked into the repository and re-generated.
 
-**Still open: motion.** Does anything animate besides the hero? The default,
-unless there is a reason otherwise, is to reuse the indicator's own five-mark
-envelope — the same shape the application draws — and to honour
-`prefers-reduced-motion`. Low stakes; ship it and react.
+## Motion, and the one thing it has to say
+
+**Settled: the hero plays a whole take, slowly.** The microphone waits, hears a
+voice, the indicator arrives with the second keypress, and only then is the
+sentence typed. That order is the product: the words land *after* you stop
+talking, and a page that types while the waveform is still moving would be
+claiming live transcription, which is an explicit non-goal in `PLAN.md`. The
+whole cycle runs about fourteen seconds, which is slow for a web animation and
+right for a thing whose argument is that you can stop paying attention to it.
+
+Three constraints on it, all of them the reason the code looks the way it does:
+
+- **The sentence is in the markup**, and JavaScript reads it back out before
+  animating. A page whose only copy arrives from a script is a page with no
+  copy, which is the first cost named at the top of this document.
+- **It is announced once, not once per character.** The paragraph takes
+  `role="img"` and an `aria-label`; the node being typed into is hidden from
+  assistive technology.
+- **`prefers-reduced-motion` gets the finished sentence and nothing else**, and
+  the loop stops entirely when the hero is scrolled out of view. The global
+  reduced-motion rule in the stylesheet cannot do this on its own, because it
+  only shortens CSS durations and the typing is driven from JavaScript.
+
+**The hero panel is dark.** It was cream, which put the one white rectangle on
+the page in the middle of the darkest section and read as a screenshot of some
+other program's window. It now uses the shipped surfaces, `#211916` on
+`#1c1613`, so the section is one material rather than two.
+
+## Cut
+
+**The setup section.** Four screenshots of the wizard, a heading and three
+lines, sitting between the Arabic section and the download. It was cut whole on
+the owner's call. The argument for cutting is the brief's own: the page's job
+is to say what this is, show it working and hand over a download, and a tour of
+a first-run wizard is none of the three. The screenshots survive in the README,
+where somebody deciding whether to install has a reason to want them.
+
+**Tashkeel, in the Arabic page.** The brand was set as `نَبْرة` throughout and
+the hero read `احكِ`. Both are gone: the page is written unvocalised, and the
+hero verb is `تكلم`. This is a house rule for the site's copy, not a claim
+about the word.
 
 ## Not on the page
 

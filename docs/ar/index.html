@@ -4,41 +4,40 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#17110f">
-  <meta name="description" content="نَبْرة هي إملاء صوتي محلي للينكس. اضغط، احكِ، واضغط مرة ثانية. كلماتك بتظهر بمكان المؤشر.">
-  <meta property="og:title" content="نَبْرة | احكِ وبس">
+  <meta name="description" content="نبرة هي إملاء صوتي محلي للينكس. اضغط، تكلم، واضغط مرة ثانية. كلماتك بتظهر بمكان المؤشر.">
+  <meta property="og:title" content="نبرة | تكلم وبس">
   <meta property="og:description" content="إملاء صوتي محلي للينكس. بدون حساب وبدون سحابة.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://nabria.sbarah.com/assets/nabria-social.png?v=2">
   <meta property="og:url" content="https://nabria.sbarah.com/ar/">
-  <meta property="og:site_name" content="نَبْرة">
+  <meta property="og:site_name" content="نبرة">
   <meta property="og:locale" content="ar">
   <meta property="og:locale:alternate" content="en">
   <meta name="twitter:card" content="summary_large_image">
-  <title>نَبْرة | احكِ وبس</title>
+  <title>نبرة | تكلم وبس</title>
   <link rel="canonical" href="https://nabria.sbarah.com/ar/">
   <link rel="alternate" hreflang="en" href="https://nabria.sbarah.com/">
   <link rel="alternate" hreflang="ar" href="https://nabria.sbarah.com/ar/">
   <link rel="alternate" hreflang="x-default" href="https://nabria.sbarah.com/">
   <link rel="icon" href="../assets/nabria-mark.svg?v=2" type="image/svg+xml">
-  <link rel="preload" href="../assets/site.css?v=17" as="style">
-  <link rel="stylesheet" href="../assets/site.css?v=17">
-  <script src="../assets/site.js?v=17" defer></script>
+  <link rel="preload" href="../assets/site.css?v=18" as="style">
+  <link rel="stylesheet" href="../assets/site.css?v=18">
+  <script src="../assets/site.js?v=18" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">انتقل للمحتوى</a>
 
   <header class="site-header" data-menu-open="false">
     <div class="wrap header-inner">
-      <a class="brand" href="./" aria-label="الصفحة الرئيسية لنَبْرة">
+      <a class="brand" href="./" aria-label="الصفحة الرئيسية لنبرة">
         <img src="../assets/nabria-mark.svg?v=2" alt="" width="38" height="38">
-        <span class="brand-name"><strong>نَبْرة</strong><small lang="en" dir="ltr">Nabria</small></span>
+        <span class="brand-name"><strong>نبرة</strong><small lang="en" dir="ltr">Nabria</small></span>
       </a>
 
       <div class="header-cluster" id="mobile-menu">
         <nav class="primary-nav" aria-label="التنقل الرئيسي">
           <a href="#how">كيف بتشتغل</a>
           <a href="#privacy">الخصوصية</a>
-          <a href="#setup">الإعداد</a>
           <a href="#install">التثبيت</a>
         </nav>
 
@@ -50,12 +49,12 @@
           </a>
           <a class="header-download" href="#install">
             <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-download-simple"></use></svg>
-            ثبّتها
+            ثبتها
           </a>
         </div>
       </div>
 
-      <button class="menu-toggle" type="button" aria-label="افتح القائمة" aria-controls="mobile-menu" aria-expanded="false" data-open-label="افتح القائمة" data-close-label="سكّر القائمة"><span></span></button>
+      <button class="menu-toggle" type="button" aria-label="افتح القائمة" aria-controls="mobile-menu" aria-expanded="false" data-open-label="افتح القائمة" data-close-label="سكر القائمة"><span></span></button>
     </div>
   </header>
 
@@ -64,12 +63,12 @@
       <div class="wrap hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">إملاء صوتي محلي للينكس</p>
-          <h1 id="hero-title">احكِ<br><span>وبس.</span></h1>
-          <p class="hero-lead">اضغط مرة، احكِ، واضغط مرة ثانية. نَبْرة بتكتب بمكان المؤشر، وكل شي بيضل على جهازك.</p>
+          <h1 id="hero-title">تكلم<br><span>وبس.</span></h1>
+          <p class="hero-lead">اضغط مرة، تكلم، واضغط مرة ثانية. نبرة بتكتب بمكان المؤشر، وكل شي بيضل على جهازك.</p>
           <div class="hero-actions">
             <a class="button button-primary" href="#install">
               <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-download-simple"></use></svg>
-              ثبّت نَبْرة
+              ثبت نبرة
             </a>
             <a class="button button-secondary" href="https://github.com/M7MMAD-OMAR/nabria-app">
               <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-github-logo"></use></svg>
@@ -98,22 +97,31 @@
           </ul>
         </div>
 
-        <div class="dictation-stage" aria-label="نَبْرة تكتب جملة محكية داخل مستند">
+        <div class="dictation-stage" data-dictation data-phase="done" aria-label="نبرة تكتب جملة محكية داخل مستند">
           <div class="editor-window">
             <div class="editor-toolbar">
               <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="editor-title">ملاحظة جديدة</span>
             </div>
             <div class="editor-body">
-              <p class="editor-label">المؤشر بيضل هون</p>
-              <p class="typed-line">بعتلي النسخة الجديدة قبل الجمعة.<span class="cursor" aria-hidden="true"></span></p>
+              <p class="editor-label" data-dictation-label data-ready="اضغط مفتاحك" data-listening="عم تسمع" data-thinking="عم تفرغ الكلام" data-done="المؤشر بيضل هون">المؤشر بيضل هون</p>
+              <p class="typed-line"><span data-dictation-text>بعتلي النسخة الجديدة قبل الجمعة.</span><span class="cursor" aria-hidden="true"></span></p>
               <p class="editor-note">
                 <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-shield-check"></use></svg>
-                نَبْرة كتبتها محلياً
+                نبرة كتبتها محليا
               </p>
             </div>
           </div>
-          <div class="nabria-orb" aria-label="نَبْرة عم تسمع"><i></i><i></i><i></i><i></i><i></i></div>
+
+          <div class="mic-cue" aria-hidden="true">
+            <span class="mic-badge">
+              <span class="mic-ring"></span><span class="mic-ring"></span>
+              <svg class="icon"><use href="../assets/icons.svg#icon-microphone"></use></svg>
+            </span>
+            <span class="mic-wave"><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
+
+          <div class="nabria-orb" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
       </div>
     </section>
@@ -123,8 +131,8 @@
         <div class="section-head">
           <span class="section-index">01</span>
           <div>
-            <h2 class="section-title" id="how-title">اضغط. احكِ. خلص.</h2>
-            <p class="section-intro">ما في مكان جديد لازم تكتب فيه. نَبْرة بتشتغل وين ما كان مؤشرك.</p>
+            <h2 class="section-title" id="how-title">اضغط. تكلم. خلص.</h2>
+            <p class="section-intro">ما في مكان جديد لازم تكتب فيه. نبرة بتشتغل وين ما كان مؤشرك.</p>
           </div>
         </div>
 
@@ -136,13 +144,13 @@
           </article>
           <article class="step">
             <div class="step-top"><span class="step-number">02</span><span class="step-icon"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-microphone"></use></svg></span></div>
-            <h3>احكِ عادي</h3>
+            <h3>تكلم عادي</h3>
             <p>المؤشر بيتحرك مع مستوى صوت المايكروفون الحقيقي.</p>
           </article>
           <article class="step">
             <div class="step-top"><span class="step-number">03</span><span class="step-icon"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-waveform"></use></svg></span></div>
             <h3>اضغط مرة ثانية</h3>
-            <p>نَبْرة بتكتب كلماتك بمكان المؤشر.</p>
+            <p>نبرة بتكتب كلماتك بمكان المؤشر.</p>
           </article>
         </div>
       </div>
@@ -164,7 +172,7 @@
         <div class="machine-panel" aria-label="تفريغ الصوت بيصير داخل الجهاز">
           <div class="machine-label">
             <svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-shield-check"></use></svg>
-            جوّا جهازك
+            جوا جهازك
           </div>
           <div class="machine-flow">
             <div class="machine-node"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-microphone"></use></svg><span>صوتك</span></div>
@@ -194,46 +202,12 @@
       </div>
     </section>
 
-    <section class="section section-light" id="setup" aria-labelledby="setup-title">
-      <div class="wrap setup-grid">
-        <div class="setup-copy">
-          <span class="section-index">04</span>
-          <h2 class="section-title" id="setup-title">ضبطها مرة. وبعدين انساها.</h2>
-          <p>اختار نموذج، جرّب المايكروفون، واربط الاختصار. بعدها نَبْرة بتبعد عن طريقك.</p>
-          <ul class="setup-notes">
-            <li><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-check-circle"></use></svg>بتختار نموذج مناسب لجهازك</li>
-            <li><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-check-circle"></use></svg>بتلاقي النماذج الموجودة عندك</li>
-            <li><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-check-circle"></use></svg>بتفحص المايكروفون قبل ما تخلص</li>
-          </ul>
-        </div>
-
-        <div class="screenshot-carousel" data-carousel aria-label="صور واجهة نَبْرة">
-          <div class="carousel-viewport">
-            <figure class="carousel-slide is-active" data-slide data-caption="الترحيب" aria-hidden="false"><img src="../screenshots/ar/welcome.png" alt="شاشة ترحيب نَبْرة" width="746" height="390"></figure>
-            <figure class="carousel-slide" data-slide data-caption="لغة الواجهة" aria-hidden="true"><img src="../screenshots/ar/language.png" alt="اختيار لغة واجهة نَبْرة" width="746" height="674" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="اختيار النموذج" aria-hidden="true"><img src="../screenshots/ar/model.png" alt="اختيار نموذج التفريغ" width="746" height="627" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="إعداد الاختصار" aria-hidden="true"><img src="../screenshots/ar/shortcut.png" alt="إعداد اختصار الإملاء العام" width="746" height="613" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="إعدادات المحرك" aria-hidden="true"><img src="../screenshots/ar/settings-engine.png" alt="إعدادات محرك نَبْرة" width="1262" height="530" loading="lazy"></figure>
-            <figure class="carousel-slide" data-slide data-caption="المايكروفون والسجل" aria-hidden="true"><img src="../screenshots/ar/settings-microphone.png" alt="إعدادات المايكروفون وسجل التفريغ" width="1262" height="489" loading="lazy"></figure>
-          </div>
-          <div class="carousel-toolbar">
-            <div><strong data-carousel-caption>الترحيب</strong><span data-carousel-count>١ / ٦</span></div>
-            <div class="carousel-controls">
-              <button type="button" data-carousel-prev aria-label="الصورة السابقة"><span aria-hidden="true">→</span></button>
-              <div class="carousel-dots" data-carousel-dots aria-label="اختيار الصورة"></div>
-              <button type="button" data-carousel-next aria-label="الصورة التالية"><span aria-hidden="true">←</span></button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <section class="section section-gold" id="install" aria-labelledby="install-title">
       <div class="wrap install-grid">
         <div class="install-copy">
-          <span class="section-index">05</span>
+          <span class="section-index">04</span>
           <h2 class="section-title" id="install-title">اختار توزيعتك.</h2>
-          <p>الحزمة فيها التطبيق ومحرك التفريغ. الإعداد بينزّل بس النموذج المناسب لجهازك.</p>
+          <p>الحزمة فيها التطبيق ومحرك التفريغ. الإعداد بينزل بس النموذج المناسب لجهازك.</p>
         </div>
 
         <div class="install-shell" data-install-tabs>
@@ -276,14 +250,14 @@
     <section class="closing" aria-labelledby="closing-title">
       <div class="wrap">
         <h2 class="closing-title" id="closing-title">قولها.<br><span>بتنزل.</span></h2>
-        <a class="button button-primary" href="#install"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-download-simple"></use></svg>ثبّت نَبْرة</a>
+        <a class="button button-primary" href="#install"><svg class="icon" aria-hidden="true"><use href="../assets/icons.svg#icon-download-simple"></use></svg>ثبت نبرة</a>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="wrap footer-main">
-      <a class="footer-brand" href="./"><img src="../assets/nabria-mark.svg?v=2" alt="" width="36" height="36"><span><strong>نَبْرة</strong><small>إملاء صوتي محلي للينكس</small></span></a>
+      <a class="footer-brand" href="./"><img src="../assets/nabria-mark.svg?v=2" alt="" width="36" height="36"><span><strong>نبرة</strong><small>إملاء صوتي محلي للينكس</small></span></a>
       <nav class="footer-links" aria-label="روابط التذييل"><a href="https://github.com/M7MMAD-OMAR/nabria-app">المصدر</a><a href="https://github.com/M7MMAD-OMAR/nabria-app/blob/main/README.md">الدليل</a><a href="https://github.com/M7MMAD-OMAR/nabria-app/blob/main/LICENSE">ترخيص MIT</a><a href="https://buymeacoffee.com/m7mmadomar">ادعم العمل</a></nav>
       <a class="sbarah-link" href="https://sbarah.com" aria-label="زيارة موقع صبارة"><span>مشروع من</span><img src="../assets/sbarah-logo.svg" alt="صبارة" width="70" height="37"></a>
     </div>
