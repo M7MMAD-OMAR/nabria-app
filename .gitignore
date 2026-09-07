@@ -5,3 +5,6 @@ __pycache__/
 # in engine/CHECKSUMS is what belongs in git, not 57 MB of binary.
 whisper-server-linux-*
 dist/
+
+# wrangler deploy scratch; nothing here is worth a commit.
+.wrangler/

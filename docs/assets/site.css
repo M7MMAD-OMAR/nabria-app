@@ -1266,6 +1266,114 @@ html[dir="rtl"] .flow-arrow {
   color: var(--thinking);
 }
 
+/* Buy Me a Coffee's yellow is #FFDD00 and its ink is #0D0C22. Both live here
+   and nowhere else: the palette at the top of this file is the application's
+   own colours, and a second brand's values do not belong in it. The button and
+   the cup are their files, unmodified, for the same reason. */
+.support-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: clamp(54px, 7vw, 92px);
+  align-items: center;
+}
+
+.support-copy .section-title {
+  margin-block: 20px 22px;
+}
+
+.support-copy p {
+  margin: 0;
+  max-inline-size: 46ch;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1.55;
+}
+
+.bmc-button {
+  display: inline-flex;
+  margin-block-start: 34px;
+  border-radius: 12px;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.bmc-button img {
+  display: block;
+  block-size: auto;
+}
+
+.bmc-button:hover,
+.bmc-button:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 34px rgba(255, 221, 0, 0.22);
+}
+
+.support-alt {
+  margin-block-start: 26px;
+  font-size: 15px;
+}
+
+.support-alt a {
+  color: var(--cream);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.support-alt a:hover,
+.support-alt a:focus-visible {
+  color: var(--voice);
+}
+
+.support-panel {
+  position: relative;
+  padding: clamp(34px, 4vw, 48px);
+  border: 1px solid var(--line-dark);
+  border-radius: var(--radius-lg);
+  background: var(--night-raised);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+  transform: rotate(-1.25deg);
+}
+
+html[dir="rtl"] .support-panel {
+  transform: rotate(1.25deg);
+}
+
+.bmc-mark {
+  display: grid;
+  place-items: center;
+  inline-size: 180px;
+  block-size: 180px;
+  margin-inline: auto;
+  border-radius: 50%;
+  background: #ffdd00;
+}
+
+.bmc-mark img {
+  inline-size: auto;
+  block-size: 96px;
+}
+
+.support-list {
+  margin: clamp(30px, 4vw, 42px) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+
+.support-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--cream);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.support-list .icon {
+  color: var(--voice);
+  flex: none;
+}
+
 .requirements {
   padding-block: 32px;
   border-block: 1px solid var(--line-dark);
@@ -1559,6 +1667,7 @@ html[dir="rtl"] .closing .button {
   .hero-grid,
   .privacy-grid,
   .language-grid,
+  .support-grid,
   .install-grid {
     grid-template-columns: 1fr;
   }
@@ -1586,6 +1695,7 @@ html[dir="rtl"] .closing .button {
 
   .privacy-copy,
   .language-copy,
+  .support-copy,
   .install-copy {
     max-inline-size: 720px;
   }
@@ -1595,6 +1705,7 @@ html[dir="rtl"] .closing .button {
   }
 
   .install-shell,
+  .support-panel,
   .machine-panel {
     inline-size: 100%;
   }
@@ -1689,6 +1800,7 @@ html[dir="rtl"] .closing .button {
   .section-intro,
   .privacy-copy p,
   .language-copy p,
+  .support-copy p,
   .install-copy p {
     font-size: 17px;
   }

@@ -283,11 +283,13 @@ exists. Everything works offline with `podman` or `docker` installed.
 
 ## Support the work
 
-Nabria is free, MIT, and runs entirely on your own machine — there is no
-account to sell you and no usage to meter, which is the point of it and also
-the reason there is nothing behind it but time.
+Nabria is free, MIT, and runs entirely on your own machine. There is no account
+to sell you and no usage to meter, which is the point of it and also the reason
+there is nothing behind it but time.
 
-If it saved you some, you can [buy me a coffee](https://buymeacoffee.com/m7mmadomar).
+If it saved you some, you can buy me a coffee:
+
+<a href="https://www.buymeacoffee.com/m7mmadomar"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="217" height="60"></a>
 
 A report of a distribution or desktop it does not work on is worth as much;
 those are in [CONTRIBUTING.md](CONTRIBUTING.md).

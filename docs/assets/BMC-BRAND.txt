@@ -1,0 +1,9 @@
+bmc-button.svg and bmc-logo.svg are Buy Me a Coffee's own brand assets, taken
+unmodified from the brand kit they publish at buymeacoffee.com. They are not
+ours to recolour, restyle or redraw, which is why they sit here as files rather
+than being folded into icons.svg with the rest of the page's marks.
+
+The yellow in them is #FFDD00 and the ink is #0D0C22. Both appear in site.css
+only inside the support section's own rules, never in the palette at the top of
+the file: that block is the application's own colours and nothing else belongs
+in it.

@@ -224,6 +224,30 @@ the page in the middle of the darkest section and read as a screenshot of some
 other program's window. It now uses the shipped surfaces, `#211916` on
 `#1c1613`, so the section is one material rather than two.
 
+## Support
+
+The section is `05`, on the dark ground, between the requirements strip and the
+closing line. Its argument is the one the README already makes: the thing is
+MIT and runs on your own machine, so there is no account to sell and no usage
+to meter, and what it costs is time. The panel beside it says that as three
+marks rather than a second paragraph.
+
+Buy Me a Coffee's button and cup ship as their own files, unmodified, and their
+terms are noted in `docs/assets/BMC-BRAND.txt`. Two rules follow from that and
+neither is cosmetic:
+
+- **Their yellow is not in the palette.** `#FFDD00` and `#0D0C22` appear only
+  inside the support section's rules. The block at the top of `site.css` is the
+  application's colours, from `theme.py`, and that claim stops being true the
+  moment a second brand's values are filed next to them.
+- **The button is not redrawn.** It is their mark, so it is their file. It also
+  never mirrors: the Arabic page tilts the panel the other way, as the hero
+  window does, and leaves the button alone.
+
+The README carries the same button from Buy Me a Coffee's own CDN rather than a
+copy in this repository, because a raster committed at the root of `docs/`
+would ride into `nabria.tar.gz` through `git archive` for no reason.
+
 ## Cut
 
 **The setup section.** Four screenshots of the wizard, a heading and three
