@@ -59,6 +59,9 @@ def xdg(tmp_path, monkeypatch):
         directory = tmp_path / name.lower()
         directory.mkdir(parents=True, exist_ok=True)
         monkeypatch.setenv(name, str(directory))
+    if sys.platform == "win32":
+        monkeypatch.setenv("APPDATA", str(tmp_path / "roaming"))
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
     return tmp_path
 
 

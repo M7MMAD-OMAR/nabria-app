@@ -89,6 +89,21 @@ def main() -> int:
         finally:
             CloseClipboard()
         results["unicode_clipboard"] = "passed"
+        test_paste()
+        results["native_paste_and_restore"] = "passed"
+        sample = os.environ.get("NABRIA_TEST_WAV")
+        if sample:
+            from .. import models, whisper
+            with tempfile.TemporaryDirectory(prefix="nabria-model-check-") as directory:
+                model = models.download(models.CATALOG["base"], Path(directory))
+                settings = {**config.DEFAULTS, "model": str(model), "language": "en", "gpu_select": "cpu"}
+                server = whisper.WhisperServer(settings, lambda message: None)
+                try:
+                    transcript = server.transcribe(Path(sample))
+                    assert "country" in transcript.lower(), transcript
+                finally:
+                    server.stop()
+                results["real_transcription"] = "passed"
         results["status"] = "passed"
     except Exception:
         results["status"] = "failed"
@@ -99,3 +114,59 @@ def main() -> int:
     elif results["status"] != "passed":
         Path(tempfile.gettempdir(), "nabria-self-test.json").write_text(text, encoding="utf-8")
     return 0 if results["status"] == "passed" else 1
+
+
+def test_paste():
+    """Send a real Ctrl+V to a native EDIT control and verify restoration."""
+    import threading
+    from ctypes import wintypes as W
+    from . import inject
+    from .desktop import api, user32
+
+    SetForegroundWindow = api(user32, "SetForegroundWindow", W.BOOL, W.HWND)
+    SetFocus = api(user32, "SetFocus", W.HWND, W.HWND)
+    GetWindowText = api(user32, "GetWindowTextW", C.c_int, W.HWND, W.LPWSTR, C.c_int)
+    PeekMessage = api(user32, "PeekMessageW", W.BOOL, C.POINTER(W.MSG), W.HWND, W.UINT, W.UINT, W.UINT)
+    TranslateMessage = api(user32, "TranslateMessage", W.BOOL, C.POINTER(W.MSG))
+    DispatchMessage = api(user32, "DispatchMessageW", C.c_ssize_t, C.POINTER(W.MSG))
+    hwnd = inject.CreateWindow(0, "EDIT", "", 0x10CF0004, 100, 100, 400, 200, None, None, None, None)
+    assert hwnd
+    errors = []
+    text = "Nabria: hello مرحبا 123"
+    try:
+        SetForegroundWindow(hwnd)
+        SetFocus(hwnd)
+        inject.to_clipboard("previous clipboard: سابق")
+
+        def work():
+            try:
+                inject.deliver(text)
+            except Exception as exc:
+                errors.append(str(exc))
+
+        thread = threading.Thread(target=work)
+        thread.start()
+        deadline = time.monotonic() + 10
+        while thread.is_alive() and time.monotonic() < deadline:
+            message = W.MSG()
+            while PeekMessage(C.byref(message), None, 0, 0, 1):
+                TranslateMessage(C.byref(message))
+                DispatchMessage(C.byref(message))
+            time.sleep(0.005)
+        thread.join(timeout=1)
+        assert not thread.is_alive(), "Paste worker timed out"
+        assert not errors, errors
+        buffer = C.create_unicode_buffer(1024)
+        GetWindowText(hwnd, buffer, len(buffer))
+        assert buffer.value == text, repr(buffer.value)
+        assert inject.OpenClipboard(None)
+        try:
+            getter = api(user32, "GetClipboardData", W.HANDLE, W.UINT)
+            handle = getter(13)
+            pointer = inject.GlobalLock(handle)
+            assert C.wstring_at(pointer) == "previous clipboard: سابق"
+            inject.GlobalUnlock(handle)
+        finally:
+            inject.CloseClipboard()
+    finally:
+        inject.DestroyWindow(hwnd)

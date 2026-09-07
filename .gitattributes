@@ -1,3 +1,11 @@
 *.sh text eol=lf
 *.py text eol=lf
 engine/VERSION text eol=lf
+
+# Site configuration is not part of the installed dictation application.
+wrangler.jsonc export-ignore
+.gitattributes export-ignore
+# Execution notes are local project planning, not application assets.
+task_plan.md export-ignore
+findings.md export-ignore
+progress.md export-ignore

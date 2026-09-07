@@ -15,3 +15,6 @@ Linux regression check after initial port: 293 passed, 2 skipped.
 Found and fixed an existing capture lifecycle bug: stop was deferred behind older
 transcriptions. Added a regression asserting capture ends before dequeue.
 Added a portable Windows path import test and started full distribution checks.
+Second Windows run: 34109470772. First failed at engine tag parsing, fixed.
+Added a real Win32 EDIT paste/restore check and a checksum-verified base model
+transcription of the upstream speech sample to the installed-runtime suite.
