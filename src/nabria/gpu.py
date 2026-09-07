@@ -104,7 +104,7 @@ def enumerate_devices() -> list[Device]:
 
     Runs in a throwaway subprocess in normal use -- see `probe`.
     """
-    for candidate in ("libvulkan.so.1", "libvulkan.so"):
+    for candidate in (("vulkan-1.dll",) if sys.platform == "win32" else ("libvulkan.so.1", "libvulkan.so")):
         try:
             vulkan = ctypes.CDLL(candidate)
             break

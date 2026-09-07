@@ -48,6 +48,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import subprocess
 import threading
 import time
@@ -276,6 +277,10 @@ def to_clipboard(text: str) -> None:
     selection ends up owned by the tool measured to serve it rather than by
     `wl-copy`. Failures are swallowed: this is already the last resort.
     """
+    if sys.platform == "win32":
+        from .windows.inject import to_clipboard as windows_copy
+        return windows_copy(text)
+
     if shutil.which("wl-copy"):
         subprocess.run(["wl-copy", "--", text], check=False, timeout=TIMEOUT)
     if _focused_is_xwayland():
@@ -398,6 +403,9 @@ def paste_key(terminals: tuple[str, ...] = ()) -> str:
     terminal that is not Ctrl+V -- being told the wrong one, about a
     transcript they cannot see, is the moment this tool looks broken.
     """
+    if sys.platform == "win32":
+        return "Ctrl+V"
+
     return "Ctrl+Shift+V" if is_terminal(_focused_class(), terminals) else "Ctrl+V"
 
 
@@ -535,6 +543,10 @@ def deliver(text: str, preference: str = "auto",
     fall-through explains itself in nabria.log instead of the reader seeing
     only "via wtype" and having to guess why the paste never happened.
     """
+    if sys.platform == "win32":
+        from .windows.inject import deliver as windows_deliver
+        return windows_deliver(text, preference, terminals, log)
+
     if not text:
         return "none"
 

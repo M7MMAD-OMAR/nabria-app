@@ -152,12 +152,17 @@ class Orb:
         self.area.set_draw_func(self._draw)
         self.window.set_child(self.area)
 
-        self.layered = layer_shell_available()
+        self.layered = config.WINDOWS or layer_shell_available()
         self._init_surface()
         self.window.add_tick_callback(self._tick)
 
     def _init_surface(self) -> None:
-        if self.layered:
+        if config.WINDOWS:
+            self._init_plain_window()
+            self.window.set_focusable(False)
+            from .windows.desktop import configure_overlay
+            configure_overlay(self.window, self.settings)
+        elif self.layered:
             self._init_layer_shell()
         else:
             self._init_plain_window()
@@ -313,7 +318,10 @@ class Orb:
         self._cancel_hide()
         self.state = state
         if not self.visible:
-            self.window.present()
+            if config.WINDOWS:
+                self.window.set_visible(True)
+            else:
+                self.window.present()
             self.visible = True
         self.area.queue_draw()
 

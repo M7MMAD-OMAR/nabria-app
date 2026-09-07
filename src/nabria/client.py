@@ -16,6 +16,9 @@ COMMANDS = ("toggle", "start", "stop", "cancel", "status", "last", "settings", "
 
 
 def send(command: str, timeout: float = 5.0) -> str:
+    if sys.platform == "win32":
+        from .windows.control import send as windows_send
+        return windows_send(command, timeout)
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
         connection.settimeout(timeout)
         connection.connect(str(SOCKET_PATH))

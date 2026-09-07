@@ -202,33 +202,36 @@ class Recorder:
                     if not data:
                         break
                     sink.writeframes(data)
-                    frames = len(data) // 2
-                    live, _, _ = _levels(data)
-                    with self.lock:
-                        start = self.total_frames
-                        self.total_frames += frames
-                        # The live meter is never gated on the warm-up. The orb
-                        # reads this, and holding it at SILENT_DBFS through the
-                        # opening of a take would draw a healthy microphone
-                        # exactly like a dead one for the first three quarters
-                        # of a second -- which is when the user is watching to
-                        # see whether it heard them.
-                        self.peak_dbfs = live
-                    if start + frames <= LEVEL_WARMUP_FRAMES:
-                        continue
-                    if start < LEVEL_WARMUP_FRAMES:
-                        # Trim within the chunk rather than dropping it whole:
-                        # chunks are 0.256 s, so discarding at chunk
-                        # granularity threw away 0.768 s, not the 0.6 s meant.
-                        data = data[(LEVEL_WARMUP_FRAMES - start) * 2 :]
-                    level, count, energy = _levels(data)
-                    with self.lock:
-                        self.max_peak_dbfs = max(self.max_peak_dbfs, level)
-                        self.energy += energy
-                        self.samples += count
+                    self._observe(data)
         except Exception as exc:  # noqa: BLE001 - surfaced in the orb, never raised into GTK
             with self.lock:
                 self.error = str(exc)
+
+    def _observe(self, data: bytes) -> None:
+        frames = len(data) // 2
+        live, _, _ = _levels(data)
+        with self.lock:
+            start = self.total_frames
+            self.total_frames += frames
+            # The live meter is never gated on the warm-up. The orb
+            # reads this, and holding it at SILENT_DBFS through the
+            # opening of a take would draw a healthy microphone
+            # exactly like a dead one for the first three quarters
+            # of a second -- which is when the user is watching to
+            # see whether it heard them.
+            self.peak_dbfs = live
+        if start + frames <= LEVEL_WARMUP_FRAMES:
+            return
+        if start < LEVEL_WARMUP_FRAMES:
+            # Trim within the chunk rather than dropping it whole:
+            # chunks are 0.256 s, so discarding at chunk
+            # granularity threw away 0.768 s, not the 0.6 s meant.
+            data = data[(LEVEL_WARMUP_FRAMES - start) * 2 :]
+        level, count, energy = _levels(data)
+        with self.lock:
+            self.max_peak_dbfs = max(self.max_peak_dbfs, level)
+            self.energy += energy
+            self.samples += count
 
     def _drain_stderr(self) -> None:
         assert self.process and self.process.stderr

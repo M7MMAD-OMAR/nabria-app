@@ -28,11 +28,14 @@ from datetime import datetime
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
 from . import audio, config, history, i18n, inject, notify
 from .orb import Orb
 from .recorder import MissingRecorder, Recorder
+
+if config.WINDOWS:
+    from .windows.audio import Recorder
 
 LEVEL_POLL_MS = 50
 # How often the live silence check runs once a take is under way. A second is
@@ -107,7 +110,7 @@ def _default_input() -> tuple[str, bool | None]:
         source = None
     if source is None:
         return _default_source_name(), None
-    return source.get("name") or _default_source_name(), bool(source.get("muted"))
+    return source.get("name") or _default_source_name(), source.get("muted")
 
 
 class Daemon:
@@ -127,7 +130,10 @@ class Daemon:
 
         # A unique application id makes a second copy impossible: if one is
         # already running, the new process hands its activation over and exits.
-        self.application = Gtk.Application(application_id=config.APP_ID)
+        self.application = Gtk.Application(
+            application_id=config.APP_ID,
+            flags=Gio.ApplicationFlags.NON_UNIQUE if config.WINDOWS else Gio.ApplicationFlags.FLAGS_NONE,
+        )
         self.application.connect("activate", self._on_activate)
         self.started = False
         self.orb: Orb | None = None
@@ -172,7 +178,7 @@ class Daemon:
         # Holding the application keeps the main loop alive even though no
         # window is on screen: the orb only exists while dictating.
         application.hold()
-        for number in (signal.SIGTERM, signal.SIGINT):
+        for number in (() if config.WINDOWS else (signal.SIGTERM, signal.SIGINT)):
             GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, number, self._quit)
 
         self.orb = Orb(application, self.settings)
@@ -219,6 +225,11 @@ class Daemon:
         start because a portal was unhappy would be a far worse tool than one
         whose shortcut has to be bound by hand.
         """
+        if config.WINDOWS:
+            from .windows.desktop import Hotkeys
+            self.shortcuts = Hotkeys(self._portal_activated, self.log)
+            self.shortcuts.start()
+            return GLib.SOURCE_REMOVE
         from . import portal
 
         if portal.enabled():
@@ -248,6 +259,10 @@ class Daemon:
     # -- control socket ----------------------------------------------------
 
     def _serve(self) -> None:
+        if config.WINDOWS:
+            from .windows.control import serve
+            self.control = serve(self.dispatch, self.log)
+            return
         # A leftover socket file from a crashed daemon would make bind() fail,
         # so it is removed first; the runtime dir is per-session and per-user,
         # so nothing else can legitimately own this path.
@@ -399,6 +414,10 @@ class Daemon:
             # Closing the portal session drops its bindings, so a restarted
             # daemon does not accumulate duplicates of them.
             self.shortcuts.stop()
+        if self.recording is not None:
+            self.recording.stop()
+            _file_take(self.recording.destination, FAILED_DIR)
+            self.recording = None
         self.whisper.stop()
         self.application.quit()
         return GLib.SOURCE_REMOVE

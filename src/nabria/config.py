@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 APP_ID = "com.sbarah.Nabria"
 
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "nabria"
-CONFIG_PATH = CONFIG_DIR / "config.json"
 DATA_DIR = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "nabria"
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "nabria"
 LIBEXEC_DIR = Path.home() / ".local/libexec/nabria"
@@ -24,6 +24,17 @@ LIBEXEC_DIR = Path.home() / ".local/libexec/nabria"
 # own copy, so anyone who dropped a newer build into ~/.local keeps it instead
 # of being quietly reverted by a package upgrade.
 SYSTEM_LIBEXEC_DIR = Path("/usr/libexec/nabria")
+# An installed Windows runtime is read-only application code. Models, history
+# and settings belong to the user and survive upgrades and uninstallation.
+WINDOWS = sys.platform == "win32"
+ENGINE_NAME = "whisper-server.exe" if WINDOWS else "whisper-server"
+if WINDOWS:
+    CONFIG_DIR = Path(os.environ.get("APPDATA") or Path.home() / "AppData/Roaming") / "Nabria"
+    DATA_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData/Local") / "Nabria"
+    STATE_DIR = DATA_DIR / "state"
+    LIBEXEC_DIR = Path(os.environ.get("NABRIA_INSTALL_DIR") or Path(sys.executable).parent) / "engine"
+    SYSTEM_LIBEXEC_DIR = LIBEXEC_DIR
+CONFIG_PATH = CONFIG_DIR / "config.json"
 MODEL_DIR = DATA_DIR / "models"
 LOG_PATH = STATE_DIR / "nabria.log"
 # Kept audio. Both live here rather than beside their writers: app.py filed
@@ -34,7 +45,7 @@ FAILED_DIR = DATA_DIR / "failed"
 
 # The control socket lives in the runtime dir so it dies with the login session
 # and a stale file can never make the toggle command hang.
-RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+RUNTIME_DIR = STATE_DIR if WINDOWS else Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 SOCKET_PATH = RUNTIME_DIR / "nabria.sock"
 
 # A dialect prompt, offered when Arabic is chosen at setup.
@@ -74,7 +85,7 @@ LANGUAGE_PRESETS: dict[str, dict[str, str]] = {
 
 DEFAULTS: dict[str, Any] = {
     # Transcription engine. Both are filled in by scripts/install.sh.
-    "server_binary": str(LIBEXEC_DIR / "whisper-server"),
+    "server_binary": str(LIBEXEC_DIR / ENGINE_NAME),
     "model": str(MODEL_DIR / "ggml-large-v3-turbo.bin"),
     "language": "auto",
     # The language the *interface* is written in -- en | ar | auto -- which is
@@ -256,7 +267,7 @@ def load() -> dict[str, Any]:
     # used the installer would otherwise be left pointing at a path that no
     # longer exists, with "the engine did not start" as the only symptom.
     if not Path(settings["server_binary"]).exists():
-        packaged = SYSTEM_LIBEXEC_DIR / "whisper-server"
+        packaged = SYSTEM_LIBEXEC_DIR / ENGINE_NAME
         if packaged.exists():
             settings["server_binary"] = str(packaged)
 

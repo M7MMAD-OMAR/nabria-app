@@ -199,6 +199,18 @@ class _Placeholders(dict):
 # --------------------------------------------------------------------------
 
 STRINGS: dict[str, dict[str, str]] = {
+    "windows.shortcuts": {
+        "en": "Record: {toggle}. Cancel: {cancel}. Settings: {settings}.",
+        "ar": "التسجيل: {toggle}. الإلغاء: {cancel}. الإعدادات: {settings}.",
+    },
+    "windows.shortcut_failed": {
+        "en": "Could not register a shortcut",
+        "ar": "تعذّر تسجيل اختصار",
+    },
+    "windows.shortcut_help": {
+        "en": "Another application may be using it. Open Nabria from the Start menu to use the recording button.",
+        "ar": "قد يستخدمه تطبيق آخر. افتح نبرة من قائمة ابدأ لاستخدام زر التسجيل.",
+    },
     # -- notifications from the daemon -------------------------------------
     "app.cannot_record": {
         "en": "Cannot record",

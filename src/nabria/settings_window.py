@@ -580,6 +580,10 @@ def _history_row(record: dict) -> Gtk.Widget:
 
 def _play(path: str) -> None:
     """Play a kept take. Detached, so a slow player cannot stall the UI."""
+    if config.WINDOWS:
+        import winsound
+        winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        return
     player = shutil.which("pw-play") or shutil.which("paplay")
     if not player:
         return

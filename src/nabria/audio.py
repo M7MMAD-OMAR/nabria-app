@@ -11,6 +11,7 @@ switchable without leaving the app, and it can be measured on demand.
 from __future__ import annotations
 
 import math
+import sys
 import re
 import shutil
 import subprocess
@@ -50,6 +51,10 @@ def sources() -> list[dict]:
     video, so the scan stops at the first blank-ish line after the audio block
     rather than matching every "Sources:" in the output.
     """
+    if sys.platform == "win32":
+        from .windows import audio as windows_audio
+        return windows_audio.sources()
+
     lines = _wpctl("status").splitlines()
     found: list[dict] = []
     inside = False
@@ -94,6 +99,10 @@ def default_source() -> dict | None:
 
 
 def set_default(node_id: int) -> None:
+    if sys.platform == "win32":
+        from .windows import audio as windows_audio
+        return windows_audio.set_default(node_id)
+
     _wpctl("set-default", str(node_id))
 
 
@@ -110,6 +119,10 @@ def measure(seconds: float = 4.0) -> float:
     open transient along with the room would read tens of dB high and call a
     dead microphone healthy.
     """
+    if sys.platform == "win32":
+        from .windows import audio as windows_audio
+        return windows_audio.measure(seconds)
+
     with tempfile.TemporaryDirectory(prefix="nabria-mic-") as directory:
         path = Path(directory) / "test.wav"
         command = [

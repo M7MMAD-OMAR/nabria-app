@@ -23,7 +23,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from . import gpu
+from . import config, gpu
 
 STARTUP_TIMEOUT = 90.0
 POLL_INTERVAL = 0.2
@@ -213,6 +213,7 @@ class WhisperServer:
             # into the bare signal number that a reader then has to guess at.
             stderr=subprocess.PIPE,
             start_new_session=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if config.WINDOWS else 0,
         )
         self.drain = threading.Thread(
             target=self._drain_stderr, args=(self.process,),

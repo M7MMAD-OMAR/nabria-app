@@ -13,6 +13,7 @@ allowed to be wrong: the fallback is a generic instruction, not an error.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from . import i18n
@@ -28,6 +29,8 @@ def command(action: str = TOGGLE) -> str:
 
 def detect() -> str:
     """hyprland | sway | niri | kde | gnome | "" """
+    if sys.platform == "win32":
+        return "windows"
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         return "hyprland"
     if os.environ.get("NIRI_SOCKET"):
@@ -342,6 +345,11 @@ def instructions() -> list[str]:
     like a translation -- so those lines are literal in every language, and
     the wizard isolates them so a right-to-left page cannot reorder them.
     """
+    if sys.platform == "win32":
+        from .windows.desktop import HOTKEYS
+        return [i18n.t("windows.shortcuts", toggle=i18n.ltr(HOTKEYS.get("toggle", "?")),
+                       cancel=i18n.ltr(HOTKEYS.get("cancel", "?")),
+                       settings=i18n.ltr(HOTKEYS.get("settings", "?")))]
     where = detect()
     if where == "hyprland":
         return [

@@ -1,0 +1,63 @@
+name: Windows
+on:
+  push:
+    branches: [codex/windows-support]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-python-gobject
+            mingw-w64-ucrt-x86_64-python-cairo
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-python-sounddevice
+            mingw-w64-ucrt-x86_64-python-pytest
+            mingw-w64-ucrt-x86_64-vulkan-headers
+            mingw-w64-ucrt-x86_64-vulkan-loader
+            mingw-w64-ucrt-x86_64-shaderc
+      - name: Build application and engine
+        shell: msys2 {0}
+        run: scripts/build-windows.sh
+      - name: Check native runtime
+        shell: msys2 {0}
+        run: python scripts/check-windows.py dist/Nabria
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path src/nabria/__init__.py -Pattern '__version__ = "(.+)"').Matches.Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging/windows/nabria.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
+      - name: Verify install and uninstall
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem dist/*setup.exe).FullName
+          $target = "$env:RUNNER_TEMP\Nabria installed test"
+          $process = Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$target`"" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Install failed" }
+          & "$target\Nabria.exe" --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Installed runtime failed" }
+          $process = Start-Process "$target\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($process.ExitCode -ne 0 -or (Test-Path "$target\Nabria.exe")) { throw "Uninstall failed" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-check-results
+          path: dist/windows-check*.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nabria-windows-x64
+          path: dist/*setup.exe

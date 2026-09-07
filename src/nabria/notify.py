@@ -8,12 +8,16 @@ and it does not sit on top of the window being typed into.
 from __future__ import annotations
 
 import shutil
+import sys
 import subprocess
 
 APP_NAME = "nabria"
 
 
 def send(summary: str, body: str = "", urgency: str = "normal") -> None:
+    if sys.platform == "win32":
+        from .windows.notify import send as windows_send
+        return windows_send(summary, body, urgency)
     if not shutil.which("notify-send"):
         return
     command = [
