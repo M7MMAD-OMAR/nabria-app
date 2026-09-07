@@ -27,3 +27,7 @@ None recorded yet.
   shell configuration file. Parse WHISPER_CPP_VERSION and normalize CRLF.
 - Windows run 34109470772: Vulkan CMake requires SPIRV-Headers as a separate
   development package. Add the UCRT package to the build environment.
+- Windows run 34109858177: engine and runtime assembly succeeded. Imports,
+  engine startup, IPC, GTK in both languages, hotkey registration and Unicode
+  clipboard passed. Native EDIT remained empty after SendInput; add foreground
+  diagnostics and investigate actual delivery before claiming input works.

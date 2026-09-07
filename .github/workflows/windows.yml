@@ -30,9 +30,23 @@ jobs:
             mingw-w64-ucrt-x86_64-vulkan-loader
             mingw-w64-ucrt-x86_64-shaderc
             mingw-w64-ucrt-x86_64-spirv-headers
+      - name: Fingerprint toolchain
+        id: toolchain
+        shell: msys2 {0}
+        run: echo "key=$(pacman -Q | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        id: engine-cache
+        with:
+          path: build/whisper-windows
+          key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh') }}
       - name: Build application and engine
         shell: msys2 {0}
         run: scripts/build-windows.sh
+      - uses: actions/cache/save@v4
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        with:
+          path: build/whisper-windows
+          key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh') }}
       - name: Check native runtime
         shell: msys2 {0}
         run: python scripts/check-windows.py dist/Nabria

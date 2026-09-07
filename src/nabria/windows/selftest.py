@@ -141,8 +141,11 @@ def test_paste():
     errors = []
     text = "Nabria: hello مرحبا 123"
     try:
-        SetForegroundWindow(hwnd)
+        foreground_result = SetForegroundWindow(hwnd)
         SetFocus(hwnd)
+        from .desktop import GetForegroundWindow
+        actual_foreground = GetForegroundWindow()
+        assert actual_foreground == hwnd, f"Could not focus EDIT: SetForegroundWindow={foreground_result}, foreground={actual_foreground}, edit={hwnd}"
         inject.to_clipboard("previous clipboard: سابق")
 
         def work():

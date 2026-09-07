@@ -24,3 +24,6 @@ Latest quick check: 297 passed, 2 skipped.
 Moved Win32 hotkey handling onto its own native message queue so GDK cannot
 consume WM_HOTKEY first; self-test verifies dispatch, not just registration.
 Added Windows UI language detection when Unix locale variables are absent.
+Debian container passed: 248 tests, 8 skips. Fedora is running.
+A GitHub API status request briefly failed to connect; no build conclusion
+was inferred from that network error.

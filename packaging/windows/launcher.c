@@ -7,6 +7,7 @@
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int show) {
     wchar_t root[32768], path[32768], command[32768], runtime[32768];
+    wchar_t system[32768], windows[32768];
     if (!GetModuleFileNameW(NULL, root, 32768)) return 1;
     wchar_t *separator = wcsrchr(root, L'\\');
     if (!separator) return 1;
@@ -22,7 +23,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int
     SetEnvironmentVariableW(L"GI_TYPELIB_PATH", path);
     swprintf(path, 32768, L"%ls\\share", runtime);
     SetEnvironmentVariableW(L"XDG_DATA_DIRS", path);
-    swprintf(path, 32768, L"%ls\\bin;%ls\\engine;C:\\Windows\\System32;C:\\Windows", runtime, root);
+    GetSystemDirectoryW(system, 32768);
+    GetWindowsDirectoryW(windows, 32768);
+    swprintf(path, 32768, L"%ls\\bin;%ls\\engine;%ls;%ls", runtime, root, system, windows);
     SetEnvironmentVariableW(L"PATH", path);
     swprintf(path, 32768, L"%ls\\bin\\pythonw.exe", runtime);
     if (swprintf(command, 32768, L"\"%ls\" -m nabria %ls", path, arguments) < 0) return 1;
