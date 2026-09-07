@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Automation;
@@ -16,6 +17,21 @@ internal sealed partial class MainWindow
     private int setupStep;
     private sealed record Choice(string Id, string Label)
     { public override string ToString() => Label; }
+
+    internal static FlowDirection TextDirection(string text)
+    {
+        // Paragraph direction follows the first strong letter, not the app's
+        // language. Keep bidi controls out of text that will be copied.
+        foreach (var letter in text.EnumerateRunes())
+        {
+            if (!Rune.IsLetter(letter)) continue;
+            int value = letter.Value;
+            bool rtl = value is >= 0x0590 and <= 0x08ff or >= 0xfb1d and <= 0xfdff
+                or >= 0xfe70 and <= 0xfeff or >= 0x1ee00 and <= 0x1eeff;
+            return rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        }
+        return Strings.IsRtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+    }
 
     private TextBlock Heading(string text, double size = 28) => new() { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = size, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
     private TextBlock Description(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Opacity = .85, LineHeight = 22, Margin = new Thickness(0, 0, 0, 16) };
@@ -81,7 +97,7 @@ internal sealed partial class MainWindow
         var latest = Card(body, T("latest"));
         string transcript = historyItems.ValueKind == JsonValueKind.Array && historyItems.GetArrayLength() > 0 ? Text(historyItems[0], "text") : "";
         if (transcript.Length == 0) latest.Children.Add(Description(T("history_empty")));
-        lastText = new TextBox { Text = transcript, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 160, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontSize = 16, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
+        lastText = new TextBox { Text = transcript, FlowDirection = TextDirection(transcript), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 160, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontSize = 16, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
         latest.Children.Add(lastText);
         latest.Children.Add(Action(T("copy"), () => { if (lastText.Text.Length > 0) Clipboard.SetText(lastText.Text); return Task.CompletedTask; }));
         body.Children.Add(Description(T("minimize_hint")));
@@ -211,7 +227,7 @@ internal sealed partial class MainWindow
             string date = DateTime.TryParse(Text(item, "at"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var when) ? when.ToString("dd MMM yyyy · h:mm tt", CultureInfo.CurrentCulture) : Text(item, "at");
             var entry = Card(body, date);
             string text = Text(item, "text");
-            entry.Children.Add(new TextBox { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, MaxHeight = 180, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0), Background = Brushes.Transparent, FontSize = 16 });
+            entry.Children.Add(new TextBox { Text = text, FlowDirection = TextDirection(text), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, MaxHeight = 180, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0), Background = Brushes.Transparent, FontSize = 16 });
             entry.Children.Add(Action(T("copy"), () => { Clipboard.SetText(text); return Task.CompletedTask; }));
         }
     }

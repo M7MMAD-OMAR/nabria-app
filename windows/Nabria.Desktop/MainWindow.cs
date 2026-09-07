@@ -96,7 +96,11 @@ internal sealed partial class MainWindow : Window
                 if (data.ValueKind != JsonValueKind.Undefined) { Navigate(page); Restore(); }
                 break;
             case "transcript":
-                if (lastText != null) lastText.Text = Text(message, "text");
+                if (lastText != null)
+                {
+                    lastText.Text = Text(message, "text");
+                    lastText.FlowDirection = TextDirection(lastText.Text);
+                }
                 historyItems = message.GetProperty("history");
                 if (page == "history") Navigate(page);
                 break;
@@ -240,6 +244,9 @@ internal sealed partial class MainWindow : Window
         {
             Strings.Language = language;
             BuildShell();
+            if (TextDirection("English transcript.") != FlowDirection.LeftToRight ||
+                TextDirection("123: " + Strings.T("language.ar.label")) != FlowDirection.RightToLeft)
+                throw new InvalidOperationException("Transcript direction depends on the interface language");
             foreach (string target in new[] { "home", "history", "settings", "help" })
             { Navigate(target); UpdateLayout(); }
             for (setupStep = 0; setupStep < 3; setupStep++) { Navigate("setup"); UpdateLayout(); }
