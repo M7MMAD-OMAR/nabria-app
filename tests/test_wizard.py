@@ -25,6 +25,20 @@ if not display_available():  # pragma: no cover - environment dependent
 
 from nabria import gpu, i18n, models, wizard  # noqa: E402
 
+
+def test_arabic_heading_is_drawn_at_the_right_edge(application):
+    i18n.apply("ar")
+    window = Gtk.ApplicationWindow(application=application)
+    heading = i18n.label("مرحبا")
+    window.set_child(heading)
+    try:
+        heading.allocate(400, 60, -1, None)
+        x, _ = heading.get_layout_offsets()
+        assert x > 200
+    finally:
+        window.destroy()
+
+
 @pytest.fixture
 def cpu_only(monkeypatch):
     monkeypatch.setattr(gpu, "probe", list)

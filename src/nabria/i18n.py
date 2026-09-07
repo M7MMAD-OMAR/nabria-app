@@ -111,25 +111,20 @@ def is_rtl() -> bool:
 
 
 def start_align() -> float:
-    """`xalign` for text that should hug the side the reader starts from.
+    """Start-edge alignment, mirrored by GTK for an RTL widget.
 
-    GTK's `xalign` is absolute -- 0.0 is the left edge whatever the paragraph
-    direction -- so a hardcoded 0.0 pins Arabic to the left of its own window.
-    `Gtk.Align.START` is direction-aware and is used where the widget is being
-    aligned; this is for the label's text inside its own allocation, which is a
-    different thing and has no direction-aware form.
+    gtk_label_get_layout_location() reverses xalign in RTL. Returning 1.0
+    here reversed it twice and placed Arabic headings on the left, visible
+    in both the Linux screenshots and the native Windows validation.
     """
-    return 1.0 if is_rtl() else 0.0
+    return 0.0
 
 
 def label(text: str = "", **properties: object):
     """A `Gtk.Label` that starts on the side the reader starts from.
 
-    The rule this exists for -- never `xalign=0` -- was enforced by memory
-    across fourteen call sites, and its failure mode is a *new* label written
-    the obvious way, which looks correct until Arabic is selected and then pins
-    a sentence to the wrong edge of its own window. A default is checkable; a
-    convention in a document is not.
+    Keep alignment and wrapping defaults in one place. The widget inherits
+    its direction from i18n.apply(), and GTK mirrors its start alignment.
 
     GTK is imported inside, for the reason given on `apply()`.
     """

@@ -85,6 +85,19 @@ window.nabria-setup, .nabria-setup {{ background-color: {surface}; color: {on_su
   border-radius: 10px;
   padding: 8px 18px;
 }}
+.nabria-setup headerbar {{
+  background-image: none;
+  background-color: {surface};
+  color: {on_surface};
+  box-shadow: none;
+}}
+.nabria-setup headerbar button {{
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px;
+  border: none;
+  background-color: transparent;
+}}
 .nabria-setup progressbar progress {{ background-color: {primary}; }}
 .nabria-setup checkbutton radio:checked {{
   background-color: {primary};

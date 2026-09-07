@@ -1,7 +1,7 @@
 name: Windows
 on:
   push:
-    branches: [codex/windows-support]
+    branches: [main, codex/windows-support]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -75,7 +75,7 @@ jobs:
         if: always()
         with:
           name: windows-check-results
-          path: dist/windows-check*.json
+          path: dist/windows-check*
       - uses: actions/upload-artifact@v4
         with:
           name: Nabria-windows-x64

@@ -162,6 +162,11 @@ class Orb:
             self.window.set_focusable(False)
             from .windows.desktop import configure_overlay
             configure_overlay(self.window, self.settings)
+            # GDK finalizes the native size and position when mapping. Place
+            # the indicator again with those bounds, after preventing focus.
+            self.window.connect("map", lambda window: GLib.idle_add(
+                configure_overlay, window, self.settings,
+            ))
         elif self.layered:
             self._init_layer_shell()
         else:

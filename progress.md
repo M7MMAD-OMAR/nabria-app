@@ -51,3 +51,20 @@ that audio requests bypass configured proxies and stay on loopback.
 The Windows inference timeout now records engine diagnostics. The installer
 will be built before runtime checks, allowing isolated VM diagnosis even if
 CI validation fails; failed builds are clearly labeled debug artifacts.
+Windows run 34113662382 passed: real base-model speech inference, native unit
+checks, silent installation and removal. Native paste remains explicitly skipped
+on CI because the runner denies focus. Local Windows 11 Arabic desktop is ready;
+a Limited interactive task was verified at medium integrity for realistic tests.
+Interactive Windows testing found and fixed clipboard restoration failure:
+OleGetClipboard returned a live wrapper invalidated by replacing clipboard data.
+The adapter now duplicates each format before borrowing it, including GDI data,
+and releases untransferred handles. The native EDIT test now passes actual Arabic
+and English paste plus restoration. Added incremental self-test reports and crash
+traces so native failures cannot masquerade as an unexplained missing report.
+Interactive dictation passed end to end: the dedicated virtual input reached
+WASAPI, local inference produced the speech sample, history retained it, and the
+focused editor received the text. Arabic input layout 0x0401 was verified before
+record/cancel hotkeys; silence produced no transcript. A DIB image and a newer
+clipboard copy both survived the native clipboard checks. Corrected Arabic
+start alignment against GTK's actual layout behavior, with a rendered-position
+regression test. Repositioning the mapped indicator fixed its Windows corner.

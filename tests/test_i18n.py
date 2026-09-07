@@ -108,9 +108,7 @@ def test_selecting_a_language_changes_what_is_rendered():
     i18n.use("ar")
     assert i18n.t("wizard.done") == "تم"
     assert i18n.is_rtl()
-    # 1.0, not 0.0: GTK's xalign is absolute, so the left edge stays the left
-    # edge and Arabic pinned to it hugs the wrong side of its window.
-    assert i18n.start_align() == 1.0
+    assert i18n.start_align() == 0.0
 
 
 def test_the_dictation_prompt_is_not_translated():

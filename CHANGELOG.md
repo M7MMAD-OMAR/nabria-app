@@ -4,6 +4,23 @@ What changed in each release, in the words of somebody using it rather than
 somebody writing it. Every published version has a section here, and
 `scripts/release.sh` refuses to publish a tag that does not.
 
+## 0.5.0
+
+2026-09-07
+
+- First Windows x64 prerelease: a per-user EXE installer with Python, GTK,
+  WASAPI capture, native hotkeys, local inference, Unicode paste and history.
+- Preserve clipboard text and images while pasting, and retain a newer copy.
+- Keep local audio requests off system proxies.
+- Stop capture immediately when a take is queued behind another transcription.
+- Correct Arabic heading alignment and retain separate UI and dictation languages.
+- Bound default inference threads to the CPUs available on the machine.
+
+The Windows installer is unsigned. Validation includes a Windows 11 Arabic VM
+with a dedicated virtual microphone, actual desktop paste, keyboard-layout
+checks, and install/uninstall tests. Physical microphone hardware, Windows 10,
+and discrete GPU hardware remain untested. See docs/WINDOWS.md.
+
 ## 0.4.6
 
 2026-09-05

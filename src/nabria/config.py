@@ -111,7 +111,9 @@ DEFAULTS: dict[str, Any] = {
     # nobody choosing Arabic ever received the dialect prompt that is the whole
     # reason Arabic works well here.
     "setup_done": False,
-    "threads": 8,
+    # Oversubscribing the Windows CPU threadpool stalled the native inference
+    # check on a four-vCPU runner. Keep the default within available CPUs.
+    "threads": min(8, os.cpu_count() or 1),
     # Which device the engine computes on.
     #   auto  a discrete GPU if there is one, otherwise the CPU
     #   cpu   never use a GPU

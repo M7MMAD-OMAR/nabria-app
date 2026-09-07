@@ -329,8 +329,8 @@ copy to keep true:
   device names, engine errors, key names, and any number carrying a sign or a
   unit. But **not bare digits**, which is the counter-intuitive half.
 - **`i18n.label()`, not `Gtk.Label`**, for anything with a start edge. It
-  defaults `xalign` correctly; a hardcoded `xalign=0` pins Arabic to the left
-  of its own window.
+  defaults `xalign` correctly. GTK mirrors 0.0 in RTL; setting it to 1.0
+  reverses that twice and pins Arabic to the left of its own window.
 - **Never isolate text a user will copy.** The isolate characters travel into
   the clipboard, where they are invisible in an editor and fatal to whatever
   parses the file they land in. Set the *widget's* direction instead —

@@ -1,6 +1,7 @@
 """Run inside the installed runtime, including GTK and real Win32 APIs."""
 
 import ctypes as C
+import faulthandler
 import importlib
 import json
 import os
@@ -12,8 +13,18 @@ from pathlib import Path
 
 
 def main() -> int:
-    results = {}
     report = os.environ.get("NABRIA_TEST_REPORT")
+    class Results(dict):
+        def __setitem__(self, key, value):
+            super().__setitem__(key, value)
+            if report:
+                Path(report).write_text(json.dumps(self, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    results = Results(status="running")
+    trace = open(report + ".trace", "w") if report else None
+    if trace:
+        faulthandler.enable(file=trace)
+        faulthandler.dump_traceback_later(45, file=trace)
     try:
         for name in ("app", "audio", "config", "gpu", "history", "i18n", "inject",
                      "models", "notify", "orb", "settings_window", "theme", "whisper", "wizard",
@@ -68,6 +79,9 @@ def main() -> int:
             window = SettingsWindow(application, config.DEFAULTS.copy(), lambda *args: None)
             window.destroy()
         results["settings_both_languages"] = "passed"
+        from .notify import send as toast
+        assert toast("Nabria validation", "Windows notification check").wait(timeout=20) == 0
+        results["toast_runtime"] = "passed"
         import threading
         received = threading.Event()
         keys = Hotkeys(lambda action: received.set(), lambda text: None)
@@ -96,6 +110,8 @@ def main() -> int:
         finally:
             CloseClipboard()
         results["unicode_clipboard"] = "passed"
+        test_clipboard_formats()
+        results["clipboard_image_and_newer_copy"] = "passed"
         pasted = test_paste()
         results["native_paste_and_restore"] = (
             "passed" if pasted else "not tested: runner denied foreground activation"
@@ -120,11 +136,59 @@ def main() -> int:
         results["status"] = "failed"
         results["error"] = traceback.format_exc()
     text = json.dumps(results, ensure_ascii=False, indent=2)
+    if trace:
+        faulthandler.cancel_dump_traceback_later()
+        faulthandler.disable()
+        trace.close()
     if report:
         Path(report).write_text(text, encoding="utf-8")
     elif results["status"] != "passed":
         Path(tempfile.gettempdir(), "nabria-self-test.json").write_text(text, encoding="utf-8")
     return 0 if results["status"] == "passed" else 1
+
+
+def test_clipboard_formats():
+    """Preserve real DIB data and leave a later user copy untouched."""
+    import struct
+    from . import inject
+    dib = struct.pack("<IiiHHIIiiII", 40, 1, 1, 1, 32, 0, 4, 0, 0, 0, 0) + b"\x20\x40\x80\xff"
+    with inject._clipboard():
+        assert inject.EmptyClipboard()
+        handle = inject.GlobalAlloc(2, len(dib))
+        pointer = inject.GlobalLock(handle)
+        assert pointer
+        C.memmove(pointer, dib, len(dib))
+        inject.GlobalUnlock(handle)
+        assert inject.SetClipboardData(8, handle)
+    saved, sequence = inject._set_text("clipboard loan", preserve=True)
+    try:
+        inject._restore(saved, sequence)
+        with inject._clipboard():
+            handle = inject.GetClipboardData(8)
+            assert handle
+            pointer = inject.GlobalLock(handle)
+            assert pointer
+            try:
+                assert C.string_at(pointer, len(dib)) == dib
+            finally:
+                inject.GlobalUnlock(handle)
+    finally:
+        inject._free(saved)
+    saved, sequence = inject._set_text("another loan", preserve=True)
+    try:
+        inject.to_clipboard("newer user copy")
+        inject._restore(saved, sequence)
+        with inject._clipboard():
+            handle = inject.GetClipboardData(13)
+            assert handle
+            pointer = inject.GlobalLock(handle)
+            assert pointer
+            try:
+                assert C.wstring_at(pointer) == "newer user copy"
+            finally:
+                inject.GlobalUnlock(handle)
+    finally:
+        inject._free(saved)
 
 
 def test_paste():
@@ -191,8 +255,11 @@ def test_paste():
         try:
             getter = api(user32, "GetClipboardData", W.HANDLE, W.UINT)
             handle = getter(13)
+            assert handle, "Restored clipboard has no Unicode text"
             pointer = inject.GlobalLock(handle)
-            assert C.wstring_at(pointer) == "previous clipboard: سابق"
+            assert pointer, "Could not read restored Unicode text"
+            restored = C.wstring_at(pointer)
+            assert restored == "previous clipboard: سابق", repr(restored)
             inject.GlobalUnlock(handle)
         finally:
             inject.CloseClipboard()

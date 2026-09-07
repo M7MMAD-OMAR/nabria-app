@@ -1,7 +1,7 @@
 # Windows
 
-The Windows port is under validation on the `codex/windows-support` branch.
-Do not describe it as a stable release until the release checks below pass.
+The first Windows x64 release is a prerelease. The installer includes the
+runtime and the local engine; no Python or developer tools are required.
 
 ## Product
 
@@ -18,7 +18,7 @@ shared with Linux.
 | `src/nabria/windows/audio.py` | WASAPI through sounddevice, shared PCM statistics |
 | `src/nabria/windows/control.py` | Authenticated named-pipe commands |
 | `src/nabria/windows/desktop.py` | Single instance, hotkeys, non-activating indicator |
-| `src/nabria/windows/inject.py` | Unicode paste and OLE clipboard restoration |
+| `src/nabria/windows/inject.py` | Unicode paste and owned clipboard snapshots |
 | `src/nabria/windows/notify.py` | Windows toast notifications |
 | `src/nabria/windows/selftest.py` | Checks run inside the assembled runtime |
 | `packaging/windows/launcher.c` | Relocatable runtime and child process lifetime |
@@ -65,7 +65,10 @@ paste. Running the dictation app as administrator is not required or recommended
 
 ## Release checks
 
-The workflow must pass all of these against the candidate commit:
+Validation combines the Windows workflow and an interactive Windows 11 Pro
+Arabic VM. The CI runner denies foreground activation, so it explicitly skips
+the native paste check; the interactive VM runs it without that exemption.
+Together they exercise:
 
 - Shared unit tests and WASAPI adapter tests.
 - Runtime imports and engine startup with build tools removed from PATH.
@@ -78,6 +81,13 @@ The workflow must pass all of these against the candidate commit:
   verified against the catalogue checksum.
 - Silent install, installed runtime checks and silent uninstall.
 - The Linux `scripts/check.sh` distribution matrix.
+- Interactive installation, setup, adopting a checksum-verified existing model,
+  and independent English dictation with an Arabic interface.
+- A speech WAV played into a dedicated virtual input, captured through real
+  WASAPI, transcribed locally, saved in history and pasted into a Windows editor.
+- Recording and cancel hotkeys with English and Arabic keyboard layouts.
+- Silence rejection, image clipboard preservation and a newer clipboard copy
+  taking precedence over restoration.
 
 A CI runner is not evidence about a physical microphone, device unplugging,
 hardware GPU performance, multiple monitors, or every target application.

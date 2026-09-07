@@ -25,3 +25,8 @@
 - Launcher uses a Windows Job Object so abrupt exit cannot orphan the engine.
 - Capture filenames are unique across restarts, protecting unfinished WAVs.
 - Windows shortcut text now describes Windows behavior in both UI languages.
+
+- The Windows launcher removes inherited PATH entries. PowerShell is in
+  System32/WindowsPowerShell/v1.0, so bare powershell.exe breaks notifications
+  in the installed app. Resolve its system path explicitly and include a native
+  toast host check in the runtime suite.
