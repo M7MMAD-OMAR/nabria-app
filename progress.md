@@ -105,3 +105,17 @@ Added a local inherited-pipe bridge, native three-step setup, recording window,
 history, settings, help links, Sbarah attribution and application icon. The
 Windows GPU probe now explicitly suppresses console allocation. Shared quick
 checks pass: 299 tests, 2 skips. Interactive native validation is next.
+
+Native Windows QA: the three setup pages, existing-model verification, microphone
+test, language switching, history copy and cancelling history deletion pass in
+the Windows 11 Arabic VM. Starting from the WPF button and stopping from the
+non-activating indicator pasted an Arabic transcript into a separate Windows
+editor and restored the clipboard. English speech also passed through the
+registered hotkey with the Arabic keyboard layout; record/cancel then passed
+after switching the keyboard to English. This uses a dedicated virtual WASAPI
+input, not the host microphone.
+
+Local checks pass with 305 tests and 2 skips. The Windows build and native
+English/Arabic page self-test passed at bcb3d98, and its full Linux workflow
+passed. Final copy and control-state fixes are being assembled into the
+release candidate for installation validation. No branding-only release shipped.

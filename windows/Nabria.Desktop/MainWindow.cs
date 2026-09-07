@@ -211,7 +211,7 @@ internal sealed partial class MainWindow : Window
         catch (Exception error)
         {
             if (command is "download" or "select_model" or "adopt" or "mic_test")
-            { taskRunning = false; Navigate(page); }
+            { taskRunning = false; micTesting = false; Navigate(page); }
             if (!closing) ShowError(error.Message);
         }
     }

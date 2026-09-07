@@ -83,7 +83,9 @@ Together they exercise:
 - Runtime imports and engine startup with build tools removed from PATH.
 - Launch from a relocated directory containing spaces and Arabic characters.
 - Arabic engine arguments and inference from an Arabic model directory.
-- Native desktop page construction, plus shared GTK compatibility checks.
+- Native desktop pages and all three setup steps in both languages, plus shared
+  GTK compatibility checks. The desktop self-test also checks that no console
+  window is attached.
 - Native single-instance lock, named-pipe request and hotkey registration.
 - Arabic and English clipboard contents, actual paste into a Windows EDIT
   control, and restoration of previous clipboard contents.
@@ -91,6 +93,8 @@ Together they exercise:
   verified against the catalogue checksum.
 - Silent install, installed runtime checks and silent uninstall.
 - The Linux `scripts/check.sh` distribution matrix.
+- Native recording button and floating stop control, microphone testing, history
+  copy, language changes, and cancelling deletion without modifying history.
 - Interactive installation, setup, adopting a checksum-verified existing model,
   and independent English dictation with an Arabic interface.
 - English and Arabic speech WAVs played into a dedicated virtual input, captured

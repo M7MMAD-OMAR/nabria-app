@@ -7,9 +7,9 @@ support, and Sbarah attribution. Publish and validate the finished installer.
 
 ## Phases
 1. Native UI architecture and console audit: complete.
-2. Shared backend bridge and Windows WPF frontend: in_progress.
-3. Native setup, recording, history, settings and help flows: in_progress.
-4. Build, interactive Windows QA, console and regression checks: pending.
+2. Shared backend bridge and Windows WPF frontend: complete.
+3. Native setup, recording, history, settings and help flows: complete.
+4. Build, interactive Windows QA, console and regression checks: in_progress.
 5. Publish the validated redesigned release: pending.
 
 ## Decisions
