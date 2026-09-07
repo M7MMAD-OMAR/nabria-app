@@ -105,12 +105,14 @@ def main() -> int:
             from .. import models, whisper
             with tempfile.TemporaryDirectory(prefix="nabria-model-check-") as directory:
                 model = models.download(models.CATALOG["base"], Path(directory))
-                settings = {**config.DEFAULTS, "model": str(model), "language": "en", "gpu_select": "cpu"}
-                server = whisper.WhisperServer(settings, lambda message: None)
+                settings = {**config.DEFAULTS, "model": str(model), "language": "en", "gpu_select": "cpu", "threads": 2}
+                engine_log = []
+                server = whisper.WhisperServer(settings, engine_log.append)
                 try:
                     transcript = server.transcribe(Path(sample))
                     assert "country" in transcript.lower(), transcript
                 finally:
+                    results["engine_log"] = engine_log + [line for line in server.stderr_tail if "timings" not in line]
                     server.stop()
                 results["real_transcription"] = "passed"
         results["status"] = "passed"
@@ -145,8 +147,20 @@ def test_paste():
     try:
         foreground_result = SetForegroundWindow(hwnd)
         SetFocus(hwnd)
-        from .desktop import GetForegroundWindow
+        from .desktop import GetForegroundWindow, kernel32
         actual_foreground = GetForegroundWindow()
+        if actual_foreground != hwnd and actual_foreground:
+            get_thread = api(user32, "GetWindowThreadProcessId", W.DWORD, W.HWND, C.c_void_p)
+            current_thread = api(kernel32, "GetCurrentThreadId", W.DWORD)
+            attach = api(user32, "AttachThreadInput", W.BOOL, W.DWORD, W.DWORD, W.BOOL)
+            owner, current = get_thread(actual_foreground, None), current_thread()
+            if owner != current and attach(current, owner, True):
+                try:
+                    foreground_result = SetForegroundWindow(hwnd)
+                    SetFocus(hwnd)
+                finally:
+                    attach(current, owner, False)
+            actual_foreground = GetForegroundWindow()
         if actual_foreground != hwnd and os.environ.get("NABRIA_ALLOW_NONINTERACTIVE") == "1":
             return False
         assert actual_foreground == hwnd, f"Could not focus EDIT: SetForegroundWindow={foreground_result}, foreground={actual_foreground}, edit={hwnd}"

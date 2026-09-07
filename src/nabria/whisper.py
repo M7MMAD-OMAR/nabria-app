@@ -332,7 +332,10 @@ class WhisperServer:
             headers={"Content-Type": content_type},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=300) as response:
+        # Audio is addressed only to our loopback server. System proxy
+        # settings must never forward it to a proxy on another machine.
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=300) as response:
             payload = response.read().decode("utf-8", "replace")
         with self.lock:
             self.last_used = time.monotonic()

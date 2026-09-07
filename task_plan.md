@@ -34,3 +34,6 @@ None recorded yet.
 - Windows run 34111090255: 68 native unit tests passed. Foreground diagnostics
   confirmed SetForegroundWindow was denied by the CI desktop. CI explicitly
   reports native paste as not tested; an interactive VM pass remains required.
+- Windows run 34112340248: inference timed out after model startup. Add engine
+  diagnostics and use two test threads. Also eliminate system proxy handling
+  from loopback audio requests, backed by a real local HTTP regression test.

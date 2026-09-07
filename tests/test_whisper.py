@@ -233,3 +233,43 @@ def test_the_reason_survives_a_drain_thread_that_has_not_run(engine, monkeypatch
     assert "GGML_ASSERT" in str(caught.value), (
         "the engine's reason was lost to a race; the log would say only a signal number"
     )
+
+
+def test_inference_never_uses_a_system_http_proxy(tmp_path, monkeypatch):
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from nabria.whisper import WhisperServer
+
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append(self.rfile.read(int(self.headers["Content-Length"])))
+            payload = json.dumps({"text": "hello"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *args):
+            pass
+
+    for key in ("http_proxy", "HTTP_PROXY"):
+        monkeypatch.setenv(key, "http://127.0.0.1:1")
+    for key in ("no_proxy", "NO_PROXY"):
+        monkeypatch.setenv(key, "")
+    wav = tmp_path / "voice.wav"
+    wav.write_bytes(b"private audio fixture")
+    with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as http:
+        worker = threading.Thread(target=http.serve_forever, daemon=True)
+        worker.start()
+        try:
+            engine = WhisperServer({}, lambda message: None)
+            engine.port = http.server_port
+            monkeypatch.setattr(engine, "ensure", lambda: None)
+            assert engine.transcribe(wav) == "hello"
+            assert b"private audio fixture" in received[0]
+        finally:
+            http.shutdown()
+            worker.join(timeout=2)

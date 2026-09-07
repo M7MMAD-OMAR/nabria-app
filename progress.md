@@ -40,3 +40,14 @@ open its settings, while explicit daemon/autostart stays in the background.
 Stopped the evaluation download after finding an existing Windows 11 Arabic ISO.
 Created a separate 4 GiB, 2 vCPU QEMU VM and virtual audio input. The existing
 personal VM remains stopped and untouched. Test VM files are under ignored build/.
+Windows 11 Pro Arabic installation is running in the isolated VM, reached 77%.
+Per-task SOCKS transport restores the regular gh CLI while preserving TLS and
+leaving workstation DNS unchanged. Latest Windows workflow run: 34112340248.
+The isolated Windows VM reached OOBE. Its virtual microphone is confirmed to
+read the dedicated test sink monitor; physical workstation inputs remain suspended.
+Prepared a serial command channel for unattended tests inside the interactive guest.
+Latest quick check: 298 passed, 2 skipped. A local HTTP regression verifies
+that audio requests bypass configured proxies and stay on loopback.
+The Windows inference timeout now records engine diagnostics. The installer
+will be built before runtime checks, allowing isolated VM diagnosis even if
+CI validation fails; failed builds are clearly labeled debug artifacts.
