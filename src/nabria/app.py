@@ -23,6 +23,7 @@ import sys
 import threading
 import time
 import traceback
+import uuid
 from datetime import datetime
 
 import gi
@@ -450,7 +451,7 @@ class Daemon:
         if self.recording is not None:
             return
         self.takes += 1
-        recorder = Recorder(config.STATE_DIR / f"take-{self.takes}.wav")
+        recorder = Recorder(config.STATE_DIR / f"take-{uuid.uuid4().hex}.wav")
         recorder.start()
         self.recording = recorder
         assert self.orb

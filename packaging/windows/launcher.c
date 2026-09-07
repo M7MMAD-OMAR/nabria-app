@@ -29,14 +29,28 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR arguments, int
     STARTUPINFOW startup = {0};
     PROCESS_INFORMATION process = {0};
     startup.cb = sizeof(startup);
-    if (!CreateProcessW(path, command, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, root, &startup, &process)) {
+    if (!CreateProcessW(path, command, NULL, NULL, FALSE, CREATE_NO_WINDOW | CREATE_SUSPENDED, NULL, root, &startup, &process)) {
         MessageBoxW(NULL, L"Nabria could not start. Please reinstall the application.", L"Nabria", MB_OK | MB_ICONERROR);
         return 1;
     }
+    /* Parent exit also reaps the inference server after a crash or forced quit. */
+    HANDLE job = CreateJobObjectW(NULL, NULL);
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {0};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!job || !SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits))
+        || !AssignProcessToJobObject(job, process.hProcess)) {
+        TerminateProcess(process.hProcess, 1);
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        if (job) CloseHandle(job);
+        return 1;
+    }
+    ResumeThread(process.hThread);
     CloseHandle(process.hThread);
     WaitForSingleObject(process.hProcess, INFINITE);
     DWORD result = 1;
     GetExitCodeProcess(process.hProcess, &result);
     CloseHandle(process.hProcess);
+    CloseHandle(job);
     return (int)result;
 }

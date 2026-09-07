@@ -199,6 +199,10 @@ class _Placeholders(dict):
 # --------------------------------------------------------------------------
 
 STRINGS: dict[str, dict[str, str]] = {
+    "windows.shortcut_lede": {
+        "en": "Press the recording shortcut, speak, then press it again. Your words appear in the focused window.",
+        "ar": "اضغط اختصار التسجيل وتكلّم، ثم اضغطه مجددًا. تظهر كلماتك في النافذة النشطة.",
+    },
     "windows.shortcuts": {
         "en": "Record: {toggle}. Cancel: {cancel}. Settings: {settings}.",
         "ar": "التسجيل: {toggle}. الإلغاء: {cancel}. الإعدادات: {settings}.",

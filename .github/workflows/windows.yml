@@ -29,6 +29,7 @@ jobs:
             mingw-w64-ucrt-x86_64-vulkan-headers
             mingw-w64-ucrt-x86_64-vulkan-loader
             mingw-w64-ucrt-x86_64-shaderc
+            mingw-w64-ucrt-x86_64-spirv-headers
       - name: Build application and engine
         shell: msys2 {0}
         run: scripts/build-windows.sh
@@ -48,8 +49,8 @@ jobs:
           $target = "$env:RUNNER_TEMP\Nabria installed test"
           $process = Start-Process $installer -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$target`"" -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Install failed" }
-          & "$target\Nabria.exe" --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Installed runtime failed" }
+          $check = Start-Process "$target\Nabria.exe" -ArgumentList '--self-test' -Wait -PassThru
+          if ($check.ExitCode -ne 0) { throw "Installed runtime failed" }
           $process = Start-Process "$target\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($process.ExitCode -ne 0 -or (Test-Path "$target\Nabria.exe")) { throw "Uninstall failed" }
       - uses: actions/upload-artifact@v4

@@ -671,7 +671,7 @@ class Wizard(Gtk.ApplicationWindow):
 
     def _shortcut_page(self) -> Gtk.Box:
         page = self._page(
-            i18n.t("wizard.shortcut.title"), i18n.t("wizard.shortcut.lede")
+            i18n.t("wizard.shortcut.title"), i18n.t("windows.shortcut_lede" if config.WINDOWS else "wizard.shortcut.lede")
         )
         # A sentence, then the lines to paste -- the shape `instructions()`
         # documents, unpacked rather than rediscovered with index arithmetic.
