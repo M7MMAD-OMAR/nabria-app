@@ -48,6 +48,8 @@ jobs:
           path: build/whisper-windows
           key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh') }}
       - name: Check native runtime
+        env:
+          NABRIA_ALLOW_NONINTERACTIVE: "1"
         shell: msys2 {0}
         run: python scripts/check-windows.py dist/Nabria
       - name: Build installer
@@ -57,6 +59,8 @@ jobs:
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" packaging/windows/nabria.iss
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
       - name: Verify install and uninstall
+        env:
+          NABRIA_ALLOW_NONINTERACTIVE: "1"
         shell: pwsh
         run: |
           $installer = (Get-ChildItem dist/*setup.exe).FullName

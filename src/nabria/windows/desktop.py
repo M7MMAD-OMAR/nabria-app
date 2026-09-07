@@ -34,7 +34,12 @@ HOTKEYS: dict[str, str] = {}
 
 class Instance:
     def __init__(self):
+        from ..config import APP_ID
+        shell32 = C.WinDLL("shell32")
+        identify = api(shell32, "SetCurrentProcessExplicitAppUserModelID", C.c_long, W.LPCWSTR)
+        identify(APP_ID)
         from .control import address
+        C.set_last_error(0)
         self.handle = CreateMutex(None, False, "Local\\" + address().split("\\")[-1])
         if not self.handle:
             raise C.WinError(C.get_last_error())

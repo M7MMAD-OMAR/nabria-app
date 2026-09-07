@@ -96,8 +96,10 @@ def main() -> int:
         finally:
             CloseClipboard()
         results["unicode_clipboard"] = "passed"
-        test_paste()
-        results["native_paste_and_restore"] = "passed"
+        pasted = test_paste()
+        results["native_paste_and_restore"] = (
+            "passed" if pasted else "not tested: runner denied foreground activation"
+        )
         sample = os.environ.get("NABRIA_TEST_WAV")
         if sample:
             from .. import models, whisper
@@ -145,6 +147,8 @@ def test_paste():
         SetFocus(hwnd)
         from .desktop import GetForegroundWindow
         actual_foreground = GetForegroundWindow()
+        if actual_foreground != hwnd and os.environ.get("NABRIA_ALLOW_NONINTERACTIVE") == "1":
+            return False
         assert actual_foreground == hwnd, f"Could not focus EDIT: SetForegroundWindow={foreground_result}, foreground={actual_foreground}, edit={hwnd}"
         inject.to_clipboard("previous clipboard: سابق")
 
@@ -178,5 +182,6 @@ def test_paste():
             inject.GlobalUnlock(handle)
         finally:
             inject.CloseClipboard()
+        return True
     finally:
         inject.DestroyWindow(hwnd)

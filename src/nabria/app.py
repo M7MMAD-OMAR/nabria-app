@@ -216,6 +216,8 @@ class Daemon:
         self.log("daemon ready")
         if config.needs_setup(self.settings):
             GLib.idle_add(self._show_wizard)
+        elif config.WINDOWS and len(sys.argv) == 1:
+            GLib.idle_add(self._show_settings)
 
     def _bind_portal_shortcuts(self) -> bool:
         """Ask the desktop to own our hotkeys, if it is willing.

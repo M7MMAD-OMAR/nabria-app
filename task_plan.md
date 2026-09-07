@@ -31,3 +31,6 @@ None recorded yet.
   engine startup, IPC, GTK in both languages, hotkey registration and Unicode
   clipboard passed. Native EDIT remained empty after SendInput; add foreground
   diagnostics and investigate actual delivery before claiming input works.
+- Windows run 34111090255: 68 native unit tests passed. Foreground diagnostics
+  confirmed SetForegroundWindow was denied by the CI desktop. CI explicitly
+  reports native paste as not tested; an interactive VM pass remains required.
