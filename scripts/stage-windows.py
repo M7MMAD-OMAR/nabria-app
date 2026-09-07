@@ -1,10 +1,40 @@
 """Assemble the UCRT runtime without depending on the build machine's PATH."""
 
 import shutil
+import ctypes as C
 import subprocess
 import ssl
 import sys
 from pathlib import Path
+
+
+def embed_manifest(executable: Path) -> None:
+    from ctypes import wintypes as W
+    kernel = C.WinDLL("kernel32", use_last_error=True)
+    begin = kernel.BeginUpdateResourceW
+    begin.argtypes = [W.LPCWSTR, W.BOOL]
+    begin.restype = W.HANDLE
+    update = kernel.UpdateResourceW
+    update.argtypes = [W.HANDLE, C.c_void_p, C.c_void_p, W.WORD, C.c_void_p, W.DWORD]
+    update.restype = W.BOOL
+    end = kernel.EndUpdateResourceW
+    end.argtypes = [W.HANDLE, W.BOOL]
+    end.restype = W.BOOL
+    data = (ROOT / "packaging/windows/utf8.manifest").read_bytes()
+    buffer = C.create_string_buffer(data)
+    handle = begin(str(executable), False)
+    if not handle:
+        raise C.WinError(C.get_last_error())
+    # MinGW already embeds a neutral manifest. Adding an English resource
+    # leaves that one active on Arabic Windows, silently keeping the ANSI
+    # code page. Replace the neutral resource instead of adding a language.
+    if not update(handle, C.c_void_p(24), C.c_void_p(1), 0, buffer, len(data)):
+        error = C.WinError(C.get_last_error())
+        end(handle, True)
+        raise error
+    if not end(handle, False):
+        raise C.WinError(C.get_last_error())
+
 
 ROOT = Path(__file__).resolve().parent.parent
 PREFIX = Path(sys.prefix)
@@ -28,6 +58,7 @@ for name in (f"lib/python{sys.version_info.major}.{sys.version_info.minor}",
         shutil.copytree(source, DEST / "runtime" / name,
                         ignore=shutil.ignore_patterns("__pycache__", "*.a", "*.pyc"))
 shutil.copy2(ROOT / "build/whisper-windows/build/bin/whisper-server.exe", DEST / "engine")
+embed_manifest(DEST / "engine/whisper-server.exe")
 shutil.copy2(ROOT / "build/whisper-windows/LICENSE", DEST / "engine/LICENSE")
 shutil.copy2(ROOT / "LICENSE", DEST / "LICENSE")
 # Exact runtime package versions accompany the build for reproducibility.

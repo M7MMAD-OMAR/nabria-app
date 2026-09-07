@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8")
 root = Path(__file__).resolve().parent.parent
 subprocess.run([
     sys.executable, "-m", "pytest", "-q", "tests/test_config.py",

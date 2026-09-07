@@ -71,3 +71,8 @@ regression test. Repositioning the mapped indicator fixed its Windows corner.
 Windows run 34118430060 passed, but a subsequent explicit Arabic argument test
 exposed ANSI conversion in the engine. Added a UTF-8 engine manifest and expanded
 native validation to cover non-ASCII installation and model paths before release.
+The UTF-8 probe initially still failed on Arabic Windows because MinGW's neutral
+manifest remained beside the newly added English resource. Replacing the neutral
+manifest through UpdateResourceW was verified locally: Arabic prompt bytes now
+arrive intact. Move that operation into staging, retain a language-neutral
+manifest, and force UTF-8 for CI report output as well.
