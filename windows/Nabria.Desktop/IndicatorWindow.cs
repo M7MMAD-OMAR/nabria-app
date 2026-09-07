@@ -9,7 +9,8 @@ internal sealed class IndicatorWindow : Window
 {
     private readonly TextBlock label = new() { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 12, 0), Foreground = Brushes.White };
     private readonly ProgressBar meter = new() { Width = 36, Height = 7, Minimum = 0, Maximum = 60, Margin = new Thickness(0, 0, 8, 0) };
-    private readonly Button stop;
+    private readonly Button stop, cancel;
+    private string language = "";
     public IndicatorWindow(Func<string, Task> send)
     {
         Width = 310; Height = 62; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
@@ -21,7 +22,7 @@ internal sealed class IndicatorWindow : Window
         AutomationProperties.SetName(stop, Strings.T("desktop.stop"));
         stop.Click += async (_, _) => await send("stop");
         row.Children.Add(stop);
-        var cancel = new Button { Content = "×", ToolTip = Strings.T("desktop.cancel"), Padding = new Thickness(12, 4, 12, 4) };
+        cancel = new Button { Content = "×", ToolTip = Strings.T("desktop.cancel"), Padding = new Thickness(12, 4, 12, 4) };
         AutomationProperties.SetName(cancel, Strings.T("desktop.cancel"));
         cancel.Click += async (_, _) => await send("cancel");
         row.Children.Add(cancel);
@@ -30,6 +31,13 @@ internal sealed class IndicatorWindow : Window
     }
     public void Update(string state, double level)
     {
+        if (language != Strings.Language)
+        {
+            language = Strings.Language;
+            stop.ToolTip = Strings.T("desktop.stop"); cancel.ToolTip = Strings.T("desktop.cancel");
+            AutomationProperties.SetName(stop, Strings.T("desktop.stop"));
+            AutomationProperties.SetName(cancel, Strings.T("desktop.cancel"));
+        }
         FlowDirection = Strings.IsRtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         label.Text = Strings.T("desktop.state_" + state);
         stop.IsEnabled = state == "recording";

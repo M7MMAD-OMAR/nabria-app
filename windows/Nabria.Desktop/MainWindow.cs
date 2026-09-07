@@ -228,7 +228,7 @@ internal sealed partial class MainWindow : Window
     {
         if (closing) return;
         e.Cancel = true;
-        if (state != "idle" && MessageBox.Show(this, T("close_busy"), "Nabria", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (state != "idle" && MessageBox.Show(this, T("close_busy"), "Nabria", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         closing = true;
         await StopBackend();
         Close();

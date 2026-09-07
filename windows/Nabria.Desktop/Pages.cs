@@ -201,7 +201,7 @@ internal sealed partial class MainWindow
         { body.Children.Add(Description(T("history_empty"))); return; }
         body.Children.Add(Action(T("clear_history"), async () =>
         {
-            if (MessageBox.Show(this, T("clear_history_confirm"), T("clear_history"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) await Send("clear_history");
+            if (MessageBox.Show(this, T("clear_history_confirm"), T("clear_history"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes) await Send("clear_history");
         }));
         foreach (var item in historyItems.EnumerateArray())
         {
