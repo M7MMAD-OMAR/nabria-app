@@ -14,7 +14,8 @@ internal sealed partial class MainWindow
     private JsonElement historyItems;
     private string? vocabularyDraft;
     private int setupStep;
-    private sealed record Choice(string Id, string Label);
+    private sealed record Choice(string Id, string Label)
+    { public override string ToString() => Label; }
 
     private TextBlock Heading(string text, double size = 28) => new() { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = size, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) };
     private TextBlock Description(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Opacity = .85, LineHeight = 22, Margin = new Thickness(0, 0, 0, 16) };
@@ -125,7 +126,7 @@ internal sealed partial class MainWindow
         {
             if (selector.SelectedValue is not string selected || taskRunning) return;
             bool installed = catalogue.Any(item => Text(item, "key") == selected && Flag(item, "installed"));
-            taskRunning = true; taskText = T(installed ? "verifying" : "downloading"); Navigate(page);
+            taskRunning = true; taskText = installed ? "verifying" : "downloading"; Navigate(page);
             await Send(installed ? "select_model" : "download", new() { ["model"] = selected });
         }, primary: true);
         download.IsEnabled = !taskRunning; actions.Children.Add(download);
@@ -133,7 +134,7 @@ internal sealed partial class MainWindow
         {
             var picker = new OpenFileDialog { Title = T("import_model"), Filter = T("model_filter"), CheckFileExists = true };
             if (picker.ShowDialog(this) != true) return;
-            taskRunning = true; taskText = T("verifying"); Navigate(page);
+            taskRunning = true; taskText = "verifying"; Navigate(page);
             await Send("adopt", new() { ["path"] = picker.FileName });
         });
         import.IsEnabled = !taskRunning; actions.Children.Add(import); parent.Children.Add(actions);
@@ -143,13 +144,13 @@ internal sealed partial class MainWindow
             foreach (var item in found.EnumerateArray().Take(3))
             {
                 string path = Text(item, "path");
-                var use = Action(Text(item, "name"), async () => { taskRunning = true; taskText = T("verifying"); Navigate(page); await Send("adopt", new() { ["path"] = path }); });
+                var use = Action(Text(item, "name"), async () => { taskRunning = true; taskText = "verifying"; Navigate(page); await Send("adopt", new() { ["path"] = path }); });
                 use.ToolTip = path; use.IsEnabled = !taskRunning; parent.Children.Add(use);
             }
         }
         progress = new ProgressBar { Height = 6, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 12, 0, 8), IsIndeterminate = taskRunning && !micTesting };
         parent.Children.Add(progress);
-        taskLabel = Description(taskRunning && !micTesting ? taskText : ""); parent.Children.Add(taskLabel);
+        taskLabel = Description(taskRunning && !micTesting ? T(taskText) : ""); parent.Children.Add(taskLabel);
         if (taskRunning && !micTesting) parent.Children.Add(Action(T("cancel"), () => Send("cancel_task")));
     }
 
@@ -164,12 +165,12 @@ internal sealed partial class MainWindow
             device.FlowDirection = FlowDirection.LeftToRight;
         }
         var row = new WrapPanel();
-        var test = Action(T("test_microphone"), async () => { taskRunning = true; micTesting = true; micText = T("speak_test"); Navigate(page); await Send("mic_test"); });
+        var test = Action(T("test_microphone"), async () => { taskRunning = true; micTesting = true; micText = "speak_test"; Navigate(page); await Send("mic_test"); });
         test.IsEnabled = !taskRunning && devices.Length > 0;
         row.Children.Add(test); row.Children.Add(Action(T("refresh_devices"), () => Send("refresh"))); parent.Children.Add(row);
         levelMeter = new ProgressBar { Minimum = 0, Maximum = 60, Height = 6, Margin = new Thickness(0, 12, 0, 8) };
         parent.Children.Add(levelMeter);
-        micResult = Description(micText); parent.Children.Add(micResult);
+        micResult = Description(micText.Length > 0 ? T(micText) : ""); parent.Children.Add(micResult);
     }
 
     private void SettingsPage(StackPanel body)

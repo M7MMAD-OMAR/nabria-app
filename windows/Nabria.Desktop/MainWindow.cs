@@ -110,8 +110,8 @@ internal sealed partial class MainWindow : Window
                 if (levelMeter != null) levelMeter.Value = Math.Clamp(Number(message, "level") + 60, 0, 60);
                 break;
             case "mic_result":
-                micText = Flag(message, "cancelled") ? T("cancelled") : T(Flag(message, "heard") ? "mic_good" : "mic_quiet");
-                if (micResult != null) micResult.Text = micText;
+                micText = Flag(message, "cancelled") ? "cancelled" : Flag(message, "heard") ? "mic_good" : "mic_quiet";
+                if (micResult != null) micResult.Text = T(micText);
                 break;
             case "task_done":
                 taskRunning = false; micTesting = false;
