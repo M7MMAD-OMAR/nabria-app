@@ -2,6 +2,7 @@
 
 The first Windows x64 release is a prerelease. The installer includes the
 runtime and the local engine; no Python or developer tools are required.
+Windows 10 version 1903 or later is required for UTF-8 engine arguments.
 
 ## Product
 
@@ -72,7 +73,8 @@ Together they exercise:
 
 - Shared unit tests and WASAPI adapter tests.
 - Runtime imports and engine startup with build tools removed from PATH.
-- Launch from a relocated directory containing spaces.
+- Launch from a relocated directory containing spaces and Arabic characters.
+- Arabic engine arguments and inference from an Arabic model directory.
 - GTK indicator and settings in English and Arabic.
 - Native single-instance lock, named-pipe request and hotkey registration.
 - Arabic and English clipboard contents, actual paste into a Windows EDIT
@@ -83,12 +85,13 @@ Together they exercise:
 - The Linux `scripts/check.sh` distribution matrix.
 - Interactive installation, setup, adopting a checksum-verified existing model,
   and independent English dictation with an Arabic interface.
-- A speech WAV played into a dedicated virtual input, captured through real
-  WASAPI, transcribed locally, saved in history and pasted into a Windows editor.
+- English and Arabic speech WAVs played into a dedicated virtual input, captured
+  through real WASAPI, transcribed locally, saved in history and pasted into a Windows editor.
 - Recording and cancel hotkeys with English and Arabic keyboard layouts.
 - Silence rejection, image clipboard preservation and a newer clipboard copy
   taking precedence over restoration.
 
+Windows 10 was not exercised; the interactive guest runs Windows 11.
 A CI runner is not evidence about a physical microphone, device unplugging,
 hardware GPU performance, multiple monitors, or every target application.
 WASAPI warm-up still uses the conservative shared threshold and needs hardware

@@ -4,8 +4,8 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## What this is
 
-Nabria (نَبْرة, "tone of voice") is local voice dictation for Linux. Press a
-key, speak, press again, the text is pasted into the focused window. Nothing
+Nabria (نَبْرة, "tone of voice") is local voice dictation for Linux and Windows.
+Press a key, speak, press again, the text is pasted into the focused window. Nothing
 leaves the machine. No account, no cloud.
 
 The product concept is **"just talk"** and it is load-bearing: live partial
@@ -50,7 +50,9 @@ Window tests need a display and skip without one -- `check.sh` handles the
 `NABRIA_TEST_WAV=/path/to/speech.wav` additionally checks a real transcription.
 
 CI is deliberately cheap: fast checks and the container matrix on every push,
-and **nothing that compiles whisper.cpp**. Publishing an engine is a local act
+and **nothing that compiles the Linux whisper.cpp engine**. The separate
+Windows workflow builds its bundled engine and installer, then checks the native
+runtime. See `docs/WINDOWS.md`. Publishing a Linux engine is a local act
 (`scripts/release-engine.sh`), built in a Debian bookworm container with
 **pinned Vulkan headers** — bookworm's own are too old to compile the backend,
 and the one older image with a shader compiler (Ubuntu 22.04) has none at all.

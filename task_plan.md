@@ -6,13 +6,14 @@ and deliver a tested Windows EXE through GitHub.
 
 ## Phases
 1. Architecture and baseline review: complete.
-2. Windows platform adapters and shared integration: in_progress.
-3. Windows runtime, installer and automated checks: in_progress.
-4. Execute Linux and Windows checks, repair failures: in_progress.
-5. Publish a tested Windows release with exact validation limits: pending.
+2. Windows platform adapters and shared integration: complete.
+3. Windows runtime, installer and automated checks: complete.
+4. Execute Linux and Windows checks, repair failures: complete.
+5. Publish a tested Windows release with exact validation limits: complete.
 
-## Next Step
-Inspect native Windows build results and fix observed failures before publishing.
+## Delivery
+Published v0.5.0 as a prerelease, with the tested installer, SHA256SUMS and
+validation scope. The latest stable release remains v0.4.6.
 
 ## Decisions
 - Scope is this Nabria repository, following the concrete Windows objective.
@@ -20,7 +21,7 @@ Inspect native Windows build results and fix observed failures before publishing
 - Do not claim physical microphone or desktop tests without execution evidence.
 
 ## Errors
-None recorded yet.
+Observed failures and their repairs are recorded below and in progress.md.
 
 ## Build failures
 - Windows run 34109182876: treated engine/VERSION as a bare tag, but it is a

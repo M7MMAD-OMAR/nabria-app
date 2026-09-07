@@ -76,3 +76,19 @@ manifest remained beside the newly added English resource. Replacing the neutral
 manifest through UpdateResourceW was verified locally: Arabic prompt bytes now
 arrive intact. Move that operation into staging, retain a language-neutral
 manifest, and force UTF-8 for CI report output as well.
+
+Final Windows run 34120829260 passed at c922c25. The exact downloaded installer
+then passed all interactive native checks on Windows 11 Arabic without the CI
+focus exemption. Arabic engine arguments, clipboard text/image/new-copy checks
+and actual EDIT paste/restoration passed. An Arabic speech fixture captured
+through WASAPI was transcribed and pasted by the installed application.
+Final uninstall preserved identical hashes for config, history and base model.
+Linux checks: 299 passed locally; 249 passed on each of Ubuntu 24.04, Debian
+trixie and Fedora 44. RPM/DEB install and run checks passed on all three.
+The Windows test VM and its virtual audio input have been shut down. Physical input hardware, Windows 10 and
+GPU hardware remain explicitly untested. Release tag v0.5.0 points to c922c25.
+
+Published https://github.com/M7MMAD-OMAR/nabria-app/releases/tag/v0.5.0 as a
+prerelease. GitHub asset digests match the tested local files, including EXE
+SHA-256 0dc1f852cd30ef881b569a6925ff3e00362fda3bc9395c0474c01f85b39354fc.
+Updated the post-release PKGBUILD source checksum from the immutable archive.
