@@ -1,0 +1,17 @@
+{
+  // The landing page, served as static assets. There is no build step and no
+  // bundler: the same `docs/` tree the repository holds is what ships, which is
+  // the property the GitHub Pages plan in docs/SITE.md was chosen for.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nabria-site",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./docs"
+  },
+  "routes": [
+    {
+      "pattern": "nabria.sbarah.com",
+      "custom_domain": true
+    }
+  ]
+}

@@ -146,17 +146,30 @@ that cannot work.
 
 | | |
 |---|---|
-| where | GitHub Pages, `main` branch, `/docs` folder |
+| where | a Cloudflare Worker, `nabria-site`, serving `/docs` as static assets |
 | why there | no workflow, no build, nothing that can fail — the objection to CI applies here too |
-| pages | `docs/index.html`, `docs/ar/index.html`, `docs/.nojekyll` |
-| domain | `nabria.sbarah.com` via CNAME, later |
+| pages | `docs/index.html`, `docs/ar/index.html` |
+| domain | `nabria.sbarah.com`, a Workers custom domain on the `sbarah.com` zone |
 | assets | shared CSS and JS, generated Nabria SVG mark, social image, real setup screenshots |
 | icons | local Phosphor Duotone sprite with the upstream MIT licence |
 | script | animated mobile drawer, screenshot carousel, quick install, install tabs and command copy |
 | budget | static files, no framework and no build step |
 
-`.nojekyll` is not optional: Pages runs Jekyll on a branch source by default,
-which would try to render `docs/DESIGN.md` and `docs/SITE.md` as pages.
+Not GitHub Pages, which was the earlier plan: `sbarah.com` is already on
+Cloudflare and every other subdomain of it is a Worker, so a Pages site would
+have been the one host in the account nobody else uses. The trade is the same
+either way — a directory of files goes up as it stands. `docs/.nojekyll` stays
+for anyone who points Pages at this folder anyway.
+
+`docs/.assetsignore` keeps `*.md` out of the deployed site. `SITE.md` and
+`DESIGN.md` are notes for the repository, not pages, and an assets directory
+publishes everything in it at a bare URL.
+
+The deploy is `wrangler deploy` from the repository root, and it ships the
+working tree — so commit first, exactly as `release_tarball` uses `git archive`
+rather than `tar` for the same reason. Connecting the Worker to the repository
+in the Cloudflare dashboard (Workers Builds, `main`, deploy command
+`wrangler deploy`) removes that footgun; it cannot be done from the CLI.
 
 ## Settled
 

@@ -1,0 +1,4 @@
+# Design and packaging notes live next to the page because they are about it,
+# but they are written for the repository, not for a visitor. Keep them out of
+# the deployed site; GitHub still renders them at their source URLs.
+*.md
