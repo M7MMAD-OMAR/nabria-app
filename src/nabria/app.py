@@ -182,7 +182,7 @@ class Daemon:
         for number in (() if config.WINDOWS else (signal.SIGTERM, signal.SIGINT)):
             GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, number, self._quit)
 
-        self.orb = Orb(application, self.settings)
+        self.orb = self._make_orb(application)
         self.orb.hide()
         if not self.orb.layered:
             # Worth a line in the log, because every symptom of it -- the
@@ -218,6 +218,9 @@ class Daemon:
             GLib.idle_add(self._show_wizard)
         elif config.WINDOWS and len(sys.argv) == 1:
             GLib.idle_add(self._show_settings)
+
+    def _make_orb(self, application):
+        return Orb(application, self.settings)
 
     def _bind_portal_shortcuts(self) -> bool:
         """Ask the desktop to own our hotkeys, if it is willing.

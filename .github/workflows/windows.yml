@@ -1,7 +1,7 @@
 name: Windows
 on:
   push:
-    branches: [main, codex/windows-support]
+    branches: [main, codex/windows-support, codex/windows-desktop]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -12,6 +12,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
@@ -47,6 +50,12 @@ jobs:
         with:
           path: build/whisper-windows
           key: windows-engine-${{ steps.toolchain.outputs.key }}-${{ hashFiles('engine/VERSION', 'scripts/build-windows.sh') }}
+      - name: Build native desktop
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path src/nabria/__init__.py -Pattern '__version__ = "(.+)"').Matches.Groups[1].Value
+          dotnet publish windows/Nabria.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true "-p:Version=$version" -o dist/Nabria
+          if ($LASTEXITCODE -ne 0) { throw "Native desktop build failed" }
       - name: Build installer
         shell: pwsh
         run: |

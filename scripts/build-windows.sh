@@ -22,4 +22,3 @@ cmake -S build/whisper-windows -B build/whisper-windows/build -G Ninja \
   -DWHISPER_BUILD_TESTS=OFF -DCMAKE_EXE_LINKER_FLAGS=
 cmake --build build/whisper-windows/build --target whisper-server --parallel 2
 python scripts/stage-windows.py
-gcc -municode -mwindows -O2 packaging/windows/launcher.c -o dist/Nabria/Nabria.exe

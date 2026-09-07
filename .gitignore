@@ -11,3 +11,7 @@ dist/
 
 # Native Windows runtime staging and engine compilation.
 build/
+
+# Native Windows desktop build outputs.
+windows/**/bin/
+windows/**/obj/

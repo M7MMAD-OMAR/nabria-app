@@ -201,6 +201,7 @@ def probe(timeout: float = 10.0) -> list[Device]:
         result = subprocess.run(
             [sys.executable, "-m", "nabria.gpu"],
             capture_output=True, text=True, timeout=timeout, env=environment,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
         _PROBED = [Device(*entry) for entry in json.loads(result.stdout)]
     except (OSError, subprocess.SubprocessError, ValueError, TypeError):

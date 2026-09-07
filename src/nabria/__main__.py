@@ -11,6 +11,9 @@ USAGE = f"usage: python3 -m nabria [daemon|{'|'.join(COMMANDS)}]"
 
 
 def main() -> int:
+    if sys.platform == "win32" and sys.argv[1:] == ["--desktop-backend"]:
+        from .windows.backend import main as desktop_backend
+        return desktop_backend()
     if sys.platform == "win32" and sys.argv[1:] == ["--self-test"]:
         from .windows.selftest import main as self_test
         return self_test()

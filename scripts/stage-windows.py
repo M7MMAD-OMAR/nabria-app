@@ -1,6 +1,7 @@
 """Assemble the UCRT runtime without depending on the build machine's PATH."""
 
 import shutil
+import json
 import ctypes as C
 import subprocess
 import ssl
@@ -67,3 +68,15 @@ shutil.copy2(ROOT / "LICENSE", DEST / "LICENSE")
 certificate = ssl.get_default_verify_paths().cafile
 if certificate:
     shutil.copy2(certificate, DEST / "runtime/cert.pem")
+
+# One string catalogue serves GTK and the native Windows desktop.
+sys.path.insert(0, str(ROOT / "src"))
+from nabria import __version__, i18n
+(DEST / "strings.json").write_text(json.dumps(i18n.STRINGS, ensure_ascii=False), encoding="utf-8")
+(DEST / "version.txt").write_text(__version__, encoding="utf-8")
+
+messages = ["[CustomMessages]"]
+for language in ("en", "ar"):
+    for key in ("startup", "desktop", "open"):
+        messages.append(f"{language}.{key}=" + i18n.STRINGS[f"installer.{key}"][language])
+(ROOT / "dist/windows-messages.iss").write_text("\n".join(messages), encoding="utf-8-sig")

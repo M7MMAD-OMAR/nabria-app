@@ -1,40 +1,27 @@
-# Windows delivery
+# Native Windows desktop redesign
 
 ## Goal
-Review Nabria as a whole, preserve local dictation and one shared GTK UI,
-and deliver a tested Windows EXE through GitHub.
+Replace the Linux-looking Windows interface with a familiar standalone Windows
+application. Preserve local dictation, tested audio and delivery, Arabic/English
+support, and Sbarah attribution. Publish and validate the finished installer.
 
 ## Phases
-1. Architecture and baseline review: complete.
-2. Windows platform adapters and shared integration: complete.
-3. Windows runtime, installer and automated checks: complete.
-4. Execute Linux and Windows checks, repair failures: complete.
-5. Publish a tested Windows release with exact validation limits: complete.
-
-## Delivery
-Published v0.5.0 as a prerelease, with the tested installer, SHA256SUMS and
-validation scope. The latest stable release remains v0.4.6.
+1. Native UI architecture and console audit: complete.
+2. Shared backend bridge and Windows WPF frontend: in_progress.
+3. Native setup, recording, history, settings and help flows: in_progress.
+4. Build, interactive Windows QA, console and regression checks: pending.
+5. Publish the validated redesigned release: pending.
 
 ## Decisions
-- Scope is this Nabria repository, following the concrete Windows objective.
-- Preserve one GTK interface and one transcription state machine.
-- Do not claim physical microphone or desktop tests without execution evidence.
+- The user's new direction supersedes the earlier shared GTK interface decision.
+- Linux retains GTK. Windows gets a WPF/Fluent desktop shell with normal window
+  controls and taskbar identity. Python remains the local dictation backend.
+- Keep interface strings in i18n.py and export them to the desktop shell.
+- Communicate with the child backend over redirected standard pipes, not HTTP.
+- Never publish the intermediate 0.5.1 branding-only build as the redesign.
+- Verify ordinary Start menu launch without a terminal or developer tools.
 
-## Errors
-Observed failures and their repairs are recorded below and in progress.md.
-
-## Build failures
-- Windows run 34109182876: treated engine/VERSION as a bare tag, but it is a
-  shell configuration file. Parse WHISPER_CPP_VERSION and normalize CRLF.
-- Windows run 34109470772: Vulkan CMake requires SPIRV-Headers as a separate
-  development package. Add the UCRT package to the build environment.
-- Windows run 34109858177: engine and runtime assembly succeeded. Imports,
-  engine startup, IPC, GTK in both languages, hotkey registration and Unicode
-  clipboard passed. Native EDIT remained empty after SendInput; add foreground
-  diagnostics and investigate actual delivery before claiming input works.
-- Windows run 34111090255: 68 native unit tests passed. Foreground diagnostics
-  confirmed SetForegroundWindow was denied by the CI desktop. CI explicitly
-  reports native paste as not tested; an interactive VM pass remains required.
-- Windows run 34112340248: inference timed out after model startup. Add engine
-  diagnostics and use two test threads. Also eliminate system proxy handling
-  from loopback audio requests, backed by a real local HTTP regression test.
+## Previous delivery
+v0.5.0 was published and tested on Windows 11 Arabic using a dedicated virtual
+microphone. Physical microphone hardware, Windows 10 and GPU hardware were not
+validated. The logo addition is committed at 4cd9c3e but not yet released.

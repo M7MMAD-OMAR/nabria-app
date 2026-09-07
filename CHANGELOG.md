@@ -4,10 +4,13 @@ What changed in each release, in the words of somebody using it rather than
 somebody writing it. Every published version has a section here, and
 `scripts/release.sh` refuses to publish a tag that does not.
 
-## 0.5.1
+## 0.6.0
 
 2026-09-07
 
+- Replace the Windows interface with a native desktop window, setup, history,
+  settings and help, backed by the existing local dictation service.
+- Give Windows a proper application icon and explicit no-console startup.
 - Show the official Sbarah logo and a website link in settings and setup.
 - Bundle the logo locally, with Arabic and English attribution.
 

@@ -92,3 +92,16 @@ Published https://github.com/M7MMAD-OMAR/nabria-app/releases/tag/v0.5.0 as a
 prerelease. GitHub asset digests match the tested local files, including EXE
 SHA-256 0dc1f852cd30ef881b569a6925ff3e00362fda3bc9395c0474c01f85b39354fc.
 Updated the post-release PKGBUILD source checksum from the immutable archive.
+
+User requested a full Windows-native redesign and questioned the terminal UI.
+Paused the branding-only release. The launcher already uses the GUI subsystem
+and CREATE_NO_WINDOW; the visible PowerShell windows were our test harness.
+Audit also found the GPU probe lacked an explicit Windows no-console flag.
+Implement a WPF desktop shell with a redirected-pipe Python backend, replacing
+Windows GTK screens while retaining Linux UI and tested dictation internals.
+
+The native WPF shell compiles with .NET 10 and a self-contained WinExe output.
+Added a local inherited-pipe bridge, native three-step setup, recording window,
+history, settings, help links, Sbarah attribution and application icon. The
+Windows GPU probe now explicitly suppresses console allocation. Shared quick
+checks pass: 299 tests, 2 skips. Interactive native validation is next.
