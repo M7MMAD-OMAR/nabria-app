@@ -55,7 +55,7 @@ somebody writing it. Every published version has a section here, and
 
 2026-08-28
 
-- Uninstalling is covered by the test suite.
+- No user-facing changes.
 
 ## 0.3.0
 

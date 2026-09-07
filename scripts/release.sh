@@ -55,12 +55,12 @@ printf '%s\n' "$changelog" |
   awk -v v="${tag#v}" '
     $0 == "## " v { found = 1; next }
     found && /^## / { exit }
-    found && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ { next }
+    found && /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ { next }
     found { print }
   ' | sed -e '/./,$!d' > "$notes"
 [ -s "$notes" ] ||
   { bad "CHANGELOG.md has no \"## ${tag#v}\" section at $tag"; exit 1; }
-ok "release notes: $(grep -c '^- ' "$notes" || true) bullets"
+ok "release notes: $(grep -c . "$notes") lines"
 
 say "Building $tag"
 # From the tag, not the working tree: a release must be reproducible from what
