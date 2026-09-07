@@ -40,7 +40,7 @@ internal sealed class IndicatorWindow : Window
         }
         FlowDirection = Strings.IsRtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         label.Text = Strings.T("desktop.state_" + state);
-        stop.IsEnabled = state == "recording";
+        stop.IsEnabled = state == "recording"; cancel.IsEnabled = state == "recording";
         meter.IsIndeterminate = state == "working";
         meter.Value = Math.Clamp(level + 60, 0, 60);
         if (state == "idle") { Hide(); return; }

@@ -23,7 +23,7 @@ internal sealed partial class MainWindow : Window
     private TextBlock? errorLabel;
     private string lastError = "";
     private TextBlock? statusLabel, shortcutLabel, taskLabel, micResult;
-    private Button? recordButton;
+    private Button? recordButton, cancelButton;
     private TextBox? lastText;
     private ProgressBar? levelMeter, progress;
     private ListBox? navigation;
@@ -85,6 +85,7 @@ internal sealed partial class MainWindow : Window
                 state = Text(message, "state", "idle");
                 if (statusLabel != null) statusLabel.Text = T("state_" + state);
                 if (recordButton != null) recordButton.Content = T(state == "recording" ? "stop" : "start");
+                if (cancelButton != null) cancelButton.IsEnabled = state == "recording";
                 if (levelMeter != null && !taskRunning) levelMeter.Value = Math.Clamp(Number(message, "level") + 60, 0, 60);
                 if (shortcutLabel != null && message.TryGetProperty("shortcuts", out var shortcuts))
                     shortcutLabel.Text = Text(shortcuts, "toggle", T("shortcut_unavailable"));
@@ -186,7 +187,7 @@ internal sealed partial class MainWindow : Window
     {
         page = target;
         if (data.ValueKind == JsonValueKind.Undefined) return;
-        statusLabel = null; shortcutLabel = null; recordButton = null; lastText = null; levelMeter = null; progress = null; taskLabel = null; micResult = null;
+        statusLabel = null; shortcutLabel = null; recordButton = null; cancelButton = null; lastText = null; levelMeter = null; progress = null; taskLabel = null; micResult = null;
         var body = new StackPanel();
         switch (target)
         {

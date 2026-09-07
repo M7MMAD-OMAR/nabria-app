@@ -70,8 +70,9 @@ internal sealed partial class MainWindow
         }, primary: true);
         recordButton.MinWidth = 180;
         row.Children.Add(recordButton);
-        var cancel = Action(T("cancel"), () => Send("cancel"));
-        row.Children.Add(cancel); record.Children.Add(row);
+        cancelButton = Action(T("cancel"), () => Send("cancel"));
+        cancelButton.IsEnabled = state == "recording";
+        row.Children.Add(cancelButton); record.Children.Add(row);
         levelMeter = new ProgressBar { Minimum = 0, Maximum = 60, Height = 5, Margin = new Thickness(0, 16, 0, 16) };
         record.Children.Add(levelMeter);
         record.Children.Add(Description(T("shortcut_help")));
@@ -122,13 +123,15 @@ internal sealed partial class MainWindow
         selector.FlowDirection = FlowDirection.LeftToRight;
         parent.Children.Add(Description(T(Flag(data, "hasGpu") ? "model_gpu_help" : "model_cpu_help")));
         var actions = new WrapPanel();
-        var download = Action(T("use_model"), async () =>
+        bool SelectedInstalled() => catalogue.Any(item => Text(item, "key") == selector.SelectedValue?.ToString() && Flag(item, "installed"));
+        var download = Action(T(SelectedInstalled() ? "use_model" : "download_model"), async () =>
         {
             if (selector.SelectedValue is not string selected || taskRunning) return;
             bool installed = catalogue.Any(item => Text(item, "key") == selected && Flag(item, "installed"));
             taskRunning = true; taskText = installed ? "verifying" : "downloading"; Navigate(page);
             await Send(installed ? "select_model" : "download", new() { ["model"] = selected });
         }, primary: true);
+        selector.SelectionChanged += (_, _) => download.Content = T(SelectedInstalled() ? "use_model" : "download_model");
         download.IsEnabled = !taskRunning; actions.Children.Add(download);
         var import = Action(T("import_model"), async () =>
         {
@@ -148,7 +151,7 @@ internal sealed partial class MainWindow
                 use.ToolTip = path; use.IsEnabled = !taskRunning; parent.Children.Add(use);
             }
         }
-        progress = new ProgressBar { Height = 6, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 12, 0, 8), IsIndeterminate = taskRunning && !micTesting };
+        progress = new ProgressBar { Height = 6, Minimum = 0, Maximum = 100, Margin = new Thickness(0, 12, 0, 8), IsIndeterminate = taskRunning && !micTesting, Visibility = taskRunning && !micTesting ? Visibility.Visible : Visibility.Collapsed };
         parent.Children.Add(progress);
         taskLabel = Description(taskRunning && !micTesting ? T(taskText) : ""); parent.Children.Add(taskLabel);
         if (taskRunning && !micTesting) parent.Children.Add(Action(T("cancel"), () => Send("cancel_task")));

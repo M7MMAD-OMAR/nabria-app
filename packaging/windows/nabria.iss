@@ -5,8 +5,9 @@
 AppId=com.sbarah.Nabria
 AppName=Nabria
 AppVersion={#AppVersion}
-AppPublisher=Nabria contributors
-AppPublisherURL=https://github.com/M7MMAD-OMAR/nabria-app
+AppPublisher=Sbarah
+AppPublisherURL=https://sbarah.com
+AppSupportURL=https://github.com/M7MMAD-OMAR/nabria-app/issues
 DefaultDirName={localappdata}\Programs\Nabria
 DefaultGroupName=Nabria
 PrivilegesRequired=lowest
