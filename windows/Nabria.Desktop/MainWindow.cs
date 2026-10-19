@@ -144,15 +144,8 @@ internal sealed partial class MainWindow : Window
         brand.Children.Add(new TextBlock { Text = T("app_name"), FontSize = 26, FontWeight = FontWeights.SemiBold });
         DockPanel.SetDock(brand, Dock.Top); sidebar.Children.Add(brand);
         var attribution = new Button { Padding = new Thickness(10), Margin = new Thickness(0, 16, 0, 4), ToolTip = "sbarah.com" };
-        var attributionContent = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-        attributionContent.Children.Add(new TextBlock { Text = Strings.T("brand.credit"), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 8) });
-        attributionContent.Children.Add(new Border
-        {
-            CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Background = new SolidColorBrush(Color.FromRgb(31, 42, 31)),
-            Child = new Image { Source = new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "app/nabria/assets/sbarah-logo.png"))), Width = 70, Height = 37, Stretch = Stretch.Uniform, FlowDirection = FlowDirection.LeftToRight }
-        });
         attribution.Background = Brushes.Transparent; attribution.BorderThickness = new Thickness(0);
-        attribution.Content = attributionContent;
+        attribution.Content = new TextBlock { Text = Strings.T("brand.credit"), FontSize = 12, TextDecorations = TextDecorations.Underline };
         attribution.SetResourceReference(StyleProperty, "DefaultButtonStyle");
         AutomationProperties.SetName(attribution, Strings.T("brand.credit") + " sbarah.com");
         attribution.Click += (_, _) => Open("https://sbarah.com");

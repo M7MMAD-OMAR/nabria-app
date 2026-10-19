@@ -282,7 +282,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "desktop.setup_required": {"en": "Choose a speech model and complete setup first.", "ar": "اختر نموذج تفريغ وأكمل الإعداد أولاً."},
     "desktop.unknown_model": {"en": "This file is not one of the supported speech models, or its checksum is invalid.", "ar": "هذا الملف ليس من نماذج التفريغ المدعومة، أو أن بصمته غير صحيحة."},
     "desktop.gpu_required": {"en": "This model requires a dedicated graphics card.", "ar": "يتطلب هذا النموذج بطاقة رسوميات منفصلة."},
-    "brand.credit": {"en": "Made by Sbarah", "ar": "صنعته صبارة"},
+    "brand.credit": {"en": "Built by Sbarah", "ar": "من تطوير صبارة"},
     "windows.shortcut_lede": {
         "en": "Press the recording shortcut, speak, then press it again. Your words appear in the focused window.",
         "ar": "اضغط اختصار التسجيل وتكلّم، ثم اضغطه مجددًا. تظهر كلماتك في النافذة النشطة.",

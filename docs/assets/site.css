@@ -1494,12 +1494,8 @@ html[dir="rtl"] .closing .button {
   gap: 12px;
   color: var(--muted);
   font-size: 11px;
-  text-decoration: none;
-}
-
-.sbarah-link img {
-  inline-size: 70px;
-  block-size: 37px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .sbarah-link:hover span,
