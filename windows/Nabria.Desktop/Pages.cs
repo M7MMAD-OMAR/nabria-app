@@ -241,7 +241,7 @@ internal sealed partial class MainWindow
         how.Children.Add(Description(T("minimize_hint")));
         var links = Card(body, T("support"));
         links.Children.Add(Action(T("report_issue"), () => { Open("https://github.com/M7MMAD-OMAR/nabria-app/issues"); return Task.CompletedTask; }));
-        links.Children.Add(Action(T("support_project"), () => { Open("https://www.buymeacoffee.com/m7mmadomar"); return Task.CompletedTask; }));
+        links.Children.Add(Action(T("support_project"), () => { Open("https://sbarah.com/support"); return Task.CompletedTask; }));
         links.Children.Add(Action(T("sbarah_site"), () => { Open("https://sbarah.com"); return Task.CompletedTask; }));
         body.Children.Add(Description(T("local_note")));
         string version = File.Exists(Path.Combine(AppContext.BaseDirectory, "version.txt")) ? File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "version.txt")).Trim() : "";
