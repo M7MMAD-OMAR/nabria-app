@@ -304,9 +304,11 @@ Nabria is free, MIT, and runs entirely on your own machine. There is no account
 to sell you and no usage to meter, which is the point of it and also the reason
 there is nothing behind it but time.
 
-If it saved you some, you can buy me a coffee:
+If it saved you some, you can support Sbarah:
 
-<a href="https://www.buymeacoffee.com/m7mmadomar"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="217" height="60"></a>
+<a href="https://sbarah.com/support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/support-sbarah-dark.svg"><img src="docs/assets/support-sbarah-light.svg" alt="Support Sbarah" width="380"></picture></a>
+
+Or [buy a coffee](https://www.buymeacoffee.com/m7mmadomar).
 
 A report of a distribution or desktop it does not work on is worth as much;
 those are in [CONTRIBUTING.md](CONTRIBUTING.md).
