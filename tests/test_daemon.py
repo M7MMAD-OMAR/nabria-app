@@ -14,6 +14,7 @@ from __future__ import annotations
 import importlib
 import os
 import stat
+import threading
 import time
 
 import pytest
@@ -269,7 +270,7 @@ def test_a_mid_take_warning_does_not_consume_the_runs_notice(daemon, sent):
     )
 
 
-def test_the_warning_reports_the_instant_its_verdict_came_from(daemon, monkeypatch):
+def test_the_warning_reports_the_instant_its_verdict_came_from(daemon, sent, monkeypatch):
     """The caller must not re-read what the lock already handed it.
 
     A recorder is live while this runs: re-reading `seconds` and `rms_dbfs`
@@ -306,8 +307,20 @@ def test_the_warning_reports_the_instant_its_verdict_came_from(daemon, monkeypat
     monkeypatch.setattr(daemon, "_silence_warning_seconds", lambda: 12.0)
     daemon.recording = MovingTake()
     daemon.takes = 1
+    completed = threading.Event()
+    warn = daemon._warn_unheard
+    def report(*args):
+        try:
+            warn(*args)
+        finally:
+            completed.set()
+    monkeypatch.setattr(daemon, "_warn_unheard", report)
 
     daemon._poll_silence()
+    # Do not let a worker from this test inherit the next test's patched
+    # notification sender. Fedora CI exposed that cross-test race.
+    assert completed.wait(3)
+    assert len(sent) == 1
 
     line = [text for text in logged if "warning while still recording" in text][0]
     assert "14s in at -70.0 dBFS" in line, (
