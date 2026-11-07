@@ -116,10 +116,12 @@ fi
 # a library path Debian uses and Fedora does not, a typelib packaged
 # separately, pw-record living somewhere else on Arch. Reasoning about package
 # names does not work.
+# Optional desktop stacks can mask an undeclared dependency and substantially
+# expand these clean containers. Exercise exactly the installer's package hints.
 DISTROS=(
-  "ubuntu:24.04|apt-get update -qq && apt-get install -y -qq python3 python3-gi gir1.2-gtk-4.0 python3-cairo python3-gi-cairo pipewire-bin wl-clipboard wtype python3-pytest"
-  "debian:trixie|apt-get update -qq && apt-get install -y -qq python3 python3-gi gir1.2-gtk-4.0 python3-cairo python3-gi-cairo libgtk4-layer-shell0 gir1.2-gtk4layershell-1.0 pipewire-bin wl-clipboard wtype python3-pytest"
-  "fedora:44|dnf install -y -q python3-gobject python3-cairo gtk4 gtk4-layer-shell pipewire-utils wl-clipboard wtype python3-pytest"
+  "ubuntu:24.04|apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-gi gir1.2-gtk-4.0 python3-cairo python3-gi-cairo pipewire-bin wl-clipboard wtype python3-pytest"
+  "debian:trixie|apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-gi gir1.2-gtk-4.0 python3-cairo python3-gi-cairo libgtk4-layer-shell0 gir1.2-gtk4layershell-1.0 pipewire-bin wl-clipboard wtype python3-pytest"
+  "fedora:44|dnf install -y -q --setopt=install_weak_deps=False python3-gobject python3-cairo gobject-introspection gtk4 gtk4-layer-shell pipewire-utils wl-clipboard wtype python3-pytest"
 )
 
 if [ "$want_distros" = yes ]; then

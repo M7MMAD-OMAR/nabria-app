@@ -73,3 +73,81 @@ def test_every_anchor_name_resolves_to_a_real_edge():
 def test_states_all_have_an_accent_colour():
     for state in ("loading", "recording", "working", "done", "error"):
         assert state in orb_module.ACCENTS
+
+
+def test_live_transcript_keeps_plain_full_text_and_uses_a_bounded_card(without_layer_shell, application):
+    indicator = without_layer_shell.Orb(application, {})
+    text = "هلأ عم جرّب Claude Desktop مع Python 3.14، والكلام لازم يطلع متل ما بحكي. " * 30
+    indicator.set_transcript(text)
+    assert indicator.transcript_label.get_text() == text
+    assert not indicator.transcript_label.get_use_markup()
+    assert indicator.transcript_label.get_wrap()
+    assert indicator.transcript_label.get_direction() == Gtk.TextDirection.RTL
+    assert indicator.area.get_content_width() == without_layer_shell.TRANSCRIPT_W
+    assert indicator.area.get_content_height() <= without_layer_shell.TRANSCRIPT_MAX_H
+    assert indicator.transcript_scroll.get_visible()
+    indicator.window.destroy()
+
+
+def test_working_preserves_live_text_and_clear_returns_to_the_small_orb(without_layer_shell, application, monkeypatch):
+    indicator = without_layer_shell.Orb(application, {})
+    calls = []
+    monkeypatch.setattr(indicator.window, "present", lambda: calls.append("present"))
+    indicator.show("recording")
+    indicator.set_transcript("This is the complete sentence.")
+    indicator.show("working")
+    indicator.set_transcript("This is the complete sentence, updated.")
+    assert calls == ["present"]
+    assert indicator.transcript_label.get_text() == "This is the complete sentence, updated."
+    assert indicator.transcript_label.get_direction() == Gtk.TextDirection.LTR
+    indicator.clear_transcript()
+    assert indicator.transcript_label.get_text() == ""
+    assert not indicator.transcript_scroll.get_visible()
+    assert indicator.area.get_content_width() == without_layer_shell.WINDOW_W
+    assert indicator.area.get_content_height() == without_layer_shell.WINDOW_H
+    indicator.window.destroy()
+
+
+def test_hide_clears_the_previous_take(without_layer_shell, application):
+    indicator = without_layer_shell.Orb(application, {})
+    indicator.set_transcript("previous take")
+    indicator.hide()
+    assert indicator.transcript_label.get_text() == ""
+    assert indicator.transcript == ""
+    indicator.window.destroy()
+
+
+def test_transcript_height_stays_fixed_as_the_conversation_grows(without_layer_shell, application):
+    indicator = without_layer_shell.Orb(application, {})
+    indicator.set_transcript("A short sentence.")
+    short_height = indicator.area.get_content_height()
+    text = "هلأ عم جرّب كلام طويل مع Claude Desktop وPython. " * 200
+    indicator.set_transcript(text)
+    assert indicator.area.get_content_height() == short_height
+    assert short_height == without_layer_shell.TRANSCRIPT_MAX_H
+    assert indicator.transcript_label.get_text() == text
+    indicator.clear_transcript()
+    indicator.window.destroy()
+
+
+def test_a_new_update_follows_the_tail_even_after_scrolling_back(without_layer_shell, application, monkeypatch):
+    from types import SimpleNamespace
+
+    indicator = without_layer_shell.Orb(application, {})
+    indicator.set_transcript("An earlier sentence.")
+    if indicator._scroll_source:
+        without_layer_shell.GLib.source_remove(indicator._scroll_source)
+        indicator._scroll_source = 0
+    values = []
+    adjustment = SimpleNamespace(
+        get_upper=lambda: 1200.0, get_page_size=lambda: 128.0,
+        set_value=values.append,
+    )
+    monkeypatch.setattr(indicator.transcript_scroll, "get_vadjustment", lambda: adjustment)
+    indicator.set_transcript("An earlier sentence. A new sentence follows.")
+    assert indicator._scroll_source
+    without_layer_shell.GLib.source_remove(indicator._scroll_source)
+    indicator._follow_tail()
+    assert values == [1072.0]
+    indicator.clear_transcript()
+    indicator.window.destroy()

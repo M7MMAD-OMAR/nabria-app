@@ -132,6 +132,30 @@ def test_odd_byte_counts_do_not_crash_the_reader(tmp_path):
     assert take.error == ""
 
 
+def test_stop_drains_audio_already_written_by_the_child(tmp_path):
+    import threading
+    import wave
+
+    take = Recorder(tmp_path / "tail.wav")
+    data = pcm([1000] * (RATE + 1500))
+
+    class ExitedProcess:
+        stdout = FakeStdout(data)
+
+        def poll(self):
+            return 0
+
+    take.process = ExitedProcess()
+    # Delay the reader until stop has signalled it, as happens under load
+    # when the child exits with unread PCM still buffered in its pipe.
+    take.reader = threading.Thread(target=lambda: (take.stop_event.wait(), take._read()))
+    take.reader.start()
+    take.stop()
+    assert not take.reader.is_alive()
+    with wave.open(str(take.destination)) as source:
+        assert source.readframes(source.getnframes()) == data
+
+
 # -- the mid-take silence check --------------------------------------------
 #
 # `unheard` is read while the recording is still running, which is the whole
@@ -222,3 +246,50 @@ def test_unheard_reports_the_numbers_even_when_it_stays_quiet(tmp_path):
     assert unheard is False
     assert seconds == take.seconds and seconds > 2.0
     assert level == take.rms_dbfs
+
+
+def test_live_audio_includes_the_warmup_and_only_returns_new_bytes(tmp_path):
+    take = Recorder(tmp_path / "take.wav")
+    first = pcm([1200] * 100)
+    second = pcm([2400] * 100)
+    take._observe(first)
+    data, offset = take.read_live(0)
+    assert data == first
+    assert offset == len(first)
+    assert not take.measured
+    assert take.read_live(offset) == (b"", offset)
+    take._observe(second)
+    assert take.read_live(offset) == (second, len(first + second))
+
+
+def test_live_audio_keeps_partial_s16_samples_until_the_next_read(tmp_path):
+    take = Recorder(tmp_path / "take.wav")
+    take._observe(b"\x01\x02\x03")
+    assert take.read_live(0) == (b"\x01\x02", 2)
+    take._observe(b"\x04")
+    assert take.read_live(2) == (b"\x03\x04", 4)
+
+
+def test_live_audio_overrun_is_explicit_and_does_not_damage_the_wav(tmp_path, monkeypatch):
+    import pytest
+    import wave
+
+    monkeypatch.setattr(recorder, "LIVE_BUFFER_BYTES", 100)
+    original = pcm(range(1000))
+    take = drive(tmp_path, original)
+    assert len(take.live_buffer) == 100
+    with pytest.raises(ValueError, match="fell behind"):
+        take.read_live(0)
+    assert take.read_live(len(original) - 100) == (original[-100:], len(original))
+    with wave.open(str(take.destination), "rb") as saved:
+        assert saved.readframes(saved.getnframes()) == original
+
+
+def test_live_audio_does_not_include_an_invalid_offset(tmp_path):
+    import pytest
+
+    take = Recorder(tmp_path / "take.wav")
+    take._observe(pcm([12, 13]))
+    for offset in (-1, 1, 6):
+        with pytest.raises(ValueError):
+            take.read_live(offset)

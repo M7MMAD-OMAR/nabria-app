@@ -119,6 +119,6 @@ def measure(seconds: float = 4.0) -> float:
                 recorder.stop()
             if recorder.error:
                 raise AudioError(recorder.error)
-            return recorder.rms_dbfs
+            return recorder.activity_dbfs
     except Exception as exc:
         raise AudioError(str(exc)) from exc

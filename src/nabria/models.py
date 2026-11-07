@@ -47,6 +47,9 @@ class Model(NamedTuple):
 
     @property
     def url(self) -> str:
+        if self.key == "nemotron-3.5":
+            from .nemotron import MODEL_URL
+            return MODEL_URL
         return f"{BASE_URL}/{self.filename}"
 
     @property
@@ -83,6 +86,17 @@ CATALOG: dict[str, Model] = {
 
 DEFAULT_WITH_GPU = "large-v3-turbo"
 DEFAULT_WITHOUT_GPU = "base"
+
+# Installed explicitly with the optional native streaming runtime. Keeping it
+# outside the first-run catalogue avoids offering a model without its engine.
+NEMOTRON = Model(
+    key="nemotron-3.5",
+    filename="nemotron-3.5-asr-streaming-0.6b.q8_0.gguf",
+    size=742_090_464,
+    sha256="3fc991d3badad7277c11030a7519832cddaf2057aafed6d4b25147e953a070b1",
+    summary="model.nemotron.summary",
+    needs_gpu=False,
+)
 
 
 def recommended(has_discrete_gpu: bool) -> Model:
@@ -136,7 +150,7 @@ def best_installed(model_dir: Path, has_gpu: bool | None = None) -> Path | None:
 def models_in(model_dir: Path) -> list[Path]:
     """Finished `.bin` files in a directory. Mirrors `config.models`."""
     try:
-        found = sorted(model_dir.glob("*.bin"))
+        found = sorted([*model_dir.glob("*.bin"), *model_dir.glob(NEMOTRON.filename)])
     except OSError:
         return []
     return [

@@ -8,10 +8,11 @@ Nabria (نَبْرة, "tone of voice") is local voice dictation for Linux and Wi
 Press a key, speak, press again, the text is pasted into the focused window. Nothing
 leaves the machine. No account, no cloud.
 
-The product concept is **"just talk"** and it is load-bearing: live partial
-transcription, note-taking, summarisation, translation, an assistant, a tray
-menu, cloud sync and a plugin system are all explicit non-goals. A feature that
-needs explaining does not go in. See `PLAN.md`.
+The product concept is **"just talk"** and it is load-bearing. The owner requested
+live transcript previews on 2026-11-05: these stay in the indicator, with one
+authoritative final paste. Note-taking, summarisation, translation, an assistant,
+a tray menu, cloud sync and a plugin system remain non-goals. See `PLAN.md` and
+`docs/LIVE_DICTATION.md`.
 
 ## Commands
 
@@ -374,7 +375,7 @@ then builds and tests the installer. An executable with only the runtime staged
 is incomplete until the desktop publish step has run.
 
 <!-- graft:start -->
-## Graft: repo context graph
+## Graft, repo context graph
 
 This repo is indexed in `graft/`: small linked markdown nodes that explain each
 system and carry exact file:line spans, kept in sync with the code through git.
@@ -402,7 +403,7 @@ hotspots), no LLM, no key.
   transitively for the full blast radius. For structural questions, skip
   ranking and use this directly.
 - Or browse: `graft/INDEX.md` lists every node; follow the links.
-- Monorepos and folders of multiple repos rank fairly across sub-projects , 
+- Monorepos and folders of multiple repos rank fairly across sub-projects ,
   hits carry `[scope/]` labels naming which one they're from. Narrow with
   `graft ask "<task>" --in <scope>/` once you know where you're working.
 

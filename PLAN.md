@@ -12,9 +12,10 @@ you have to understand before it works.
 Everything below is judged against that. A feature that needs explaining does
 not go in.
 
-Non-goals, written down so they stay non-goals: live partial transcription,
-note-taking, summarisation, translation, an assistant, a tray menu, cloud sync,
-a plugin system.
+Non-goals: note-taking, summarisation, translation, an assistant, a tray menu,
+cloud sync and a plugin system. The owner's 2026-11-05 request adds live text
+inside the indicator; provisional words never enter the focused document.
+See `docs/LIVE_DICTATION.md`.
 
 ## Verdict on open-sourcing
 

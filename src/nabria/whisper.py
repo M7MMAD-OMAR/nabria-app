@@ -9,6 +9,8 @@ connection is a sufficient readiness check.
 from __future__ import annotations
 
 import contextlib
+import codecs
+import http.client
 import json
 import mimetypes
 import os
@@ -24,6 +26,12 @@ from pathlib import Path
 from typing import Any
 
 from . import config, gpu
+from .corrections import Corrections
+
+# Even numeric loopback addresses go through IDNA in socket.getaddrinfo.
+# Load it while the interpreter and stdlib still belong to the same install:
+# a distro update can replace lazy codec dependencies under a running daemon.
+codecs.lookup("idna")
 
 STARTUP_TIMEOUT = 90.0
 POLL_INTERVAL = 0.2
@@ -84,6 +92,7 @@ def _multipart(fields: dict[str, str], file_path: Path) -> tuple[bytes, str]:
 class WhisperServer:
     def __init__(self, settings: dict[str, Any], log):
         self.settings = settings
+        self.corrections = Corrections(settings.get("corrections"))
         self.log = log
         self.process: subprocess.Popen[bytes] | None = None
         self.port = 0
@@ -319,11 +328,46 @@ class WhisperServer:
     # -- inference ---------------------------------------------------------
 
     def transcribe(self, wav_path: Path) -> str:
+        # The reaper must not unload the engine while an inference is active.
+        # Retry here, before history and injection, so a retried request cannot
+        # deliver a take twice. The original WAV remains available throughout.
+        with self.lock:
+            for attempt in range(2):
+                try:
+                    return self._infer(wav_path)
+                except (ConnectionError, TimeoutError, urllib.error.URLError, http.client.HTTPException) as exc:
+                    if isinstance(exc, urllib.error.HTTPError):
+                        exc.close()
+                        if exc.code < 500:
+                            raise
+                    if attempt:
+                        raise
+                    if (
+                        self.device is not None and self.device.use_gpu
+                        and self.process is not None and self.process.poll() is not None
+                    ):
+                        self.gpu_failed = True
+                        self.log(
+                            f"GPU inference crashed{self._stderr_summary()}; "
+                            "falling back to the CPU for the rest of this session"
+                        )
+                    self.log(f"inference interrupted ({exc}); restarting engine and retrying take once")
+                    self.stop()
+                finally:
+                    self.last_used = time.monotonic()
+        raise AssertionError("inference attempts exhausted")
+
+    def _infer(self, wav_path: Path) -> str:
         self.ensure()
         fields = {
-            "response_format": "json",
+            "response_format": "verbose_json",
+            # The engine's flattened text inserts newlines even inside words.
+            # Segments retain the original spacing. Skip the extra language
+            # detection pass that verbose output otherwise performs.
+            "no_language_probabilities": "true",
             "language": str(self.settings.get("language", "auto")),
             "temperature": "0",
+            "beam_size": str(max(1, min(8, int(self.settings.get("beam_size", 1))))),
         }
         body, content_type = _multipart(fields, wav_path)
         request = urllib.request.Request(
@@ -341,10 +385,15 @@ class WhisperServer:
             self.last_used = time.monotonic()
 
         try:
-            text = json.loads(payload).get("text", "")
+            result = json.loads(payload)
+            segments = result.get("segments")
+            text = (
+                "".join(segment["text"] for segment in segments)
+                if isinstance(segments, list) else result.get("text", "")
+            )
         except ValueError:
             text = payload
-        return clean(text)
+        return self.corrections.apply(clean(text))
 
 
 def _normalise(text: str) -> str:

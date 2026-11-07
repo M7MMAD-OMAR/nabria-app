@@ -20,7 +20,7 @@ import wave
 from array import array
 from pathlib import Path
 
-from .recorder import LEVEL_WARMUP_FRAMES, RATE, SILENT_DBFS, dbfs
+from .recorder import LEVEL_WARMUP_FRAMES, RATE, SILENT_DBFS, Recorder, dbfs
 
 # `wpctl status` marks the default node with an asterisk before the id.
 _SOURCE_LINE = re.compile(r"^\s*│?\s*(\*?)\s*(\d+)\.\s+(.*?)\s*\[vol:")
@@ -112,12 +112,11 @@ def set_volume(node_id: int, volume: float) -> None:
 
 
 def measure(seconds: float = 4.0) -> float:
-    """Record from the default source and return its RMS in dBFS.
+    """Record from the default source and return sustained activity in dBFS.
 
-    Uses the same warm-up skip as a real take, so the number it reports is the
-    number the silence gate will see -- a mic test that measured the device's
-    open transient along with the room would read tens of dB high and call a
-    dead microphone healthy.
+    Replay the same PCM observer as dictation. A whole-take mean lets a pause
+    turn a working microphone into a failed test, while a peak lets one device
+    pop call a dead microphone healthy.
     """
     if sys.platform == "win32":
         from .windows import audio as windows_audio
@@ -151,16 +150,24 @@ def measure(seconds: float = 4.0) -> float:
                 "utf-8", "replace"
             )
             raise AudioError(stderr.strip() or "pw-record produced no audio")
-        return _rms_dbfs(path)
+        return _activity_dbfs(path)
+
+
+def _activity_dbfs(path: Path) -> float:
+    """Use the recorder's exact activity decision for a saved microphone test."""
+    observed = Recorder(path)
+    with wave.open(str(path)) as source:
+        while frames := source.readframes(4096):
+            observed._observe(frames)
+    return observed.activity_dbfs
 
 
 def _rms_dbfs(path: Path) -> float:
-    """The take's average level, on exactly the scale the silence gate uses.
+    """The take's average level for telemetry, excluding the device-open pop.
 
-    Goes through `recorder.dbfs` rather than repeating 20*log10(x/32768):
-    two definitions of this number mean the microphone test and the gate that
-    actually throws takes away can disagree about the same recording, which is
-    this project's most expensive misdiagnosis.
+    This remains separate from sustained activity: pauses dilute the average
+    even when words were captured clearly. `recorder.dbfs` keeps both metrics
+    on the same amplitude scale without making them the same decision.
 
     The warm-up frames are skipped in the file rather than read and sliced off:
     the ALSA device-open pop dominates a short take's RMS, and seeking past it

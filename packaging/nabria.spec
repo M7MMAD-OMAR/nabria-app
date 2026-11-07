@@ -12,7 +12,7 @@
 %global debug_package %{nil}
 
 Name:           nabria
-Version:        0.6.0
+Version:        0.7.0
 Release:        1%{?dist}
 Summary:        Local voice dictation — press a key, speak, the words are typed
 
@@ -28,6 +28,9 @@ ExclusiveArch:  x86_64
 Requires:       python3 >= 3.10
 Requires:       python3-gobject
 Requires:       python3-cairo
+# Fedora 44's minimal GTK install lacks cairo-1.0.typelib without this package;
+# pycairo supplies the Python module, not the typelib needed by import Gtk.
+Requires:       gobject-introspection
 Requires:       gtk4
 # pw-record is the only way to record; wl-clipboard is how the transcript is
 # delivered; wtype sends the paste keystroke.

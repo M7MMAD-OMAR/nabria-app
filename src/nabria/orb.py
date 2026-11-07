@@ -7,10 +7,9 @@ fullscreen. A layer surface on the OVERLAY layer sits above every window by
 protocol, and with keyboard interactivity set to NONE it can never steal focus
 from the window being dictated into.
 
-It is deliberately wordless and small -- five marks in a pill, centred under the
-screen, saying listening, thinking, or failed and nothing else. Anything with
-words in it belongs in a desktop notification, not floating over the user's
-work.
+Five marks stay small when no transcript is available. Live recognition expands
+the same surface into a reading card, so words can be checked without moving
+focus away from the document receiving the final paste.
 
 Five marks carry every state, so it always reads as one object changing rather
 than as a series of different pictures:
@@ -36,12 +35,13 @@ into an ordinary toplevel.
 from __future__ import annotations
 
 import math
+import unicodedata
 
 import cairo
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
 
 # Layer shell is what makes the indicator sit above everything, but it is not
 # universally available: GNOME does not implement the protocol at all, and the
@@ -54,12 +54,19 @@ try:
 except (ImportError, ValueError):
     LayerShell = None
 
-from . import config, theme  # noqa: E402
+from . import config, i18n, theme  # noqa: E402
 
 WINDOW_W = 76
 WINDOW_H = 30
 PILL_INSET = 3  # keeps the pill's shadow-free edge off the surface boundary
 PILL_RADIUS = 13
+TRANSCRIPT_W = 480
+TRANSCRIPT_LINES = 4
+TRANSCRIPT_PAD = 21
+TRANSCRIPT_TOP = 16
+TRANSCRIPT_BOTTOM = 42
+TRANSCRIPT_TEXT_H = 32 * TRANSCRIPT_LINES
+TRANSCRIPT_MAX_H = TRANSCRIPT_TEXT_H + TRANSCRIPT_TOP + TRANSCRIPT_BOTTOM
 
 # Five bars, not a scrolling history of thirty-four. At this size a history
 # would be a texture rather than a reading, and the one thing it has to say --
@@ -91,6 +98,16 @@ window.nabria {
   background-color: transparent;
   background-image: none;
   box-shadow: none;
+  border: none;
+}
+.nabria-transcript {
+  font-size: 16px;
+  font-weight: 400;
+}
+.nabria-transcript-scroll,
+.nabria-transcript-scroll viewport {
+  background-color: transparent;
+  background-image: none;
   border: none;
 }
 """
@@ -139,6 +156,8 @@ class Orb:
         self.phase = 0.0
         self.visible = False
         self._hide_source = 0
+        self.transcript = ""
+        self._scroll_source = 0
 
         self.window = Gtk.ApplicationWindow(application=application)
         self.window.add_css_class("nabria")
@@ -150,7 +169,36 @@ class Orb:
         self.area.set_content_width(WINDOW_W)
         self.area.set_content_height(WINDOW_H)
         self.area.set_draw_func(self._draw)
-        self.window.set_child(self.area)
+        self.overlay = Gtk.Overlay()
+        self.overlay.set_child(self.area)
+
+        self.transcript_label = i18n.label(wrap=True, selectable=False)
+        self.transcript_label.add_css_class("nabria-transcript")
+        self.transcript_label.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        self.transcript_label.set_valign(Gtk.Align.START)
+        self.transcript_label.set_focusable(False)
+        attributes = Pango.AttrList()
+        attributes.insert(Pango.attr_line_height_new(1.45))
+        attributes.insert(Pango.attr_foreground_new(*(
+            round(channel * 65535) for channel in self.colours["on_surface"]
+        )))
+        self.transcript_label.set_attributes(attributes)
+
+        self.transcript_scroll = Gtk.ScrolledWindow()
+        self.transcript_scroll.add_css_class("nabria-transcript-scroll")
+        self.transcript_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.transcript_scroll.set_has_frame(False)
+        self.transcript_scroll.set_focusable(False)
+        self.transcript_scroll.set_margin_start(TRANSCRIPT_PAD)
+        self.transcript_scroll.set_margin_end(TRANSCRIPT_PAD)
+        self.transcript_scroll.set_margin_top(TRANSCRIPT_TOP)
+        self.transcript_scroll.set_margin_bottom(TRANSCRIPT_BOTTOM)
+        self.transcript_scroll.set_child(self.transcript_label)
+        self.transcript_scroll.set_visible(False)
+        self.transcript_scroll.get_vadjustment().connect("changed", self._scroll_transcript)
+        self.overlay.add_overlay(self.transcript_scroll)
+        self.overlay.set_measure_overlay(self.transcript_scroll, False)
+        self.window.set_child(self.overlay)
 
         self.layered = config.WINDOWS or layer_shell_available()
         self._init_surface()
@@ -216,7 +264,7 @@ class Orb:
 
     def _draw(self, _area, context, width, height) -> None:
         accent = self.colours[ACCENTS.get(self.state, "primary")]
-        centre_y = height / 2
+        centre_y = height - WINDOW_H / 2 - 3 if self.transcript else height / 2
 
         self._rounded_rect(
             context,
@@ -224,12 +272,31 @@ class Orb:
             PILL_INSET,
             width - 2 * PILL_INSET,
             height - 2 * PILL_INSET,
-            PILL_RADIUS,
+            16 if self.transcript else PILL_RADIUS,
         )
-        context.set_source_rgba(*self.colours["surface_container"], 0.92)
+        if self.transcript:
+            # Static translucent shading gives the card depth without a
+            # per-frame blur pass or compositor-wide appearance changes.
+            surface = self.colours["surface_container"]
+            foreground = self.colours["on_surface"]
+            glass = cairo.LinearGradient(0, 0, 0, height)
+            glass.add_color_stop_rgba(0, *(
+                channel * 0.93 + light * 0.07
+                for channel, light in zip(surface, foreground)
+            ), 0.88)
+            glass.add_color_stop_rgba(1, *surface, 0.84)
+            context.set_source(glass)
+        else:
+            context.set_source_rgba(*self.colours["surface_container"], 0.92)
         context.fill_preserve()
         context.set_line_width(1.0)
-        context.set_source_rgba(*self.colours["outline_variant"], 0.55)
+        if self.transcript:
+            rim = cairo.LinearGradient(0, 0, 0, height)
+            rim.add_color_stop_rgba(0, *self.colours["on_surface"], 0.22)
+            rim.add_color_stop_rgba(1, *self.colours["on_surface"], 0.07)
+            context.set_source(rim)
+        else:
+            context.set_source_rgba(*self.colours["outline_variant"], 0.55)
         context.stroke()
 
         centre_x = width / 2
@@ -319,6 +386,63 @@ class Orb:
 
     # -- state -------------------------------------------------------------
 
+    def set_transcript(self, text: str) -> None:
+        """Replace the revisable preview without presenting or focusing again."""
+        if not text:
+            self.clear_transcript()
+            return
+        if text == self.transcript:
+            return
+        self.transcript = text
+        # Dictation language and UI language are independent. Let the first
+        # strong character choose the paragraph's start edge; Pango shapes and
+        # orders the mixed-script text, without contaminating it with isolates.
+        rtl = False
+        for character in text:
+            direction = unicodedata.bidirectional(character)
+            if direction in {"R", "AL", "L"}:
+                rtl = direction != "L"
+                break
+        self.transcript_label.set_direction(Gtk.TextDirection.RTL if rtl else Gtk.TextDirection.LTR)
+        # Pango mirrors LEFT for an RTL paragraph. Setting RIGHT here would
+        # mirror twice and leave short Arabic continuation lines on the left.
+        self.transcript_label.set_justify(Gtk.Justification.LEFT)
+        self.transcript_label.set_text(text)
+        self.area.set_content_width(TRANSCRIPT_W)
+        self.area.set_content_height(TRANSCRIPT_MAX_H)
+        self.window.set_default_size(TRANSCRIPT_W, TRANSCRIPT_MAX_H)
+        self.transcript_scroll.set_visible(True)
+        self._scroll_transcript(self.transcript_scroll.get_vadjustment())
+        self.area.queue_draw()
+
+    def clear_transcript(self) -> None:
+        if self._scroll_source:
+            GLib.source_remove(self._scroll_source)
+            self._scroll_source = 0
+        self.transcript = ""
+        self.transcript_label.set_text("")
+        self.transcript_scroll.set_visible(False)
+        self.area.set_content_width(WINDOW_W)
+        self.area.set_content_height(WINDOW_H)
+        self.window.set_default_size(WINDOW_W, WINDOW_H)
+        self.area.queue_draw()
+
+    def _scroll_transcript(self, adjustment) -> None:
+        # New speech always follows the tail. The viewport has a fixed height;
+        # all earlier text remains in the label rather than being discarded.
+        if self.transcript and not self._scroll_source:
+            # Adjustment bounds change during allocation. Moving the viewport
+            # inside that signal can update its value before its transform,
+            # leaving a new paragraph painted at the old scroll position.
+            self._scroll_source = GLib.idle_add(self._follow_tail)
+
+    def _follow_tail(self) -> bool:
+        self._scroll_source = 0
+        if self.transcript:
+            adjustment = self.transcript_scroll.get_vadjustment()
+            adjustment.set_value(max(0.0, adjustment.get_upper() - adjustment.get_page_size()))
+        return GLib.SOURCE_REMOVE
+
     def show(self, state: str) -> None:
         self._cancel_hide()
         self.state = state
@@ -350,6 +474,7 @@ class Orb:
         # rather than replaying the tail of the previous one.
         self.level = 0.0
         self.shown = 0.0
+        self.clear_transcript()
 
     def _cancel_hide(self) -> None:
         if self._hide_source:

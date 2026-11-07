@@ -20,6 +20,7 @@ from pathlib import Path
 RATE = 16_000  # whisper resamples anything else, so feed it its native rate
 CHANNELS = 1
 CHUNK_BYTES = 8 * 1024
+LIVE_BUFFER_BYTES = RATE * CHANNELS * 2 * 30
 SILENT_DBFS = -120.0
 # Opening the ALSA capture device pops: the first fraction of a second comes
 # back tens of dB above the room, loud enough on its own to carry a take of
@@ -33,6 +34,11 @@ SILENT_DBFS = -120.0
 # the boundary. Dropping whole chunks instead would round up to 0.768 s, which
 # also raised the "too short to measure" cutoff well past what it claimed.
 LEVEL_WARMUP_FRAMES = int(0.6 * RATE)
+# Five voiced-sized windows in a 200 ms interval reject a single click while
+# keeping a syllable audible after a long pause has diluted the take's mean.
+ACTIVITY_WINDOW_BYTES = int(0.02 * RATE) * 2
+ACTIVITY_WINDOWS = 10
+ACTIVITY_REQUIRED = 5
 
 
 class MissingRecorder(RuntimeError):
@@ -80,6 +86,10 @@ class Recorder:
         self.samples = 0
         self.total_frames = 0
         self.error = ""
+        # Preview can catch up after the engine warms up, but it must never
+        # retain an unlimited recording or stall microphone capture on I/O.
+        self.live_buffer = bytearray()
+        self.live_bytes = 0
         # Set by the daemon when it has already warned, mid-take, that nothing
         # is arriving. It rides on the take rather than on the daemon because
         # takes overlap -- a new one starts while the last is still being
@@ -87,6 +97,10 @@ class Recorder:
         # wrong recording. Read at the far end to keep the finished-take
         # notice from repeating what the user was already told.
         self.warned_unheard = False
+        self._sample_tail = b""
+        self._activity_pending = bytearray()
+        self._activity_windows: deque[float] = deque(maxlen=ACTIVITY_WINDOWS)
+        self._sustained_dbfs = SILENT_DBFS
 
     @property
     def seconds(self) -> float:
@@ -109,10 +123,8 @@ class Recorder:
     def rms_dbfs(self) -> float:
         """Average level over the whole take.
 
-        The guard uses this rather than the peak because a single keyboard
-        click or chair creak pushes the peak well above any silence threshold,
-        while the take as a whole is still nothing but room tone -- which is
-        exactly what whisper turns into a confident "شكرا للمشاهدة".
+        Kept for diagnostics. The gate uses activity_dbfs: a long pause can
+        dilute this average even after clear speech has reached the recorder.
         """
         with self.lock:
             return self._rms_dbfs()
@@ -129,15 +141,33 @@ class Recorder:
             return SILENT_DBFS
         return dbfs(math.sqrt(self.energy / self.samples) / 32768.0)
 
-    def unheard(self, threshold: float, after: float) -> tuple[bool, float, float]:
-        """Whether the take has run `after` seconds without hearing anything.
+    @property
+    def activity_dbfs(self) -> float:
+        """Strongest sustained input after warm-up, not whole-take loudness.
 
-        Returns the verdict together with the length and level it was reached
-        from, because a caller that re-reads those afterwards takes the lock
-        again and gets a different instant: one chunk of speech landing in the
-        gap is enough for the notification to say "nothing has risen above -42
-        dBFS" while its own body reports -29. The log line then records that
-        contradiction in the one file this project tells people to read first.
+        This is acoustic evidence, not a speech classifier. Recognition still
+        decides the text, and isolated transients must not admit room tone.
+        """
+        with self.lock:
+            return self._sustained_dbfs
+
+    def _observe_activity(self, data: bytes) -> None:
+        """Update bounded short-window statistics with the lock held."""
+        self._activity_pending.extend(data)
+        while len(self._activity_pending) >= ACTIVITY_WINDOW_BYTES:
+            block = bytes(self._activity_pending[:ACTIVITY_WINDOW_BYTES])
+            del self._activity_pending[:ACTIVITY_WINDOW_BYTES]
+            _, count, energy = _levels(block)
+            self._activity_windows.append(dbfs(math.sqrt(energy / count) / 32768.0))
+            if len(self._activity_windows) >= ACTIVITY_REQUIRED:
+                sustained = sorted(self._activity_windows, reverse=True)[ACTIVITY_REQUIRED - 1]
+                self._sustained_dbfs = max(self._sustained_dbfs, sustained)
+
+    def unheard(self, threshold: float, after: float) -> tuple[bool, float, float]:
+        """Whether sustained input remains below threshold after `after` seconds.
+
+        Return the verdict, length and whole-take RMS under one lock. RMS is
+        telemetry only: pauses can dilute it after sustained input was heard.
 
         Read while the recording is still going, which is the whole point:
         the silent-take notice can only speak once a take is finished, and by
@@ -153,7 +183,7 @@ class Recorder:
             level = self._rms_dbfs()
             if after <= 0 or self.samples == 0 or self.total_frames < after * RATE:
                 return False, seconds, level
-            return level <= threshold, seconds, level
+            return self._sustained_dbfs <= threshold, seconds, level
 
     def start(self) -> None:
         # Checked by name rather than left to Popen, whose FileNotFoundError
@@ -197,7 +227,10 @@ class Recorder:
                 sink.setnchannels(CHANNELS)
                 sink.setsampwidth(2)
                 sink.setframerate(RATE)
-                while not self.stop_event.is_set():
+                # Terminating pw-record closes the pipe. Drain through EOF:
+                # a stop flag can discard buffered PCM, clipping the last word
+                # when the reader has fallen behind the capture process.
+                while True:
                     data = self.process.stdout.read(CHUNK_BYTES)
                     if not data:
                         break
@@ -208,9 +241,19 @@ class Recorder:
                 self.error = str(exc)
 
     def _observe(self, data: bytes) -> None:
-        frames = len(data) // 2
-        live, _, _ = _levels(data)
         with self.lock:
+            self.live_buffer.extend(data)
+            self.live_bytes += len(data)
+            if len(self.live_buffer) > LIVE_BUFFER_BYTES:
+                del self.live_buffer[: len(self.live_buffer) - LIVE_BUFFER_BYTES]
+            # A short pipe read may divide one s16 sample. Carry its first
+            # byte into the next read rather than shifting all later samples.
+            aligned = self._sample_tail + data
+            end = len(aligned) & ~1
+            self._sample_tail = aligned[end:]
+            data = aligned[:end]
+            frames = len(data) // 2
+            live, _, _ = _levels(data)
             start = self.total_frames
             self.total_frames += frames
             # The live meter is never gated on the warm-up. The orb
@@ -232,6 +275,20 @@ class Recorder:
             self.max_peak_dbfs = max(self.max_peak_dbfs, level)
             self.energy += energy
             self.samples += count
+            self._observe_activity(data)
+
+    def read_live(self, offset: int) -> tuple[bytes, int]:
+        """Read PCM since an absolute byte offset without consuming the WAV."""
+        with self.lock:
+            first = self.live_bytes - len(self.live_buffer)
+            if offset < first:
+                raise ValueError("Live transcription fell behind microphone capture")
+            if offset > self.live_bytes or offset < 0 or offset % 2:
+                raise ValueError("Invalid live audio offset")
+            # A pipe read can split an s16 sample. Keep that final byte for
+            # the next read, rather than handing a malformed frame to ASR.
+            end = self.live_bytes - (self.live_bytes % 2)
+            return bytes(self.live_buffer[offset - first : end - first]), end
 
     def _drain_stderr(self) -> None:
         assert self.process and self.process.stderr
@@ -252,6 +309,8 @@ class Recorder:
             # The writer thread closes the WAV header on exit; joining here is
             # what guarantees the file is readable by the time we POST it.
             self.reader.join(timeout=5)
+            if self.reader.is_alive():
+                raise RuntimeError("Microphone capture did not stop")
 
     def recent_stderr(self) -> str:
         return "".join(self.stderr_tail)[-800:]

@@ -99,7 +99,7 @@ stale if you have edited that file this turn.
 | "What does this depend on?" | `graft callers <sym> --direction out` | 1 |
 | Finding every occurrence of a pattern | `graft grep "<literal>"` | 1 |
 | "What's the API of this file?" | `graft skeleton <file>` | 1 |
-| Debugging a failure in area X | `graft ask "<symptom>" --source`, then `callers` on the suspect | 1, 2 |
+| Debugging a failure in area X | `graft ask "<symptom>" --source`, then `callers` on the suspect | 1 to 2 |
 | Judging a diff's risk before merge | `graft callers <changed sym> --depth 2` | 1 / symbol |
 | Working inside one repo of a monorepo | add `--in <scope>/` to ask / grep / callers | n/a |
 

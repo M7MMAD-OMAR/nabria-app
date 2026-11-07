@@ -54,6 +54,35 @@ import threading
 import time
 from pathlib import Path
 
+_restore_lock = threading.Lock()
+_pending_restores: set[threading.Timer] = set()
+
+
+def clipboard_busy() -> bool:
+    """A runtime refresh must wait until borrowed selections are returned."""
+    with _restore_lock:
+        return bool(_pending_restores)
+
+
+def _schedule_restore(callback, previous, text: str) -> None:
+    def restore() -> None:
+        try:
+            callback(previous, text)
+        finally:
+            with _restore_lock:
+                _pending_restores.discard(timer)
+
+    timer = threading.Timer(RESTORE_DELAY, restore)
+    timer.daemon = True
+    with _restore_lock:
+        _pending_restores.add(timer)
+    try:
+        timer.start()
+    except RuntimeError:
+        with _restore_lock:
+            _pending_restores.discard(timer)
+        raise
+
 TIMEOUT = 30
 
 # Terminals paste on Ctrl+Shift+V, because Ctrl+V is a control character there.
@@ -512,9 +541,7 @@ def _paste_xwayland(text: str, terminals: tuple[str, ...] = ()) -> None:
     _to_x11_clipboard(text)
     _send_paste_key(terminals)
     if previous is not None and previous != text:
-        timer = threading.Timer(RESTORE_DELAY, _restore_x11_clipboard, (previous, text))
-        timer.daemon = True
-        timer.start()
+        _schedule_restore(_restore_x11_clipboard, previous, text)
 
 
 def _paste(text: str, terminals: tuple[str, ...] = ()) -> None:
@@ -527,9 +554,7 @@ def _paste(text: str, terminals: tuple[str, ...] = ()) -> None:
     subprocess.run(["wl-copy", "--", text], check=True, timeout=TIMEOUT)
     _send_paste_key(terminals)
     if previous is not None and previous[1] != text.encode("utf-8"):
-        timer = threading.Timer(RESTORE_DELAY, _restore_clipboard, (previous, text))
-        timer.daemon = True
-        timer.start()
+        _schedule_restore(_restore_clipboard, previous, text)
 
 
 BACKENDS = {"paste": _paste, "wtype": _wtype, "ydotool": _ydotool}

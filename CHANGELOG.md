@@ -4,6 +4,18 @@ What changed in each release, in the words of somebody using it rather than
 somebody writing it. Every published version has a section here, and
 `scripts/release.sh` refuses to publish a tag that does not.
 
+## 0.7.0
+
+2026-11-07
+
+- Show local live dictation on Linux in a bounded, scrolling indicator, with one final paste.
+- Add an optional pinned Linux Nemotron streaming runtime while keeping Whisper selectable.
+- Preserve quiet recordings and recognize sustained speech despite long pauses.
+- Detect microphone mute changes during dictation and report live-preview failures.
+- Recover local inference after engine failures and preserve complete capture tails.
+- Keep Arabic and English vocabulary controls separate and support exact corrections.
+- Declare the Fedora Cairo introspection dependency required by GTK's Python bindings.
+
 ## 0.6.0
 
 2026-09-07

@@ -235,7 +235,21 @@ def test_the_reason_survives_a_drain_thread_that_has_not_run(engine, monkeypatch
     )
 
 
-def test_inference_never_uses_a_system_http_proxy(tmp_path, monkeypatch):
+@pytest.mark.parametrize("payload, expected", [
+    ({"text": "hello"}, "hello"),
+    ({"text": "سبارة"}, "صبارة"),
+    ({"text": "المواض\nيع تبعتها\n", "segments": [
+        {"text": "المواض"}, {"text": "يع تبعتها"},
+    ]}, "المواضيع تبعتها"),
+    ({"text": "hello\n world\n", "segments": [
+        {"text": "hello"}, {"text": " world"},
+    ]}, "hello world"),
+    ({"text": "", "segments": []}, ""),
+])
+@pytest.mark.parametrize("beam_size", [1, 5])
+def test_inference_never_uses_a_system_http_proxy(
+    tmp_path, monkeypatch, payload, expected, beam_size,
+):
     import json
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -246,11 +260,11 @@ def test_inference_never_uses_a_system_http_proxy(tmp_path, monkeypatch):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             received.append(self.rfile.read(int(self.headers["Content-Length"])))
-            payload = json.dumps({"text": "hello"}).encode()
+            encoded = json.dumps(payload).encode()
             self.send_response(200)
-            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
-            self.wfile.write(payload)
+            self.wfile.write(encoded)
 
         def log_message(self, *args):
             pass
@@ -265,11 +279,124 @@ def test_inference_never_uses_a_system_http_proxy(tmp_path, monkeypatch):
         worker = threading.Thread(target=http.serve_forever, daemon=True)
         worker.start()
         try:
-            engine = WhisperServer({}, lambda message: None)
+            engine = WhisperServer(
+                {"beam_size": beam_size, "corrections": {"سبارة": "صبارة"}},
+                lambda message: None,
+            )
             engine.port = http.server_port
             monkeypatch.setattr(engine, "ensure", lambda: None)
-            assert engine.transcribe(wav) == "hello"
+            assert engine.transcribe(wav) == expected
             assert b"private audio fixture" in received[0]
+            assert b"verbose_json" in received[0]
+            assert b' name="no_language_probabilities"' in received[0]
+            assert (
+                f'name="beam_size"\r\n\r\n{beam_size}\r\n'.encode() in received[0]
+            )
         finally:
             http.shutdown()
             worker.join(timeout=2)
+
+
+def test_idna_survives_stdlib_replacement():
+    # IDNA is normally lazy, even for a numeric loopback address. Updating
+    # Python underneath the daemon broke that import on the first take.
+    code = '''
+import sys
+import nabria.whisper
+import socket
+import importlib.abc
+sys.modules.pop("encodings.idna", None)
+class MissingIDNA(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "encodings.idna":
+            raise ModuleNotFoundError(fullname)
+sys.meta_path.insert(0, MissingIDNA())
+assert socket.getaddrinfo("127.0.0.1", 1)
+'''
+    import os
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(whisper.Path(whisper.__file__).parents[1])
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, env=env,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("fault, requests_expected", [
+    ("disconnect_once", 2), ("disconnect_always", 2), ("client_error", 1),
+    ("server_error_once", 2),
+    ("gpu_crash_once", 2),
+])
+def test_inference_recovers_once_with_the_same_audio(tmp_path, monkeypatch, fault, requests_expected):
+    import socket
+    import threading
+    import urllib.error
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    received = []
+    stopped = []
+    locked = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append(self.rfile.read(int(self.headers["Content-Length"])))
+            acquired = engine.lock.acquire(blocking=False)
+            if acquired:
+                engine.lock.release()
+            locked.append(not acquired)
+            if fault == "disconnect_always" or (
+                fault in {"disconnect_once", "gpu_crash_once"} and len(received) == 1
+            ):
+                self.connection.shutdown(socket.SHUT_RDWR)
+                self.connection.close()
+                return
+            status = 400 if fault == "client_error" else (
+                503 if fault == "server_error_once" and len(received) == 1 else 200
+            )
+            payload = b'{"text":"recovered words"}'
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, *args):
+            pass
+
+    wav = tmp_path / "voice.wav"
+    wav.write_bytes(b"irreplaceable recorded audio")
+    with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as http:
+        worker = threading.Thread(target=http.serve_forever, daemon=True)
+        worker.start()
+        engine = whisper.WhisperServer({}, lambda line: None)
+        engine.port = http.server_port
+        if fault == "gpu_crash_once":
+            from types import SimpleNamespace
+            engine.device = gpu.Plan(True, 1, "test GPU")
+            engine.process = SimpleNamespace(poll=lambda: -6)
+        monkeypatch.setattr(engine, "ensure", lambda: None)
+        monkeypatch.setattr(engine, "stop", lambda: stopped.append(True))
+        try:
+            if fault in {"disconnect_always", "client_error"}:
+                with pytest.raises((OSError, urllib.error.URLError)):
+                    engine.transcribe(wav)
+            else:
+                assert engine.transcribe(wav) == "recovered words"
+            assert len(received) == requests_expected
+            assert len(stopped) == (0 if fault == "client_error" else 1)
+            assert all(locked), "idle reaper could interrupt an active inference"
+            assert engine.gpu_failed == (fault == "gpu_crash_once")
+            assert all(b"irreplaceable recorded audio" in body for body in received)
+            assert wav.read_bytes() == b"irreplaceable recorded audio"
+        finally:
+            http.shutdown()
+            worker.join(timeout=2)
+
+
+def test_missing_audio_is_not_retried(tmp_path, monkeypatch):
+    engine = whisper.WhisperServer({}, lambda line: None)
+    stopped = []
+    monkeypatch.setattr(engine, "ensure", lambda: None)
+    monkeypatch.setattr(engine, "stop", lambda: stopped.append(True))
+    with pytest.raises(FileNotFoundError):
+        engine.transcribe(tmp_path / "missing.wav")
+    assert stopped == []

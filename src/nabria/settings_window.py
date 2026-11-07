@@ -48,10 +48,11 @@ UI_LANGUAGES = [("auto", "settings.ui_language.auto")] + [
 ]
 
 _BY_FILENAME = {model.filename: model for model in models.CATALOG.values()}
+_BY_FILENAME[models.NEMOTRON.filename] = models.NEMOTRON
 
 
 def _model_label(name: str) -> str:
-    """`base — Fast on any machine.`, or the bare filename for a stranger.
+    """`base: Fast on any machine.`, or the bare filename for a stranger.
 
     Both halves are isolated: the model name is Latin, and so is a filename
     dropped into the model directory by hand, which is the case this falls
@@ -60,7 +61,7 @@ def _model_label(name: str) -> str:
     model = _BY_FILENAME.get(name)
     if not model:
         return i18n.ltr(name)
-    return f"{i18n.ltr(model.key)} — {i18n.t(model.summary)}"
+    return f"{i18n.ltr(model.key)}: {i18n.t(model.summary)}"
 
 
 class _Confirm(Gtk.Button):
@@ -314,6 +315,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         box.append(_hint(i18n.t("settings.ui_language.hint")))
 
         vocabulary = Gtk.Entry()
+        self.vocabulary = vocabulary
         vocabulary.set_hexpand(True)
         vocabulary.set_text(str(self.settings.get("vocabulary", "")))
         # Committed when the edit is finished, not on "changed": that fires per
@@ -325,7 +327,9 @@ class SettingsWindow(Gtk.ApplicationWindow):
         focus.connect("leave", lambda _c, entry=vocabulary: self._on_vocabulary_changed(entry))
         vocabulary.add_controller(focus)
         box.append(_row(i18n.t("settings.vocabulary"), vocabulary))
-        box.append(_hint(i18n.t("settings.vocabulary.hint")))
+        self.vocabulary_hint = _hint("")
+        box.append(self.vocabulary_hint)
+        self._refresh_vocabulary()
         return box
 
     def _picker(self, setting: str, choices: list[tuple[str, str]]) -> Gtk.Widget:
@@ -355,9 +359,21 @@ class SettingsWindow(Gtk.ApplicationWindow):
         index = combo.get_active()
         if 0 <= index < len(self.model_paths):
             self.on_change("model", self.model_paths[index])
+            self._refresh_vocabulary()
+
+    def _vocabulary_key(self) -> str:
+        if Path(str(self.settings.get("model", ""))).name == models.NEMOTRON.filename:
+            return "nemo_vocabulary"
+        return "vocabulary"
+
+    def _refresh_vocabulary(self) -> None:
+        key = self._vocabulary_key()
+        self.vocabulary.set_text(str(self.settings.get(key, "")))
+        hint = "settings.vocabulary.nemotron.hint" if key == "nemo_vocabulary" else "settings.vocabulary.hint"
+        self.vocabulary_hint.set_text(i18n.t(hint))
 
     def _on_vocabulary_changed(self, entry: Gtk.Entry) -> None:
-        self.on_change("vocabulary", entry.get_text())
+        self.on_change(self._vocabulary_key(), entry.get_text())
 
     # -- microphone --------------------------------------------------------
 

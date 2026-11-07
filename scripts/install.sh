@@ -149,7 +149,7 @@ if python3 -c 'import gi; gi.require_version("Gtk","4.0"); from gi.repository im
   ok "GTK 4 with Python bindings"
 else
   bad "GTK 4 Python bindings are missing"
-  echo "      $(hint 'python3-gobject gtk4' 'python3-gi gir1.2-gtk-4.0' 'python-gobject gtk4')"
+  echo "      $(hint 'python3-gobject gtk4 gobject-introspection' 'python3-gi gir1.2-gtk-4.0' 'python-gobject gtk4')"
   fatal=1
 fi
 

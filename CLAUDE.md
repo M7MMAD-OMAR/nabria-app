@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Nabria (نَبْرة, "tone of voice") is local voice dictation for Linux. Press a
+Nabria (نَبْرة, "tone of voice") is local voice dictation for Linux and Windows. Press a
 key, speak, press again, the text is pasted into the focused window. Nothing
 leaves the machine. No account, no cloud.
 
-The product concept is **"just talk"** and it is load-bearing: live partial
-transcription, note-taking, summarisation, translation, an assistant, a tray
-menu, cloud sync and a plugin system are all explicit non-goals. A feature that
-needs explaining does not go in. See `PLAN.md`.
+The product concept is **"just talk"** and it is load-bearing. Live transcript
+previews are explicitly authorized inside the indicator, with one final paste.
+Note-taking, summarisation, translation, an assistant, a tray menu, cloud sync
+and a plugin system remain non-goals. See `PLAN.md` and `docs/LIVE_DICTATION.md`.
 
 ## Commands
 

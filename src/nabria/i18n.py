@@ -333,21 +333,34 @@ STRINGS: dict[str, dict[str, str]] = {
     # Said while the take is still running, which is the only time it can
     # still save the sentence being spoken.
     "app.unheard": {
-        "en": "Still recording, but hearing nothing",
-        "ar": "التسجيل مستمر، لكن لا يصل أي صوت",
+        "en": "Recording continues; check the microphone",
+        "ar": "التسجيل مستمر، تحقّق من الميكروفون",
     },
     "app.unheard_muted_body": {
-        "en": "{source} is muted. Unmute it and say that again: nothing so far "
-              "has been recorded.",
-        "ar": "الميكروفون {source} مكتوم. أعد تفعيله وأعد ما قلته، فلم يُسجَّل شيء "
-              "حتى الآن.",
+        "en": "{source} was muted when checked. Unmute it, then repeat any speech that was missed.",
+        "ar": "كان الميكروفون {source} مكتوماً عند الفحص. ألغِ الكتم، ثم أعد الكلام الذي لم يُلتقط.",
     },
     "app.unheard_body": {
-        "en": "{seconds} seconds in and nothing has risen above {threshold} dBFS "
-              "on {source}. Check that it is not muted, and that the right "
-              "input is selected.",
-        "ar": "مضت {seconds} ثانية دون أن يتجاوز أي صوت {threshold} ديسيبل على "
-              "{source}. تأكّد أنه غير مكتوم وأن جهاز الإدخال المختار صحيح.",
+        "en": "After {seconds} seconds, no sustained input above {threshold} dBFS was detected "
+              "from {source}. Check its level, mute state and input selection.",
+        "ar": "بعد {seconds} ثانية، لم تُرصد إشارة مستمرة فوق {threshold} ديسيبل من "
+              "{source}. تحقّق من مستوى الصوت والكتم وجهاز الإدخال المختار.",
+    },
+    "app.live_unavailable": {
+        "en": "Live preview unavailable",
+        "ar": "المعاينة الحية غير متاحة",
+    },
+    "app.live_unavailable_body": {
+        "en": "Recording continues. The complete recording will be transcribed after you stop.",
+        "ar": "التسجيل مستمر. سيُفرغ التسجيل كاملاً بعد إيقافه.",
+    },
+    "app.quiet_saved": {
+        "en": "Quiet recording saved",
+        "ar": "حُفظ التسجيل منخفض الصوت",
+    },
+    "app.quiet_saved_body": {
+        "en": "Clear speech could not be confirmed. The original recording is available at {path}",
+        "ar": "لم يُؤكَّد وجود كلام واضح. التسجيل الأصلي محفوظ هنا: {path}",
     },
     # The take was kept, so this is not a failure. It is the one warning that
     # dictation is now slower than it should be, which is otherwise invisible.
@@ -365,6 +378,10 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # -- the model catalogue -----------------------------------------------
+    "model.nemotron.summary": {
+        "en": "Live speech recognition.",
+        "ar": "تفريغ حي للكلام.",
+    },
     "model.base.summary": {
         "en": "Fast on any machine. Good enough for clear speech.",
         "ar": "سريع على أي جهاز. يكفي للكلام الواضح.",
@@ -635,6 +652,10 @@ STRINGS: dict[str, dict[str, str]] = {
               "الجديد بينما تتكلم.",
     },
     "settings.vocabulary": {"en": "Vocabulary", "ar": "المفردات"},
+    "settings.vocabulary.nemotron.hint": {
+        "en": "Optional names and terms, separated by commas. Leave empty unless needed.",
+        "ar": "أسماء ومصطلحات خاصة، مفصولة بفواصل. اتركه فارغًا إذا لم تحتجها.",
+    },
     "settings.vocabulary.hint": {
         "en": "Fed to whisper as its initial prompt. Mixing Arabic and Latin "
               "here is what keeps spoken tech terms spelled rather than "

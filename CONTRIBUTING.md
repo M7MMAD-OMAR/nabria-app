@@ -27,10 +27,11 @@ cannot be reasoned about, only run.
 ## What this is, and what it will not become
 
 The product is **"just talk"**: press a key, speak, press it again, the words
-appear. That sentence is load-bearing. Live partial transcription,
-note-taking, summarising, translation, an assistant, a tray menu, cloud sync
+appear. That sentence is load-bearing. Note-taking, summarising, translation, an assistant, a tray menu, cloud sync
 and a plugin system are explicit non-goals, and a pull request adding one will
-be declined however good the code is. `PLAN.md` records why for each.
+be declined however good the code is. `PLAN.md` records why for each. The owner authorized live transcript previews
+inside the indicator; only the final result enters history and paste. See
+`docs/LIVE_DICTATION.md`.
 
 **A feature that needs explaining does not go in.** The best contribution is
 usually the one that removes a thing somebody has to know.

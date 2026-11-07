@@ -212,7 +212,7 @@ class Backend(Daemon):
                     finally:
                         recorder.stop()
                     self.emit(event="mic_result", heard=recorder.measured and
-                              recorder.rms_dbfs > config.silence_threshold(self.settings),
+                              recorder.activity_dbfs > config.silence_threshold(self.settings),
                               cancelled=self.task_cancel.is_set())
             else:
                 if command == "adopt":

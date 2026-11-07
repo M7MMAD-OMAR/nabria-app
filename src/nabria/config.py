@@ -87,6 +87,7 @@ DEFAULTS: dict[str, Any] = {
     # Transcription engine. Both are filled in by scripts/install.sh.
     "server_binary": str(LIBEXEC_DIR / ENGINE_NAME),
     "model": str(MODEL_DIR / "ggml-large-v3-turbo.bin"),
+    "nemo_vocabulary": "",
     "language": "auto",
     # The language the *interface* is written in -- en | ar | auto -- which is
     # not the one above. `language` is what you speak and goes to the engine;
@@ -114,6 +115,13 @@ DEFAULTS: dict[str, Any] = {
     # Oversubscribing the Windows CPU threadpool stalled the native inference
     # check on a four-vCPU runner. Keep the default within available CPUs.
     "threads": min(8, os.cpu_count() or 1),
+    # Wider decoding can recover mixed-language speech that greedy decoding
+    # translates or drops. Keep the CPU default cheap; tune on reference audio
+    # before increasing this on a particular machine.
+    "beam_size": 1,
+    # Explicit whole-word or phrase replacements, applied before history and
+    # paste. Personal spelling choices must not become global defaults.
+    "corrections": {},
     # Which device the engine computes on.
     #   auto  a discrete GPU if there is one, otherwise the CPU
     #   cpu   never use a GPU
@@ -194,7 +202,10 @@ DEFAULTS: dict[str, Any] = {
 
 
 def silence_threshold(settings: dict[str, Any]) -> float:
-    """The level below which a take is treated as "nothing was said".
+    """Minimum sustained-input level used by capture and microphone tests.
+
+    Compare against Recorder.activity_dbfs, not the mean over a whole take:
+    an ordinary pause must not erase a syllable that was already captured.
 
     One accessor because there are two places that judge a microphone, the
     wizard's test and the settings window's, and one that enforces the gate.

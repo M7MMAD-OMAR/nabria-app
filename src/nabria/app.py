@@ -25,6 +25,7 @@ import time
 import traceback
 import uuid
 from datetime import datetime
+from dataclasses import dataclass, field
 
 import gi
 
@@ -33,7 +34,8 @@ from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
 from . import audio, config, history, i18n, inject, notify
 from .orb import Orb
-from .recorder import MissingRecorder, Recorder
+from .recorder import MissingRecorder, Recorder, SILENT_DBFS
+from .runtime import RuntimeWatch
 
 if config.WINDOWS:
     from .windows.audio import Recorder
@@ -44,6 +46,7 @@ LEVEL_POLL_MS = 50
 # square root, so the notice lands when it is due rather than at the next
 # multiple of something coarse.
 SILENCE_POLL_MS = 1000
+INPUT_CHECK_SECONDS = 2.0
 # config.py owns every path; these two are named here only for brevity below.
 FAILED_DIR = config.FAILED_DIR
 TAKES_DIR = config.TAKES_DIR
@@ -51,7 +54,20 @@ TAKES_DIR = config.TAKES_DIR
 RELOAD_DRAIN_SECONDS = 30.0
 
 
-def _file_take(wav_path, directory):
+@dataclass
+class LiveResult:
+    take: str
+    engine: object
+    key: tuple[str, str, str]
+    done: threading.Event = field(default_factory=threading.Event)
+    finalize: bool = False
+    expected_bytes: int = 0
+    sent_bytes: int = 0
+    text: str | None = None
+    preview: str = ""
+
+
+def _file_take(wav_path, directory, prefix=""):
     """Move a take into `directory` under a timestamp, and return where it went.
 
     Second resolution alone collides: a short take is transcribed in a few
@@ -62,13 +78,43 @@ def _file_take(wav_path, directory):
     overwrote for months because it was a second copy of the same six lines.
     """
     directory.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    stamp = prefix + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     kept = directory / f"{stamp}.wav"
     suffix = 2
     while kept.exists():
         kept = directory / f"{stamp}-{suffix}.wav"
         suffix += 1
     shutil.move(str(wav_path), kept)
+    return kept
+
+
+def _file_quiet_take(wav_path, directory, log, *, max_files=20, max_bytes=50 * 1024 * 1024):
+    """Keep uncertain input without allowing room tone to fill the disk.
+
+    Only this feature's quiet-prefixed files rotate. Ordinary failed takes
+    remain untouched, and the newest complete recording is always retained.
+    """
+    kept = _file_take(wav_path, directory, prefix="quiet-")
+    used = kept.stat().st_size
+    count = 1
+    candidates = []
+    for path in directory.glob("quiet-*.wav"):
+        try:
+            candidates.append((path.stat().st_mtime, path))
+        except OSError:
+            continue  # The user can clear history while a take finishes.
+    for _, path in sorted(candidates, reverse=True):
+        if path == kept:
+            continue
+        try:
+            size = path.stat().st_size
+            if count >= max_files or used + size > max_bytes:
+                path.unlink()
+            else:
+                count += 1
+                used += size
+        except OSError as exc:
+            log(f"could not rotate quiet recording {path}: {exc}")
     return kept
 
 
@@ -142,9 +188,9 @@ class Daemon:
         self.wizard = None
         self.shortcuts = None
 
-        from .whisper import WhisperServer
+        from .nemotron import create_server
 
-        self.whisper = WhisperServer(self.settings, self.log)
+        self.whisper = create_server(self.settings, self.log)
         self.recording: Recorder | None = None
         self.pending: queue.Queue[Recorder] = queue.Queue()
         self.jobs = 0
@@ -155,6 +201,13 @@ class Daemon:
         self.level_source = 0
         self.deadline_source = 0
         self.silence_source = 0
+        self.live_stop: threading.Event | None = None
+        self.live_session = None
+        self.live_result: LiveResult | None = None
+        self.runtime_watch = None if config.WINDOWS else RuntimeWatch()
+        self.runtime_source = 0
+        self.restart_requested = False
+        self.runtime_idle_since = time.monotonic()
 
     def log(self, message: str) -> None:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -213,6 +266,8 @@ class Daemon:
         ).start()
         if self.settings.get("prewarm"):
             threading.Thread(target=self._prewarm, daemon=True).start()
+        if self.runtime_watch is not None:
+            self.runtime_source = GLib.timeout_add_seconds(5, self._refresh_runtime)
         self.log("daemon ready")
         if config.needs_setup(self.settings):
             GLib.idle_add(self._show_wizard)
@@ -260,7 +315,32 @@ class Daemon:
     def run(self) -> int:
         # An empty argv list makes GApplication skip its activate signal
         # entirely and exit immediately; argv[:1] is what it expects.
-        return self.application.run(sys.argv[:1])
+        result = self.application.run(sys.argv[:1])
+        if self.restart_requested:
+            # exec preserves the systemd unit identity required by the portal,
+            # and the launcher's LD_PRELOAD and PYTHONPATH. The old process's
+            # non-inherited sockets and GTK bus connection close on exec.
+            os.execv(sys.executable, [sys.executable, "-m", "nabria", *sys.argv[1:]])
+        return result
+
+    def _refresh_runtime(self) -> bool:
+        if (
+            self.state != "idle" or self.settings_window is not None
+            or self.wizard is not None or inject.clipboard_busy()
+        ):
+            self.runtime_idle_since = time.monotonic()
+            return GLib.SOURCE_CONTINUE
+        # Leave a brief quiet interval after work completes. Actual clipboard
+        # restores are tracked above, including ones blocked on subprocesses.
+        if time.monotonic() - self.runtime_idle_since < 2:
+            return GLib.SOURCE_CONTINUE
+        if self.runtime_watch is None or not self.runtime_watch.ready():
+            return GLib.SOURCE_CONTINUE
+        self.log("Python runtime updated; restarting while idle")
+        self.restart_requested = True
+        self.runtime_source = 0
+        self._quit()
+        return GLib.SOURCE_REMOVE
 
     # -- control socket ----------------------------------------------------
 
@@ -386,7 +466,7 @@ class Daemon:
         # command line at startup, so the loaded server is now stale. Stopping
         # it is enough -- the next take starts a fresh one, which is the same
         # path the idle unload already uses.
-        if key in {"model", "language", "vocabulary"}:
+        if key in {"model", "language", "vocabulary", "nemo_vocabulary"}:
             threading.Thread(
                 target=self._reload_engine, daemon=True, name="nabria-reload"
             ).start()
@@ -415,7 +495,16 @@ class Daemon:
             self.log("engine reload no longer waiting for the queue")
         self.whisper.stop()
 
+        from .nemotron import create_server, is_nemotron, NemotronServer
+
+        if isinstance(self.whisper, NemotronServer) != is_nemotron(self.settings.get("model", "")):
+            self.whisper = create_server(self.settings, self.log)
+
     def _quit(self) -> bool:
+        self._stop_live()
+        if self.runtime_source:
+            GLib.source_remove(self.runtime_source)
+            self.runtime_source = 0
         if self.shortcuts is not None:
             # Closing the portal session drops its bindings, so a restarted
             # daemon does not accumulate duplicates of them.
@@ -455,12 +544,19 @@ class Daemon:
     def _start(self) -> None:
         if self.recording is not None:
             return
+        self.runtime_idle_since = time.monotonic()
         self.takes += 1
         recorder = Recorder(config.STATE_DIR / f"take-{uuid.uuid4().hex}.wav")
+        recorder.take_number = self.takes
         recorder.start()
         self.recording = recorder
         assert self.orb
+        clear = getattr(self.orb, "clear_transcript", None)
+        if callable(clear):
+            clear()
         self.orb.show("recording")
+        self._start_live(recorder)
+        self._check_input(recorder)
         self.level_source = GLib.timeout_add(LEVEL_POLL_MS, self._poll_level)
         warn_after = self._silence_warning_seconds()
         if warn_after > 0:
@@ -474,6 +570,122 @@ class Daemon:
         threading.Thread(target=self._prewarm, daemon=True).start()
         self.log(f"take {self.takes}: recording started")
 
+    def _start_live(self, recorder: Recorder) -> None:
+        self._stop_live()
+        start_live = getattr(self.whisper, "start_live", None)
+        if not callable(start_live) or not callable(getattr(recorder, "read_live", None)):
+            return
+        stop = threading.Event()
+        self.live_stop = stop
+        result = LiveResult(str(recorder.destination), self.whisper, self._live_key())
+        recorder.live_result = result
+        self.live_result = result
+        threading.Thread(
+            target=self._preview, args=(recorder, stop, start_live, result),
+            daemon=True, name="nabria-live-preview",
+        ).start()
+
+    def _live_key(self) -> tuple[str, str, str]:
+        return tuple(str(self.settings.get(key, "")) for key in ("model", "language", "nemo_vocabulary"))
+
+    def _stop_live(self, *, finalize: bool = False, expected_bytes: int = 0) -> None:
+        result = self.live_result
+        self.live_result = None
+        if result is not None and finalize:
+            result.finalize = True
+            result.expected_bytes = expected_bytes
+        if self.live_stop is not None:
+            self.live_stop.set()
+            self.live_stop = None
+        live = self.live_session
+        self.live_session = None
+        if live is not None and not finalize:
+            cancel = getattr(live[1], "cancel", None)
+            if callable(cancel):
+                try:
+                    cancel()
+                except Exception as exc:
+                    self.log(f"could not interrupt live preview: {exc}")
+
+    def _preview(self, recorder: Recorder, stop: threading.Event, start_live, result: LiveResult | None = None) -> None:
+        session = None
+        try:
+            if stop.is_set():
+                return
+            def preview(text):
+                if result is not None:
+                    result.preview = text
+                GLib.idle_add(self._preview_text, recorder, stop, text)
+
+            session = start_live(preview)
+            if self.live_stop is stop and not stop.is_set():
+                self.live_session = (stop, session)
+            offset = 0
+            while not stop.is_set():
+                data, offset = recorder.read_live(offset)
+                if data:
+                    session.feed(data)
+                    if result is not None:
+                        result.sent_bytes = offset
+                else:
+                    stop.wait(0.1)
+            if result is not None and result.finalize:
+                # recorder.stop() has drained the capture pipe before this
+                # request. Include its last chunk before asking for a final.
+                data, offset = recorder.read_live(offset)
+                if data:
+                    session.feed(data)
+                    result.sent_bytes = offset
+                finish = getattr(session, "finish", None)
+                if result.sent_bytes == result.expected_bytes and callable(finish):
+                    result.text = finish(timeout=1.0)
+        except Exception as exc:  # noqa: BLE001 - preview must not lose the authoritative WAV
+            if not stop.is_set() or (result is not None and result.finalize):
+                self.log(f"live preview unavailable: {exc}; keeping full-take transcription")
+                GLib.idle_add(self._preview_unavailable, recorder, stop)
+        finally:
+            if result is not None:
+                result.done.set()
+            live = self.live_session
+            if live is not None and live[0] is stop:
+                self.live_session = None
+            if session is not None:
+                try:
+                    session.close()
+                except Exception as exc:  # noqa: BLE001 - capture and final delivery continue
+                    self.log(f"could not close live preview: {exc}")
+
+    def _preview_text(self, recorder: Recorder, stop: threading.Event, text: str) -> bool:
+        # A network response may already be queued on GTK when stop/cancel or
+        # a new take arrives. It must never replace that newer take's text.
+        if not stop.is_set() and self.recording is recorder and self.orb is not None:
+            update = getattr(self.orb, "set_transcript", None)
+            if callable(update):
+                update(text)
+        return GLib.SOURCE_REMOVE
+
+    def _preview_unavailable(self, recorder, stop) -> bool:
+        if stop.is_set() or self.recording is not recorder:
+            return GLib.SOURCE_REMOVE
+        result = getattr(recorder, "live_result", None)
+        if isinstance(result, LiveResult):
+            result.preview = ""
+        self._preview_text(recorder, stop, "")
+        # Replies already queued by the failed socket must not restore stale
+        # words after the warning clears them. The full WAV stays authoritative.
+        stop.set()
+
+        def report():
+            # A desktop notification can block; capture and GTK must continue.
+            if self.recording is not recorder:
+                return
+            try:
+                notify.send(i18n.t("app.live_unavailable"), i18n.t("app.live_unavailable_body"))
+            except Exception as exc:
+                self.log(f"could not report unavailable live preview: {exc}")
+        threading.Thread(target=report, daemon=True, name="nabria-live-notice").start()
+        return GLib.SOURCE_REMOVE
+
     def _poll_level(self) -> bool:
         recorder = self.recording
         if recorder is None or not self.orb:
@@ -481,6 +693,7 @@ class Daemon:
         with recorder.lock:
             level = recorder.peak_dbfs
         self.orb.set_level(level)
+        self._check_input(recorder)
         return GLib.SOURCE_CONTINUE
 
     def _silence_warning_seconds(self) -> float:
@@ -515,6 +728,11 @@ class Daemon:
         if recorder is None:
             self.silence_source = 0
             return GLib.SOURCE_REMOVE
+        if recorder.warned_unheard:
+            self.silence_source = 0
+            return GLib.SOURCE_REMOVE
+        if self._has_live_preview(recorder):
+            return GLib.SOURCE_CONTINUE
         threshold = config.silence_threshold(self.settings)
         # Length and level come back with the verdict, from the one lock
         # acquisition that produced it. Re-reading them here would take the
@@ -535,10 +753,59 @@ class Daemon:
         # mid-take, which is the one thing the indicator must never do while
         # it is claiming to listen.
         threading.Thread(
-            target=self._warn_unheard, args=(seconds, threshold),
+            target=self._warn_unheard, args=(seconds, threshold, recorder),
             daemon=True, name="nabria-silence-warning",
         ).start()
         return GLib.SOURCE_REMOVE
+
+    def _has_live_preview(self, recorder) -> bool:
+        result = getattr(recorder, "live_result", None)
+        return (
+            isinstance(result, LiveResult) and result.take == str(recorder.destination)
+            and result.engine is self.whisper and result.key == self._live_key()
+            and bool(result.preview.strip())
+        )
+
+    def _check_input(self, recorder) -> None:
+        now = time.monotonic()
+        if (self.recording is not recorder or getattr(recorder, "warned_unheard", False)
+                or getattr(recorder, "input_check_pending", False)
+                or now < getattr(recorder, "input_check_after", 0.0)):
+            return
+        # Past speech remains valid for final acceptance, but cannot prove that
+        # the microphone is still unmuted. Bound probes independently of PCM.
+        recorder.input_check_after = now + INPUT_CHECK_SECONDS
+        recorder.input_check_pending = True
+        threading.Thread(target=self._probe_input, args=(recorder,), daemon=True,
+                         name="nabria-input-check").start()
+
+    def _probe_input(self, recorder) -> None:
+        # Device queries spawn wpctl, so they must not delay the hotkey or GTK.
+        try:
+            name, muted = _default_input()
+            if muted is True:
+                GLib.idle_add(self._input_checked, recorder, name)
+        except Exception as exc:
+            self.log(f"could not check recording input: {exc}")
+        finally:
+            recorder.input_check_pending = False
+
+    def _input_checked(self, recorder, name) -> bool:
+        if self.recording is not recorder or recorder.warned_unheard:
+            return GLib.SOURCE_REMOVE
+        recorder.warned_unheard = True
+        threading.Thread(target=self._notify_muted_input, args=(recorder, name),
+                         daemon=True, name="nabria-input-notice").start()
+        return GLib.SOURCE_REMOVE
+
+    def _notify_muted_input(self, recorder, name) -> None:
+        try:
+            if self.recording is not recorder:
+                return
+            summary, body = self._unheard_notice(name, True, 0, config.silence_threshold(self.settings))
+            notify.send(summary, body, urgency="critical")
+        except Exception as exc:
+            self.log(f"could not send the muted input warning: {exc}")
 
     def _unheard_notice(self, name: str, muted: bool | None,
                         seconds: float, threshold: float) -> tuple[str, str]:
@@ -568,7 +835,7 @@ class Daemon:
             source=i18n.ltr(name),
         )
 
-    def _warn_unheard(self, seconds: float, threshold: float) -> None:
+    def _warn_unheard(self, seconds: float, threshold: float, recorder=None) -> None:
         """Send the mid-take warning. Runs on its own thread, not the loop.
 
         Wrapped, because nothing else catches for it. Every other notification
@@ -580,8 +847,16 @@ class Daemon:
         purpose is to stop a silent failure.
         """
         try:
+            source = _default_input()
+            # The query may finish after stop, a newer take, or the first
+            # audible syllable. Never send that stale warning.
+            if recorder is not None and (
+                self.recording is not recorder or self._has_live_preview(recorder)
+                or getattr(recorder, "activity_dbfs", SILENT_DBFS) > threshold
+            ):
+                return
             summary, body = self._unheard_notice(
-                *_default_input(), seconds=seconds, threshold=threshold
+                *source, seconds=seconds, threshold=threshold
             )
             notify.send(summary, body, urgency="critical")
         except Exception as exc:  # noqa: BLE001 - a bare thread has no other net
@@ -602,9 +877,11 @@ class Daemon:
                 setattr(self, attribute, 0)
 
     def _cancel(self) -> None:
+        self._stop_live()
         recorder, self.recording = self.recording, None
         if recorder is None:
             return
+        self.runtime_idle_since = time.monotonic()
         self._clear_timers()
         threading.Thread(
             target=lambda: (recorder.stop(), recorder.destination.unlink(missing_ok=True)),
@@ -627,6 +904,10 @@ class Daemon:
             recorder.stop()
         except Exception as exc:
             recorder.error = str(exc)
+        self._stop_live(
+            finalize=not bool(getattr(recorder, "error", "")),
+            expected_bytes=getattr(recorder, "live_bytes", getattr(recorder, "total_frames", 0) * 2) & ~1,
+        )
         self.pending.put(recorder)
         assert self.orb
         self.orb.show("working")
@@ -648,8 +929,29 @@ class Daemon:
             finally:
                 with self.jobs_lock:
                     self.jobs -= 1
+                    self.runtime_idle_since = time.monotonic()
                 self.pending.task_done()
                 GLib.idle_add(self._settle)
+
+    def _confirmed_live_text(self, recorder: Recorder) -> str | None:
+        result = getattr(recorder, "live_result", None)
+        if isinstance(result, LiveResult) and result.done.wait(1.5):
+            expected = getattr(recorder, "live_bytes", getattr(recorder, "total_frames", 0) * 2) & ~1
+            if (
+                result.take == str(recorder.destination) and result.engine is self.whisper
+                and result.key == self._live_key() and result.text is not None
+                and result.finalize
+                and expected > 0 and result.sent_bytes == result.expected_bytes == expected
+            ):
+                return result.text
+        return None
+
+    def _transcribe_audio(self, recorder: Recorder) -> str:
+        text = self._confirmed_live_text(recorder)
+        if text is not None:
+            self.log("using confirmed live transcript; complete WAV replay skipped")
+            return text
+        return self.whisper.transcribe(recorder.destination)
 
     def _transcribe(self, recorder: Recorder) -> None:
         started = time.monotonic()
@@ -662,6 +964,14 @@ class Daemon:
             if recorder.total_frames == 0:
                 raise RuntimeError(f"no audio captured. {recorder.recent_stderr()}")
 
+            self.log(
+                f"captured {recorder.seconds:.1f}s at {recorder.rms_dbfs:.1f} dBFS RMS, "
+                f"peak {recorder.max_peak_dbfs:.1f} dBFS"
+            )
+            capture_warnings = recorder.recent_stderr().strip()
+            if capture_warnings:
+                self.log(f"capture warnings: {capture_warnings}")
+
             if not recorder.measured:
                 # Shorter than the level warm-up, so no level was ever taken.
                 # It is not silence and it is not evidence about the input --
@@ -672,15 +982,35 @@ class Daemon:
                 return
 
             threshold = config.silence_threshold(self.settings)
-            if recorder.rms_dbfs <= threshold:
-                self.log(f"silent take ({recorder.rms_dbfs:.1f} dBFS RMS), skipped")
-                self._note_silent_take(recorder, recorder.rms_dbfs, threshold)
-                GLib.idle_add(self._done, "")
-                return
+            activity = getattr(recorder, "activity_dbfs", recorder.rms_dbfs)
+            self.log(f"sustained input at {activity:.1f} dBFS")
+            confirmed = None
+            if activity <= threshold:
+                nonzero = recorder.max_peak_dbfs > SILENT_DBFS
+                # A click has a nonzero peak but no sustained input. Even a
+                # fully received model result must not turn it into dictation.
+                confirmed = (
+                    self._confirmed_live_text(recorder)
+                    if nonzero and activity > SILENT_DBFS else None
+                )
+                if not confirmed:
+                    if nonzero:
+                        kept = _file_quiet_take(wav_path, FAILED_DIR, self.log)
+                        self.log(f"kept uncertain quiet take at {kept}")
+                        try:
+                            notify.send(i18n.t("app.quiet_saved"),
+                                        i18n.t("app.quiet_saved_body", path=i18n.ltr(kept)))
+                        except Exception as exc:
+                            self.log(f"could not notify about quiet recording: {exc}")
+                    else:
+                        self.log("no measured input signal, skipped")
+                        self._note_silent_take(recorder, recorder.rms_dbfs, threshold)
+                    GLib.idle_add(self._done, "")
+                    return
 
             # Audio came through, so whatever the input is, it is working.
             self.silent_run = 0
-            text = self.whisper.transcribe(wav_path)
+            text = confirmed if confirmed is not None else self._transcribe_audio(recorder)
             self._note_gpu_fallback()
             elapsed = time.monotonic() - started
             # The recording is filed before the transcript is, so a history
@@ -769,6 +1099,10 @@ class Daemon:
         # if it could not: a hand-edited "three" here used to raise inside the
         # take, file the audio into failed/ and report a broken transcriber,
         # turning a typo into what looked like a broken engine.
+        generation = getattr(self, "takes", 0)
+        if (getattr(recorder, "take_number", generation) != generation
+                or getattr(self, "recording", None) is not None):
+            return
         after = int(self.settings.get("silent_notice_after", 3) or 0)
         if recorder.warned_unheard:
             # Already said, to this face, about this take. Returning before the
@@ -784,6 +1118,14 @@ class Daemon:
             return
         self.log(f"{self.silent_run} silent takes in a row, notifying")
         name, muted = _default_input()
+        # A queued take can finish while the owner starts speaking again.
+        # A slow device query must not attach its old warning to that new take.
+        if (getattr(self, "takes", 0) != generation
+                or getattr(self, "recording", None) is not None):
+            # The trigger is an equality. A notice that never reached the
+            # owner must not spend it and silence every later short take.
+            self.silent_run -= 1
+            return
         if muted:
             # Nameable, so name it: this notice otherwise describes a symptom
             # and leaves the user to work out the cause that is one key away.
@@ -840,18 +1182,22 @@ class Daemon:
     # -- orb state ---------------------------------------------------------
 
     def _done(self, text: str) -> bool:
+        if self.recording is not None:
+            return GLib.SOURCE_REMOVE
         assert self.orb
-        self.orb.flash("error" if not text else "done")
+        if self.state == "idle":
+            self.orb.hide()
         return GLib.SOURCE_REMOVE
 
     def _fail(self, summary: str, body: str = "") -> bool:
-        if self.orb:
+        if self.orb and self.recording is None:
             self.orb.flash("error", 1.6)
         notify.send(summary, body, urgency="critical")
         return GLib.SOURCE_REMOVE
 
     def _settle(self) -> bool:
         """Once the last queued take is done, stop showing the spinner."""
+        self.runtime_idle_since = time.monotonic()
         if self.orb and self.state == "idle" and self.orb.state in {"working", "loading"}:
             self.orb.hide()
         return GLib.SOURCE_REMOVE
