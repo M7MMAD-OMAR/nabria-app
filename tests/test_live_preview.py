@@ -110,7 +110,10 @@ def test_cancellation_does_not_wait_for_a_warming_live_engine(monkeypatch):
 
 
 @pytest.mark.parametrize("fault", ["connect", "read", "send"])
-def test_preview_failure_leaves_the_authoritative_recording_untouched(fault):
+def test_preview_failure_leaves_the_authoritative_recording_untouched(fault, monkeypatch):
+    # Notification behavior has its own test. Do not leave GTK callbacks that
+    # later tests could dispatch after this fake recording's fixture is gone.
+    monkeypatch.setattr(app.GLib, "idle_add", lambda *args: None)
     path = object()
 
     def read(offset):
